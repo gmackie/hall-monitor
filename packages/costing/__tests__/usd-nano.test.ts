@@ -14,7 +14,10 @@ describe("UsdNano helpers", () => {
     expect(parseUsdNano("22876")).toBe(22876n);
     expect(parseUsdNano("-15")).toBe(-15n);
     expect(formatUsdNano(9_007_199_254_740_993n)).toBe("9007199254740993");
-    for (const bad of ["1.5", "1e3", "", " 1", "0x10"]) expect(() => parseUsdNano(bad)).toThrow(TypeError);
+    for (const bad of ["1.5", "1e3", "", " 1", "0x10", "007", "-0"]) expect(() => parseUsdNano(bad)).toThrow(TypeError);
+    expect(formatUsdNano(0n)).toBe("0");
+    expect(formatUsdNano(-15n)).toBe("-15");
+    expect(() => formatUsdNano(10n ** 30n)).toThrow(RangeError);
   });
 
   it("converts exact decimal dollars and refuses sub-nanodollar precision", () => {

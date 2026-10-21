@@ -1,4 +1,4 @@
-import { UsdNano } from "@gmacko/hall-monitor-contracts";
+import { SignedUsdNano } from "@gmacko/hall-monitor-contracts";
 
 /** Nanodollars in one US dollar. */
 export const NANO_PER_USD = 1_000_000_000n;
@@ -12,14 +12,24 @@ export interface Rational {
   readonly denominator: bigint;
 }
 
-/** Parses a wire `UsdNano` string into a bigint; throws on anything but a decimal integer. */
+/** The largest magnitude the canonical 30-digit wire form can carry. */
+export const MAX_USD_NANO = 10n ** 30n - 1n;
+
+/**
+ * Parses a canonical wire amount (`UsdNano` or `SignedUsdNano`) into a bigint. Throws on anything
+ * else, including leading zeros and `-0`, so a non-canonical string never enters a ledger.
+ */
 export function parseUsdNano(value: string): bigint {
-  if (!UsdNano.safeParse(value).success) throw new TypeError("not a UsdNano decimal integer string");
+  if (!SignedUsdNano.safeParse(value).success) throw new TypeError("not a canonical UsdNano decimal string");
   return BigInt(value);
 }
 
-/** Formats a bigint amount of nanodollars as its wire `UsdNano` string. */
-export function formatUsdNano(amount: bigint): UsdNano {
+/**
+ * Formats a bigint amount of nanodollars in canonical wire form; non-negative results are valid
+ * `UsdNano`. Throws when the amount needs more than 30 digits.
+ */
+export function formatUsdNano(amount: bigint): SignedUsdNano {
+  if (amount > MAX_USD_NANO || amount < -MAX_USD_NANO) throw new RangeError("amount exceeds the 30-digit UsdNano range");
   return amount.toString();
 }
 

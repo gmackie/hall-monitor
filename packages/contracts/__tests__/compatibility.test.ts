@@ -12,7 +12,7 @@ const WIRE_SCHEMAS = {
   SchemaVersion: contracts.SchemaVersion,
   OpaqueId: contracts.OpaqueId,
   UsdNano: contracts.UsdNano,
-  NonNegativeUsdNano: contracts.NonNegativeUsdNano,
+  SignedUsdNano: contracts.SignedUsdNano,
   MachineCode: contracts.MachineCode,
   Product: contracts.Product,
   EvaluationKind: contracts.EvaluationKind,
@@ -86,11 +86,14 @@ describe("content safety of the schemas", () => {
     expect(contracts.MachineCode.safeParse("Contains: secret text").success).toBe(false);
   });
 
-  it("refuses inverted spans and fractional or negative money", () => {
+  it("refuses inverted spans and non-canonical, fractional or negative money", () => {
     expect(contracts.Span.safeParse({ start: 5, end: 2 }).success).toBe(false);
-    expect(contracts.NonNegativeUsdNano.safeParse("-1").success).toBe(false);
-    expect(contracts.UsdNano.safeParse("1.5").success).toBe(false);
-    expect(contracts.UsdNano.safeParse("-15").success).toBe(true);
+    for (const valid of ["0", "22876", "9".repeat(30)]) expect(contracts.UsdNano.safeParse(valid).success).toBe(true);
+    for (const invalid of ["-1", "1.5", "007", "", "+5", "1e3", "9".repeat(31)]) {
+      expect(contracts.UsdNano.safeParse(invalid).success, invalid).toBe(false);
+    }
+    for (const valid of ["0", "-15", "15"]) expect(contracts.SignedUsdNano.safeParse(valid).success).toBe(true);
+    for (const invalid of ["-0", "-007", "--1"]) expect(contracts.SignedUsdNano.safeParse(invalid).success, invalid).toBe(false);
   });
 
   it("gives receipts no field that could carry content", () => {

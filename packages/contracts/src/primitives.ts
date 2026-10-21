@@ -13,17 +13,21 @@ export const OpaqueId = z
 export type OpaqueId = z.infer<typeof OpaqueId>;
 
 /**
- * A signed amount of integer nanodollars (10⁻⁹ USD) in decimal string form. Parse it to `bigint`
- * for arithmetic; it is never a float.
+ * A non-negative amount of integer nanodollars (10⁻⁹ USD) as a canonical decimal string: no sign,
+ * no leading zeros, at most 30 digits, so equal amounts are always the same string. Parse it to
+ * `bigint` for arithmetic; it is never a float. Usage and cost amounts use this form.
  */
-export const UsdNano = z.string().max(40).regex(/^-?\d+$/);
-/** A signed amount of integer nanodollars in decimal string form. */
+export const UsdNano = z.string().regex(/^(0|[1-9]\d{0,29})$/);
+/** A non-negative amount of integer nanodollars as a canonical decimal string. */
 export type UsdNano = z.infer<typeof UsdNano>;
 
-/** A non-negative amount of integer nanodollars, used for usage and cost (never credits). */
-export const NonNegativeUsdNano = z.string().max(40).regex(/^\d+$/);
-/** A non-negative amount of integer nanodollars. */
-export type NonNegativeUsdNano = z.infer<typeof NonNegativeUsdNano>;
+/**
+ * A signed amount of integer nanodollars as a canonical decimal string (no leading zeros, no
+ * `-0`, at most 30 digits), for adjustments and credits.
+ */
+export const SignedUsdNano = z.string().regex(/^(0|-?[1-9]\d{0,29})$/);
+/** A signed amount of integer nanodollars as a canonical decimal string. */
+export type SignedUsdNano = z.infer<typeof SignedUsdNano>;
 
 /** A lowercase dotted machine code, e.g. `privacy.email` or `moderation.input`. */
 export const MachineCode = z

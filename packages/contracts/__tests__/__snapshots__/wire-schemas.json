@@ -14,14 +14,12 @@
   "UsdNano": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "string",
-    "maxLength": 40,
-    "pattern": "^-?\\d+$"
+    "pattern": "^(0|[1-9]\\d{0,29})$"
   },
-  "NonNegativeUsdNano": {
+  "SignedUsdNano": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "string",
-    "maxLength": 40,
-    "pattern": "^\\d+$"
+    "pattern": "^(0|-?[1-9]\\d{0,29})$"
   },
   "MachineCode": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -516,8 +514,7 @@
       },
       "grossUsdNano": {
         "type": "string",
-        "maxLength": 40,
-        "pattern": "^\\d+$"
+        "pattern": "^(0|[1-9]\\d{0,29})$"
       },
       "state": {
         "type": "string",
@@ -672,8 +669,7 @@
             },
             "grossUsdNano": {
               "type": "string",
-              "maxLength": 40,
-              "pattern": "^\\d+$"
+              "pattern": "^(0|[1-9]\\d{0,29})$"
             },
             "state": {
               "type": "string",
@@ -711,8 +707,7 @@
       },
       "totalGrossUsdNano": {
         "type": "string",
-        "maxLength": 40,
-        "pattern": "^\\d+$"
+        "pattern": "^(0|[1-9]\\d{0,29})$"
       },
       "hasUnknownCost": {
         "type": "boolean"
@@ -1000,8 +995,7 @@
                     },
                     "grossUsdNano": {
                       "type": "string",
-                      "maxLength": 40,
-                      "pattern": "^\\d+$"
+                      "pattern": "^(0|[1-9]\\d{0,29})$"
                     },
                     "state": {
                       "type": "string",
@@ -1039,8 +1033,7 @@
               },
               "totalGrossUsdNano": {
                 "type": "string",
-                "maxLength": 40,
-                "pattern": "^\\d+$"
+                "pattern": "^(0|[1-9]\\d{0,29})$"
               },
               "hasUnknownCost": {
                 "type": "boolean"

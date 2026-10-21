@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MachineCode, NonNegativeUsdNano, OpaqueId, Product, Timestamp } from "./primitives.ts";
+import { MachineCode, OpaqueId, Product, Timestamp, UsdNano } from "./primitives.ts";
 
 const Count = z.int().min(0).max(Number.MAX_SAFE_INTEGER);
 
@@ -36,7 +36,7 @@ export const UsageAttempt = z.object({
   priceBookId: OpaqueId,
   units: UsageUnits,
   /** Gross list-rate cost; absent when it cannot be priced. */
-  grossUsdNano: NonNegativeUsdNano.optional(),
+  grossUsdNano: UsdNano.optional(),
   state: UsageState,
   providerRequestId: OpaqueId.optional(),
   gatewayLogId: OpaqueId.optional(),
@@ -59,7 +59,7 @@ export const CostReceipt = z.object({
   purpose: MachineCode,
   attempts: z.array(UsageAttempt).max(16),
   /** Sum of the priced attempts. Unpriced attempts are flagged by `hasUnknownCost`, not added. */
-  totalGrossUsdNano: NonNegativeUsdNano,
+  totalGrossUsdNano: UsdNano,
   /** True when any attempt's cost is unknown, so the total is a lower bound. */
   hasUnknownCost: z.boolean(),
 });

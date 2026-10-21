@@ -1,4 +1,4 @@
-import { NonNegativeUsdNano, OpaqueId, Timestamp } from "@gmacko/hall-monitor-contracts";
+import { OpaqueId, Timestamp, UsdNano } from "@gmacko/hall-monitor-contracts";
 import { z } from "zod";
 import type { Rational } from "./usd-nano.ts";
 
@@ -18,7 +18,7 @@ export const PriceRate = z
     /** The billable SKU; for models this is the model id. */
     sku: z.string().min(1).max(128),
     unit: RateUnit,
-    numeratorUsdNano: NonNegativeUsdNano,
+    numeratorUsdNano: UsdNano,
     denominator: z.string().regex(/^[1-9]\d*$/),
     effectiveFrom: Timestamp,
     effectiveTo: Timestamp.optional(),
