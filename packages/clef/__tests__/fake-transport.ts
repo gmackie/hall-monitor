@@ -26,7 +26,7 @@ export class FakeTransport implements ClefTransport {
 /** A well-formed Clef answer with every category at `base` except the overrides. */
 export function scored(overrides: Record<string, number> = {}, base = 0.02, inputTokens: number | null = 602): ClefTransportResult {
   return {
-    output: { answers: CLEF_QUESTIONS.map((question) => ({ id: question.id, score: overrides[question.id] ?? base })) },
+    output: { model: "clef-flash", answers: Object.fromEntries(CLEF_QUESTIONS.map((question) => [question.id, { type: "noul", noul: overrides[question.id] ?? base }])) },
     ...(inputTokens === null ? {} : { usage: { inputTokens } }),
     gatewayLogId: "log_fake",
   };

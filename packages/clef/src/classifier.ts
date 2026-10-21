@@ -1,7 +1,7 @@
 import { EvaluationKind, type EvaluationRequest, type Finding, type Severity, type UsageAttempt } from "@gmacko/hall-monitor-contracts";
 import { CLEF_FLASH_MODEL, CLEF_MODEL, CLOUDFLARE_WORKERS_AI, type PriceBook, priceAttempt } from "@gmacko/hall-monitor-costing";
 import type { EvaluatorPlugin, EvaluatorSignals } from "@gmacko/hall-monitor-evaluators";
-import { buildClefInput, CLEF_QUESTIONS, type ClefQuestion, parseClefOutput } from "./clef-protocol.ts";
+import { buildClefInput, CLEF_QUESTIONS, clefRequestFor, type ClefQuestion, parseClefOutput } from "./clef-protocol.ts";
 import { type ClefTransport, ClefTransportError } from "./transport.ts";
 
 /** Version of this plugin; bump when questions, thresholds or severity mapping change. */
@@ -72,7 +72,7 @@ export function createClefClassifier(options: ClefClassifierOptions): EvaluatorP
       const call = async (model: string): Promise<CallOutcome> => {
         const attemptIndex = attempts.length;
         try {
-          const result = await runWithTimeout(options.transport, model, input, timeoutMs, context.signal);
+          const result = await runWithTimeout(options.transport, model, clefRequestFor(model, input), timeoutMs, context.signal);
           attempts.push(
             price({
               attemptId: options.newAttemptId(),

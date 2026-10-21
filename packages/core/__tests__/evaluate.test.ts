@@ -24,7 +24,7 @@ class ScriptedTransport implements ClefTransport {
 
 function answer(overrides: Record<string, number> = {}, inputTokens = 602): ClefTransportResult {
   return {
-    output: { answers: CLEF_QUESTIONS.map((question) => ({ id: question.id, score: overrides[question.id] ?? 0.01 })) },
+    output: { model: "clef-flash", answers: Object.fromEntries(CLEF_QUESTIONS.map((question) => [question.id, { type: "noul", noul: overrides[question.id] ?? 0.01 }])) },
     usage: { inputTokens },
   };
 }

@@ -2,7 +2,7 @@ import type { EvaluationRequest } from "@gmacko/hall-monitor-contracts";
 import { buildReceipt, CLEF_FLASH_MODEL, CLEF_MODEL, PRICE_BOOK_CLOUDFLARE_2026_10_20 } from "@gmacko/hall-monitor-costing";
 import { EDUCATOR_PROFILE, type PolicyProfile, STUDENT_9_12_PROFILE } from "@gmacko/hall-monitor-policy";
 import { describe, expect, it } from "vitest";
-import { ClefTransportError, createClefClassifier, extractClefUsage, parseClefOutput } from "../src/index.ts";
+import { buildClefInput, clefRequestFor, ClefTransportError, createClefClassifier, extractClefUsage, parseClefOutput } from "../src/index.ts";
 import { FakeTransport, scored } from "./fake-transport.ts";
 
 const TEXT = "Why does photosynthesis need light?";
@@ -163,14 +163,30 @@ describe("createClefClassifier", () => {
 
 describe("clef protocol", () => {
   it("requires every question to be answered", () => {
-    expect(parseClefOutput({ answers: [{ id: "self_harm", score: 0.1 }] })).toBeNull();
-    expect(parseClefOutput({ answers: [{ id: "self_harm", score: 2 }] })).toBeNull();
+    expect(parseClefOutput({ answers: { self_harm: { type: "noul", noul: 0.1 } } })).toBeNull();
+    expect(parseClefOutput({ answers: { self_harm: { type: "noul", noul: 2 } } })).toBeNull();
     expect(parseClefOutput("not json")).toBeNull();
   });
 
   it("reads usage in either token field name, and never invents it", () => {
-    expect(extractClefUsage({ usage: { prompt_tokens: 12 } })).toEqual({ inputTokens: 12 });
+    expect(extractClefUsage({ usage: { input_tokens: 12, output_tokens: 0 } })).toEqual({ inputTokens: 12 });
     expect(extractClefUsage({ usage: { input_tokens: 7, neurons: 3 } })).toEqual({ inputTokens: 7, neurons: 3 });
-    expect(extractClefUsage({ answers: [] })).toBeUndefined();
+    expect(extractClefUsage({ answers: {} })).toBeUndefined();
+  });
+});
+
+describe("Clef request shape", () => {
+  it("sends the published Clef input: model selector, state and noul questions keyed by id", async () => {
+    const transport = new FakeTransport([scored()]);
+    await classify(transport);
+    expect(transport.calls[0]?.input).toMatchObject({
+      model: "clef-flash",
+      state: { text: TEXT, audience: "student", gradeBand: "9-12", evaluationKind: "interaction.input" },
+      questions: { self_harm: { type: "noul", instructions: expect.any(String) } },
+    });
+  });
+
+  it("rejects a non-Clef model selector", () => {
+    expect(() => clefRequestFor("@cf/cloudflare/clef-omni", buildClefInput(request(), TEXT))).toThrow(RangeError);
   });
 });

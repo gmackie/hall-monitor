@@ -10,11 +10,11 @@ describe("workersAiBindingTransport", () => {
       aiGatewayLogId: "log_123",
       async run(model, inputs, options) {
         calls.push({ model, inputs, options });
-        return { answers: [], usage: { prompt_tokens: 40 } };
+        return { answers: {}, usage: { input_tokens: 40, output_tokens: 0 } };
       },
     };
     const result = await workersAiBindingTransport(ai, { id: "hall-monitor", metadata: { tenant: "t_1" } }).run("@cf/x", { input: "hi" }, { signal });
-    expect(result).toEqual({ output: { answers: [], usage: { prompt_tokens: 40 } }, usage: { inputTokens: 40 }, gatewayLogId: "log_123" });
+    expect(result).toEqual({ output: { answers: {}, usage: { input_tokens: 40, output_tokens: 0 } }, usage: { inputTokens: 40 }, gatewayLogId: "log_123" });
     expect(calls).toEqual([
       {
         model: "@cf/x",
@@ -58,13 +58,13 @@ describe("gatewayFetchTransport", () => {
 
   it("posts to the Workers AI gateway endpoint and unwraps the result", async () => {
     const seen: { url?: string; init?: RequestInit } = {};
-    const response = new Response(JSON.stringify({ success: true, result: { answers: [], usage: { input_tokens: 9 } } }), {
+    const response = new Response(JSON.stringify({ success: true, result: { answers: {}, usage: { input_tokens: 9, output_tokens: 0 } } }), {
       headers: { "cf-aig-log-id": "log_9", "cf-ray": "8f00aa-SJC" },
     });
     const result = await transport(response, seen).run("@cf/cloudflare/clef-flash", { input: "x" }, { signal });
     expect(seen.url).toBe("https://gateway.ai.cloudflare.com/v1/acct/gw/workers-ai/@cf/cloudflare/clef-flash");
     expect(seen.init?.headers).toMatchObject({ "cf-aig-collect-log-payload": "false", "cf-aig-metadata": '{"product":"schoolos"}' });
-    expect(result).toEqual({ output: { answers: [], usage: { input_tokens: 9 } }, usage: { inputTokens: 9 }, providerRequestId: "8f00aa-SJC", gatewayLogId: "log_9" });
+    expect(result).toEqual({ output: { answers: {}, usage: { input_tokens: 9, output_tokens: 0 } }, usage: { inputTokens: 9 }, providerRequestId: "8f00aa-SJC", gatewayLogId: "log_9" });
   });
 
   it.each([
