@@ -15,6 +15,8 @@ export const SYSTEM_REASON_CODES = Object.freeze({
   deterministicOnly: "hall_monitor.deterministic_only",
   uncertain: "hall_monitor.uncertain",
   budgetExhausted: "hall_monitor.budget_exhausted",
+  /** The result was produced in shadow mode; the would-be decision is in `result.shadow`. */
+  shadow: "hall_monitor.shadow",
 });
 
 /** Conditions of the evaluation itself rather than of the content. */

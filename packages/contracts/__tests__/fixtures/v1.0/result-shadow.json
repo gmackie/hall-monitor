@@ -1,0 +1,60 @@
+{
+  "schemaVersion": "1.0",
+  "evaluationId": "eval_02",
+  "requestId": "req_02",
+  "decision": "allow",
+  "reasonCodes": [
+    "hall_monitor.shadow"
+  ],
+  "findings": [
+    {
+      "evaluatorId": "academic-integrity",
+      "evaluatorVersion": "1.0.0",
+      "category": "academic-integrity",
+      "reasonCode": "academic_integrity.direct_answer_request",
+      "severity": "warn",
+      "confidence": 0.9,
+      "span": {
+        "start": 0,
+        "end": 22
+      }
+    }
+  ],
+  "uncertain": false,
+  "policyRevision": "school-2026-fall:17",
+  "evaluatorBundleRevision": "base-1.0.0",
+  "resolverVersion": "resolver-1.0.0",
+  "receipt": {
+    "receiptId": "rcpt_02",
+    "tenantId": "tenant_opaque",
+    "product": "schoolos",
+    "costCenterId": "cc_biology",
+    "logicalRequestId": "req_02",
+    "createdAt": "2026-10-20T12:00:00.000Z",
+    "purpose": "moderation.input",
+    "attempts": [
+      {
+        "attemptId": "att_01",
+        "attemptIndex": 0,
+        "providerId": "cloudflare-workers-ai",
+        "modelId": "@cf/cloudflare/clef-flash",
+        "sku": "@cf/cloudflare/clef-flash",
+        "priceBookId": "cloudflare-2026-10-20",
+        "units": {
+          "inputTokens": 602
+        },
+        "grossUsdNano": "22876",
+        "state": "provider_reported",
+        "gatewayLogId": "log_01"
+      }
+    ],
+    "totalGrossUsdNano": "22876",
+    "hasUnknownCost": false
+  },
+  "shadow": {
+    "decision": "coach",
+    "reasonCodes": [
+      "academic_integrity.direct_answer_request"
+    ]
+  }
+}

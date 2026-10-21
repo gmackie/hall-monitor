@@ -1,4 +1,4 @@
-import type { Decision, DegradedReason, ErrorCode } from "@gmacko/hall-monitor-contracts";
+import type { Decision, DegradedReason, EnforcementMode, ErrorCode } from "@gmacko/hall-monitor-contracts";
 import type { AuthFailure } from "./auth.ts";
 
 /** Every event the Worker logs. Names are fixed so dashboards and alerts can rely on them. */
@@ -11,6 +11,7 @@ export type LogEvent =
   | "auth.rejected"
   | "request.rejected"
   | "policy.overlay_clamped"
+  | "shadow.refused"
   | "config.invalid"
   | "ratelimit.unavailable"
   | "internal.error";
@@ -22,7 +23,12 @@ export type LogEvent =
 export interface LogFields {
   readonly tenant?: string;
   readonly evaluationId?: string;
+  /** The decision returned to the caller. */
   readonly decision?: Decision;
+  /** Present on shadow-mode results. */
+  readonly mode?: EnforcementMode;
+  /** The decision a shadow-mode result would have enforced. */
+  readonly shadowDecision?: Decision;
   readonly degraded?: DegradedReason;
   readonly latencyMs?: number;
   readonly attempts?: number;
@@ -34,7 +40,7 @@ export interface LogFields {
   readonly errors?: number;
   readonly violations?: number;
   readonly profileId?: string;
-  readonly variable?: "HM_TRUSTED_ISSUERS" | "HM_AUDIENCE" | "HM_POLICY_OVERLAYS" | "HM_RETENTION_SECONDS";
+  readonly variable?: "HM_TRUSTED_ISSUERS" | "HM_AUDIENCE" | "HM_POLICY_OVERLAYS" | "HM_TENANT_MODES" | "HM_RETENTION_SECONDS";
   /** An exception's class name, never its message. */
   readonly errorName?: string;
 }

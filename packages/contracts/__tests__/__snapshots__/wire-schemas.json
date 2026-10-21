@@ -745,6 +745,44 @@
     ],
     "additionalProperties": false
   },
+  "EnforcementMode": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "string",
+    "enum": [
+      "enforce",
+      "shadow"
+    ]
+  },
+  "ShadowOutcome": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "decision": {
+        "type": "string",
+        "enum": [
+          "allow",
+          "coach",
+          "hold",
+          "block",
+          "support"
+        ]
+      },
+      "reasonCodes": {
+        "maxItems": 64,
+        "type": "array",
+        "items": {
+          "type": "string",
+          "maxLength": 96,
+          "pattern": "^[a-z][a-z0-9_.]*$"
+        }
+      }
+    },
+    "required": [
+      "decision",
+      "reasonCodes"
+    ],
+    "additionalProperties": false
+  },
   "EvaluationResult": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
@@ -1090,6 +1128,35 @@
         },
         "required": [
           "reason"
+        ],
+        "additionalProperties": false
+      },
+      "shadow": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "allow",
+              "coach",
+              "hold",
+              "block",
+              "support"
+            ]
+          },
+          "reasonCodes": {
+            "maxItems": 64,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 96,
+              "pattern": "^[a-z][a-z0-9_.]*$"
+            }
+          }
+        },
+        "required": [
+          "decision",
+          "reasonCodes"
         ],
         "additionalProperties": false
       }
@@ -1855,6 +1922,35 @@
                       },
                       "required": [
                         "reason"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "shadow": {
+                      "type": "object",
+                      "properties": {
+                        "decision": {
+                          "type": "string",
+                          "enum": [
+                            "allow",
+                            "coach",
+                            "hold",
+                            "block",
+                            "support"
+                          ]
+                        },
+                        "reasonCodes": {
+                          "maxItems": 64,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "maxLength": 96,
+                            "pattern": "^[a-z][a-z0-9_.]*$"
+                          }
+                        }
+                      },
+                      "required": [
+                        "decision",
+                        "reasonCodes"
                       ],
                       "additionalProperties": false
                     }

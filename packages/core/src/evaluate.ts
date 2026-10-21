@@ -1,4 +1,5 @@
 import {
+  type EnforcementMode,
   type EvaluationKind,
   EvaluationRequest,
   EvaluationResult,
@@ -9,8 +10,17 @@ import {
 } from "@gmacko/hall-monitor-contracts";
 import { buildReceipt, type PriceBook, priceAttempt } from "@gmacko/hall-monitor-costing";
 import { type EvaluatorBundle, type EvaluatorPlugin, type EvaluatorSignals, runPlugins } from "@gmacko/hall-monitor-evaluators";
-import { type ModerationMode, type PolicyProfile, type ResolutionFlags, resolveDecision } from "@gmacko/hall-monitor-policy";
+import {
+  type ModerationMode,
+  type PolicyProfile,
+  type Resolution,
+  type ResolutionContext,
+  type ResolutionFlags,
+  resolveDecision,
+  type ShadowPermissions,
+} from "@gmacko/hall-monitor-policy";
 import { HallMonitorError } from "./errors.ts";
+import { applyEnforcement } from "./shadow.ts";
 
 /** Looks up a pinned policy profile revision; undefined when it does not exist. */
 export type PolicyLookup = (profileId: string, revision: string) => PolicyProfile | undefined | Promise<PolicyProfile | undefined>;
@@ -19,6 +29,24 @@ export type PolicyLookup = (profileId: string, revision: string) => PolicyProfil
 export interface IdSource {
   evaluationId(): string;
   receiptId(): string;
+}
+
+/** Turns findings into a decision; {@link resolveDecision} unless a replay or diff pins another table. */
+export type DecisionResolver = (
+  profile: PolicyProfile,
+  findings: readonly Finding[],
+  context: ResolutionContext,
+  flags: ResolutionFlags,
+) => Resolution;
+
+/**
+ * How the host applies the resolved decision. Hosts derive it from their own configuration for
+ * the verified tenant; it is never read from the request.
+ */
+export interface EnforcementOptions extends ShadowPermissions {
+  readonly mode: EnforcementMode;
+  /** Called when shadow mode was configured but the profile may not be shadowed, so it was enforced. */
+  readonly onShadowRefused?: (profile: PolicyProfile) => void;
 }
 
 /** Everything {@link evaluate} needs from its host. */
@@ -37,6 +65,10 @@ export interface EvaluateDeps {
    */
   readonly admitClassification?: (request: EvaluationRequest) => boolean | Promise<boolean>;
   readonly signal?: AbortSignal;
+  /** Defaults to enforcing every decision. */
+  readonly enforcement?: EnforcementOptions;
+  /** Defaults to {@link resolveDecision}; overridden only to replay or diff another resolver version. */
+  readonly resolve?: DecisionResolver;
 }
 
 const PURPOSE: Readonly<Record<EvaluationKind, string>> = {
@@ -49,7 +81,8 @@ const PURPOSE: Readonly<Record<EvaluationKind, string>> = {
 /**
  * Evaluates one request: validates it, runs the deterministic bundle, classifies when policy
  * requires it and the deterministic findings are not already decisive, resolves the decision and
- * builds the cost receipt (null when no provider was called).
+ * builds the cost receipt (null when no provider was called). In shadow mode the decision is then
+ * recorded rather than enforced (see {@link applyEnforcement}).
  *
  * The result is content-free by construction: it is assembled only from findings, reason codes,
  * revisions and counters, and validated against the wire schema before it is returned. Errors are
@@ -77,7 +110,7 @@ export async function evaluate(input: unknown, deps: EvaluateDeps): Promise<Eval
     flags = { ...flags, ...classified.flags };
   }
 
-  const resolution = resolveDecision(profile, findings, request.context, flags);
+  const resolution = (deps.resolve ?? resolveDecision)(profile, findings, request.context, flags);
   const at = deps.clock();
   const priced = attempts.map((attempt) =>
     attempt.grossUsdNano === undefined && attempt.state !== "unknown" ? priceAttempt(deps.priceBook, attempt, { at }).attempt : attempt,
@@ -97,7 +130,7 @@ export async function evaluate(input: unknown, deps: EvaluateDeps): Promise<Eval
           attempts: priced,
         });
 
-  return EvaluationResult.parse({
+  const result = EvaluationResult.parse({
     schemaVersion: SCHEMA_VERSION,
     evaluationId: deps.ids.evaluationId(),
     requestId: request.requestId,
@@ -111,6 +144,7 @@ export async function evaluate(input: unknown, deps: EvaluateDeps): Promise<Eval
     receipt,
     ...(resolution.degraded === undefined ? {} : { degraded: { reason: resolution.degraded } }),
   });
+  return applyEnforcement(result, profile, deps.enforcement);
 }
 
 /**
