@@ -28,6 +28,14 @@ const overlays = {
   tenant_overlay: { educator: { revision: "district-7:3", outputModeration: "required", inputModeration: "off" } },
 };
 
+const tenantModes = {
+  // Shadow mode for educator and content traffic; student profiles stay enforced.
+  tenant_shadow: "shadow",
+  // A synthetic-traffic tenant explicitly allowed to shadow student profiles.
+  tenant_shadow_students: { mode: "shadow", allowStudentShadow: true },
+  tenant_enforced: "enforce",
+};
+
 export default defineWorkersProject({
   test: {
     name: "worker",
@@ -40,6 +48,7 @@ export default defineWorkersProject({
           bindings: {
             HM_TRUSTED_ISSUERS: JSON.stringify(issuers),
             HM_POLICY_OVERLAYS: JSON.stringify(overlays),
+            HM_TENANT_MODES: JSON.stringify(tenantModes),
             HM_DIGEST_KEY: randomBytes(32).toString("hex"),
             TEST_SIGNING_KEYS: JSON.stringify({
               schoolos: { iss: issuers[0]!.iss, alg: "EdDSA", jwk: schoolos.privateJwk },

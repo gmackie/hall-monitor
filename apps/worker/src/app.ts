@@ -17,7 +17,7 @@ import { CLEF_FLASH_MODEL, CLEF_MODEL, PRICE_BOOK_CLOUDFLARE_2026_10_20 } from "
 import { defaultBundle } from "@gmacko/hall-monitor-evaluators";
 import { RESOLVER_VERSION } from "@gmacko/hall-monitor-policy";
 import { AuthError, bearerToken, SCOPE_EVALUATE, SCOPE_RECEIPTS_READ, type ServiceIdentity, verifyServiceToken } from "./auth.ts";
-import { type Config, loadConfig, lookupPolicy, tenantProfiles } from "./config.ts";
+import { type Config, enforcementFor, loadConfig, lookupPolicy, tenantProfiles } from "./config.ts";
 import { requestDigest } from "./digest.ts";
 import type { Env } from "./env.ts";
 import { errorResponse, HttpError, json, readJson } from "./http.ts";
@@ -114,6 +114,7 @@ async function ready(request: Request, env: Env): Promise<Response> {
   const checks = {
     authentication: config.issuers !== undefined && (config.audience !== undefined || config.issuers.every((issuer) => issuer.audiences !== undefined)),
     policyOverlays: config.overlays !== undefined,
+    tenantModes: config.tenantModes !== undefined,
     idempotencyStore: env.IDEMPOTENCY_STORE !== undefined,
     // Presence and shape only: readiness never makes a billed model call.
     classifier: typeof env.AI?.run === "function",
@@ -228,7 +229,13 @@ async function runEvaluation(request: EvaluationRequest, identity: ServiceIdenti
   const begun = await store.begin(request.idempotencyKey, digest);
   switch (begun.kind) {
     case "replay":
-      log("info", "evaluation.replayed", { tenant, evaluationId: begun.result.evaluationId, decision: begun.result.decision, latencyMs: Date.now() - started });
+      log("info", "evaluation.replayed", {
+        tenant,
+        evaluationId: begun.result.evaluationId,
+        decision: begun.result.decision,
+        ...shadowFields(begun.result),
+        latencyMs: Date.now() - started,
+      });
       return { result: begun.result, replayed: true };
     case "conflict":
       return fail(new HttpError("idempotency_conflict", "idempotency key was already used for a different request"));
@@ -248,6 +255,7 @@ async function runEvaluation(request: EvaluationRequest, identity: ServiceIdenti
       priceBook: PRICE_BOOK_CLOUDFLARE_2026_10_20,
       clock: () => new Date(),
       ids: { evaluationId: () => newId("eval"), receiptId: () => newId("rcpt") },
+      enforcement: enforcementFor(config, tenant, (profile) => log("warn", "shadow.refused", { tenant, profileId: profile.id })),
     });
   } catch (error) {
     await store.abandon(request.idempotencyKey, digest);
@@ -269,6 +277,7 @@ async function runEvaluation(request: EvaluationRequest, identity: ServiceIdenti
     tenant,
     evaluationId: result.evaluationId,
     decision: result.decision,
+    ...shadowFields(result),
     attempts: result.receipt?.attempts.length ?? 0,
     latencyMs: Date.now() - started,
     ...(result.degraded === undefined ? {} : { degraded: result.degraded.reason }),
@@ -303,6 +312,11 @@ function classifierFor(env: Env, request: EvaluationRequest) {
       newAttemptId: () => newId("att"),
     }),
   };
+}
+
+/** Content-free log fields recording a shadow-mode result's would-be decision. */
+function shadowFields(result: EvaluationResult) {
+  return result.shadow === undefined ? {} : { mode: "shadow" as const, shadowDecision: result.shadow.decision };
 }
 
 function parseOrThrow(input: unknown): EvaluationRequest {

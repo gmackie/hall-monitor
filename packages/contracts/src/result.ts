@@ -9,6 +9,26 @@ export const DegradedReason = z.enum(["classifier_timeout", "classifier_unavaila
 /** Why a result was decided with less than the full evaluator set. */
 export type DegradedReason = z.infer<typeof DegradedReason>;
 
+/**
+ * How a tenant's decisions are applied: `enforce` returns the resolved decision; `shadow` returns
+ * `allow` and records the would-be decision in {@link EvaluationResult.shape.shadow}. The mode is
+ * service configuration per tenant, never something a caller can ask for.
+ */
+export const EnforcementMode = z.enum(["enforce", "shadow"]);
+/** How a tenant's decisions are applied. */
+export type EnforcementMode = z.infer<typeof EnforcementMode>;
+
+/**
+ * The decision an evaluation would have enforced, recorded on a shadow-mode result. Added in 1.0
+ * as an optional field: a client that does not know it simply sees the `allow` it must enforce.
+ */
+export const ShadowOutcome = z.object({
+  decision: Decision,
+  reasonCodes: z.array(MachineCode).max(64),
+});
+/** The decision an evaluation would have enforced. */
+export type ShadowOutcome = z.infer<typeof ShadowOutcome>;
+
 /** The decision for one evaluation, with the evidence and revisions that produced it. */
 export const EvaluationResult = z.object({
   schemaVersion: SchemaVersion,
@@ -26,6 +46,15 @@ export const EvaluationResult = z.object({
   /** Null when the evaluation made no billable provider attempt. */
   receipt: CostReceipt.nullable(),
   degraded: z.object({ reason: DegradedReason }).optional(),
+  /**
+   * Present only when the result was produced in shadow mode: `decision` is then `allow` (the
+   * caller enforces it as usual) and this records what enforcement would have returned. Findings,
+   * `uncertain` and `degraded` describe the real evaluation either way.
+   */
+  shadow: ShadowOutcome.optional(),
+}).refine((result) => result.shadow === undefined || result.decision === "allow", {
+  message: "a shadow-mode result enforces allow",
+  path: ["decision"],
 });
 /** The decision for one evaluation. */
 export type EvaluationResult = z.infer<typeof EvaluationResult>;

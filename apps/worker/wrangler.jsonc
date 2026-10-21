@@ -21,6 +21,10 @@
     // Set per environment: [{"iss": "...", "jwks": {"keys": [...]}, "audiences": ["..."]}]
     "HM_TRUSTED_ISSUERS": "",
     "HM_POLICY_OVERLAYS": "",
+    // Optional: {"tenant": "shadow" | "enforce" | {"mode": "shadow", "allowStudentShadow": true}}.
+    // Unlisted tenants are enforced. Student profiles with required moderation are never
+    // shadowed without allowStudentShadow (see docs/launch/launch-checklist.md).
+    "HM_TENANT_MODES": "",
     "HM_AI_GATEWAY_ID": ""
   }
 }

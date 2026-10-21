@@ -53,6 +53,19 @@ is unavailable and the profile's failure mode applies), `HM_AI_GATEWAY_ID` and t
 `TENANT_RATE_LIMITER` rate-limiting binding. Logs are JSON lines with fixed event names and
 content-free fields only.
 
+**Shadow mode.** `HM_TENANT_MODES` (`{tenant: "shadow" | "enforce" | {"mode": "shadow",
+"allowStudentShadow": true}}`) sets a tenant's enforcement mode; unlisted tenants, and every tenant
+when the JSON is invalid, are enforced. The mode is configuration for the verified tenant, never a
+request field. A shadow result returns `decision: "allow"` with reason code `hall_monitor.shadow`
+and records the would-be decision and reason codes in the optional `shadow` field (an additive
+1.0 field, so older clients simply enforce the `allow`); `evaluation.completed` logs carry `mode`
+and `shadowDecision`. Two outcomes are never shadowed: `support`, which routes a person in distress
+to help, and anything under a student-facing profile whose input moderation is `required`, unless
+the tenant sets `allowStudentShadow` (logged as `shadow.refused`). Such profiles exist so that a
+learner never sees unmoderated content; shadowing them would let blocked content reach a child
+while the service appears to moderate, so the opt-in is reserved for synthetic or staff-only
+traffic under the [launch checklist](docs/launch/launch-checklist.md).
+
 ## Consuming from another repo
 
 The packages are not on npm (publishing needs owner approval). Each `v<version>` tag instead

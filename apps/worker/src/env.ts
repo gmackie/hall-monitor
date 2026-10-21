@@ -20,6 +20,11 @@ export interface Env {
   readonly HM_AUDIENCE?: string;
   /** JSON policy overlays: `{ [tenant]: { [profileId]: PolicyOverlay } }`. */
   readonly HM_POLICY_OVERLAYS?: string;
+  /**
+   * JSON enforcement modes by tenant: `{ [tenant]: "shadow" | "enforce" | { mode, allowStudentShadow? } }`.
+   * Unlisted tenants, and every tenant when the JSON is invalid, are enforced.
+   */
+  readonly HM_TENANT_MODES?: string;
   /** AI Gateway id to route Clef calls through. */
   readonly HM_AI_GATEWAY_ID?: string;
   /**

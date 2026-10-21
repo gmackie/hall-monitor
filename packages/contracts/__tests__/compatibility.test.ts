@@ -26,6 +26,8 @@ const WIRE_SCHEMAS = {
   Finding: contracts.Finding,
   UsageAttempt: contracts.UsageAttempt,
   CostReceipt: contracts.CostReceipt,
+  EnforcementMode: contracts.EnforcementMode,
+  ShadowOutcome: contracts.ShadowOutcome,
   EvaluationResult: contracts.EvaluationResult,
   ErrorBody: contracts.ErrorBody,
   Capabilities: contracts.Capabilities,
@@ -53,6 +55,7 @@ describe("wire schema compatibility", () => {
     ["request-digest.json", contracts.EvaluationRequest],
     ["result.json", contracts.EvaluationResult],
     ["result-degraded.json", contracts.EvaluationResult],
+    ["result-shadow.json", contracts.EvaluationResult],
     ["error.json", contracts.ErrorBody],
     ["capabilities.json", contracts.Capabilities],
   ] as const)("still parses the frozen v1.0 document %s unchanged", (name, schema) => {

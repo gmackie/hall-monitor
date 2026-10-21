@@ -298,7 +298,7 @@ describe("health, readiness and capabilities", () => {
     expect(ready.status).toBe(200);
     expect(await ready.json()).toEqual({
       ready: true,
-      checks: { authentication: true, policyOverlays: true, idempotencyStore: true, classifier: true },
+      checks: { authentication: true, policyOverlays: true, tenantModes: true, idempotencyStore: true, classifier: true },
     });
     const missingAi = await direct("/v1/ready", call("GET", token));
     expect(missingAi.status).toBe(503);
