@@ -1,6 +1,6 @@
 {
   "name": "@gmacko/hall-monitor-contracts",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Versioned Hall Monitor wire schemas: evaluation requests and results, findings, receipts and errors.",
   "type": "module",
   "private": false,

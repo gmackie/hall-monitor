@@ -139,19 +139,19 @@ The packages are not on npm (publishing needs owner approval). Each `v<version>`
 attaches `pnpm pack` tarballs and a `manifest.json` to a GitHub Release
 (`.github/workflows/release.yml`; `node scripts/pack-release.mjs` builds the same files into
 `dist/release/` locally). Packed manifests depend on each other by plain version
-(`"@gmacko/hall-monitor-contracts": "0.1.0"`), which would resolve against the npm registry, so a
+(`"@gmacko/hall-monitor-contracts": "0.2.0"`), which would resolve against the npm registry, so a
 consumer must override **every** `@gmacko/hall-monitor-*` name, including transitive ones, to the
 release URLs. With pnpm 10+ put the overrides in `pnpm-workspace.yaml`:
 
 ```yaml
 overrides:
-  '@gmacko/hall-monitor-contracts': https://github.com/gmackie/hall-monitor/releases/download/v0.1.0/gmacko-hall-monitor-contracts-0.1.0.tgz
-  '@gmacko/hall-monitor-costing': https://github.com/gmackie/hall-monitor/releases/download/v0.1.0/gmacko-hall-monitor-costing-0.1.0.tgz
-  '@gmacko/hall-monitor-policy': https://github.com/gmackie/hall-monitor/releases/download/v0.1.0/gmacko-hall-monitor-policy-0.1.0.tgz
-  '@gmacko/hall-monitor-evaluators': https://github.com/gmackie/hall-monitor/releases/download/v0.1.0/gmacko-hall-monitor-evaluators-0.1.0.tgz
-  '@gmacko/hall-monitor-clef': https://github.com/gmackie/hall-monitor/releases/download/v0.1.0/gmacko-hall-monitor-clef-0.1.0.tgz
-  '@gmacko/hall-monitor-core': https://github.com/gmackie/hall-monitor/releases/download/v0.1.0/gmacko-hall-monitor-core-0.1.0.tgz
-  '@gmacko/hall-monitor-client': https://github.com/gmackie/hall-monitor/releases/download/v0.1.0/gmacko-hall-monitor-client-0.1.0.tgz
+  '@gmacko/hall-monitor-contracts': https://github.com/gmackie/hall-monitor/releases/download/v0.2.0/gmacko-hall-monitor-contracts-0.2.0.tgz
+  '@gmacko/hall-monitor-costing': https://github.com/gmackie/hall-monitor/releases/download/v0.2.0/gmacko-hall-monitor-costing-0.2.0.tgz
+  '@gmacko/hall-monitor-policy': https://github.com/gmackie/hall-monitor/releases/download/v0.2.0/gmacko-hall-monitor-policy-0.2.0.tgz
+  '@gmacko/hall-monitor-evaluators': https://github.com/gmackie/hall-monitor/releases/download/v0.2.0/gmacko-hall-monitor-evaluators-0.2.0.tgz
+  '@gmacko/hall-monitor-clef': https://github.com/gmackie/hall-monitor/releases/download/v0.2.0/gmacko-hall-monitor-clef-0.2.0.tgz
+  '@gmacko/hall-monitor-core': https://github.com/gmackie/hall-monitor/releases/download/v0.2.0/gmacko-hall-monitor-core-0.2.0.tgz
+  '@gmacko/hall-monitor-client': https://github.com/gmackie/hall-monitor/releases/download/v0.2.0/gmacko-hall-monitor-client-0.2.0.tgz
 ```
 
 (older pnpm: the same map under `"pnpm": { "overrides": { ... } }` in `package.json`), and depend on
@@ -164,7 +164,7 @@ tarballs are accepted with the default settings.
 
 ```json
 "dependencies": {
-  "@gmacko/hall-monitor-client": "https://github.com/gmackie/hall-monitor/releases/download/v0.1.0/gmacko-hall-monitor-client-0.1.0.tgz"
+  "@gmacko/hall-monitor-client": "https://github.com/gmackie/hall-monitor/releases/download/v0.2.0/gmacko-hall-monitor-client-0.2.0.tgz"
 }
 ```
 
