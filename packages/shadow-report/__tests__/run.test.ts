@@ -27,7 +27,7 @@ describe("shadow report over the frozen corpus", () => {
   it("is a valid, versioned report over every case", () => {
     expect(ShadowReport.parse(report)).toEqual(report);
     expect(report).toMatchObject({ reportVersion: "1", kind: "shadow-run", generatedAt: "2026-10-21T00:00:00.000Z", corpus: { source: "builtin", cases: CORPUS.length } });
-    expect(report.configuration).toMatchObject({ policy: "builtin", classifier: "fake", resolverVersion: "resolver-1.0.0", evaluatorBundleRevision: "base-1.0.0:clef-1.0.0" });
+    expect(report.configuration).toMatchObject({ policy: "builtin", classifier: "fake", resolverVersion: "resolver-1.0.0", evaluatorBundleRevision: "base-1.0.0:clef-1.1.0" });
     expect(report.configuration.profiles).toEqual(["educator", "published-content", "student-6-8", "student-9-12"]);
     expect(report.errors).toEqual([]);
   });
