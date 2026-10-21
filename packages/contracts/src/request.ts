@@ -9,6 +9,11 @@ export const MAX_TEXT_LENGTH = 32_000;
 export const TextContent = z.object({
   type: z.literal("text"),
   text: z.string().min(1).max(MAX_TEXT_LENGTH),
+  /**
+   * Expected answers that must not appear in student-facing content, for answer-leakage checks on
+   * candidate content and model output. Added in 1.0 as an optional field; never echoed back.
+   */
+  answerKey: z.array(z.string().min(1).max(500)).max(100).optional(),
 });
 /** Text content, evaluated in memory and never echoed back. */
 export type TextContent = z.infer<typeof TextContent>;

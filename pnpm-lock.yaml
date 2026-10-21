@@ -211,6 +211,19 @@ importers:
         specifier: 'catalog:'
         version: 3.2.7(@types/node@24.19.2)
 
+  packages/evaluators:
+    dependencies:
+      '@gmacko/hall-monitor-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@gmacko/hall-monitor-policy':
+        specifier: workspace:*
+        version: link:../policy
+    devDependencies:
+      vitest:
+        specifier: 'catalog:'
+        version: 3.2.7(@types/node@24.19.2)
+
   packages/policy:
     dependencies:
       '@gmacko/hall-monitor-contracts':
@@ -220,6 +233,22 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      vitest:
+        specifier: 'catalog:'
+        version: 3.2.7(@types/node@24.19.2)
+
+  packages/test-fixtures:
+    dependencies:
+      '@gmacko/hall-monitor-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+    devDependencies:
+      '@gmacko/hall-monitor-evaluators':
+        specifier: workspace:*
+        version: link:../evaluators
+      '@gmacko/hall-monitor-policy':
+        specifier: workspace:*
+        version: link:../policy
       vitest:
         specifier: 'catalog:'
         version: 3.2.7(@types/node@24.19.2)
