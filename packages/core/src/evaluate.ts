@@ -56,7 +56,7 @@ const PURPOSE: Readonly<Record<EvaluationKind, string>> = {
  * thrown as {@link HallMonitorError} with a content-free message.
  */
 export async function evaluate(input: unknown, deps: EvaluateDeps): Promise<EvaluationResult> {
-  const request = parseRequest(input);
+  const request = parseEvaluationRequest(input);
   const profile = await deps.policies(request.policy.profileId, request.policy.revision);
   if (profile === undefined) {
     throw new HallMonitorError("policy_not_found", `policy ${request.policy.profileId}@${request.policy.revision} is not available`);
@@ -113,7 +113,12 @@ export async function evaluate(input: unknown, deps: EvaluateDeps): Promise<Eval
   });
 }
 
-function parseRequest(input: unknown): EvaluationRequest {
+/**
+ * Validates an untrusted evaluation request: the schema version first (so an unsupported version
+ * is reported as such), then the full schema. Throws {@link HallMonitorError} naming field paths
+ * only, never values, since values may be content.
+ */
+export function parseEvaluationRequest(input: unknown): EvaluationRequest {
   const version = typeof input === "object" && input !== null ? (input as { schemaVersion?: unknown }).schemaVersion : undefined;
   if (typeof version !== "string") throw new HallMonitorError("invalid_request", "schemaVersion is required");
   if (!isCompatibleSchemaVersion(version)) throw new HallMonitorError("unsupported_schema", "schemaVersion is not supported");

@@ -3,9 +3,14 @@ packages:
   - apps/*
 
 catalog:
+  '@cloudflare/vitest-pool-workers': 0.12.21
+  '@cloudflare/workers-types': ^5.20261001.0
+  wrangler: ^4.72.0
   typescript: ^5.9.3
   vitest: ^3.2.6
   zod: ^4.1.12
 
 allowBuilds:
   esbuild: false
+  sharp: false
+  workerd: false

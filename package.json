@@ -6,7 +6,7 @@
   "packageManager": "pnpm@12.8.1",
   "engines": { "node": ">=22" },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p apps/worker/tsconfig.json --noEmit",
     "test": "vitest run",
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "lint": "pnpm check:boundaries && pnpm typecheck"

@@ -1,0 +1,29 @@
+{
+  "name": "@gmacko/hall-monitor-worker",
+  "version": "0.1.0",
+  "description": "Hall Monitor's Cloudflare Worker HTTP API: signed service auth, idempotency and tenant-scoped receipts.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "wrangler dev"
+  },
+  "dependencies": {
+    "@gmacko/hall-monitor-clef": "workspace:*",
+    "@gmacko/hall-monitor-contracts": "workspace:*",
+    "@gmacko/hall-monitor-core": "workspace:*",
+    "@gmacko/hall-monitor-costing": "workspace:*",
+    "@gmacko/hall-monitor-evaluators": "workspace:*",
+    "@gmacko/hall-monitor-policy": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "catalog:",
+    "@cloudflare/workers-types": "catalog:",
+    "@gmacko/hall-monitor-client": "workspace:*",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "wrangler": "catalog:"
+  }
+}
