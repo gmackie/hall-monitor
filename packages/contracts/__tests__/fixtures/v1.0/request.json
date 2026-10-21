@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "1.0",
+  "requestId": "req_01",
+  "idempotencyKey": "idem_01",
+  "source": { "product": "schoolos", "tenantId": "tenant_opaque", "surface": "student.chat" },
+  "policy": { "profileId": "student-9-12", "revision": "school-2026-fall:17" },
+  "context": {
+    "gradeBand": "9-12",
+    "subject": "biology",
+    "activityKind": "guided_study",
+    "audience": "student",
+    "graded": false,
+    "costCenterId": "cc_biology"
+  },
+  "evaluationKind": "interaction.input",
+  "content": { "type": "text", "text": "Why does photosynthesis need light?" },
+  "conversation": { "priorMessageCount": 3 }
+}

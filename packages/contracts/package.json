@@ -1,0 +1,11 @@
+{
+  "name": "@gmacko/hall-monitor-contracts",
+  "version": "0.1.0",
+  "description": "Versioned Hall Monitor wire schemas: evaluation requests and results, findings, receipts and errors.",
+  "type": "module",
+  "private": false,
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "test": "vitest run" },
+  "dependencies": { "zod": "catalog:" },
+  "devDependencies": { "vitest": "catalog:" }
+}
