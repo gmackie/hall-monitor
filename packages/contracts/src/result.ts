@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { Finding } from "./finding.ts";
 import { Decision, EvaluationKind, MachineCode, OpaqueId } from "./primitives.ts";
+import { ContentType } from "./request.ts";
 import { CostReceipt } from "./usage.ts";
 import { SchemaVersion } from "./version.ts";
 
@@ -94,6 +95,12 @@ export const Capabilities = z.object({
     enabled: z.boolean(),
     models: z.array(z.string().min(1).max(128)),
   }),
+  /**
+   * Content types the deployment accepts. Added in 1.0 as an optional field: a deployment that
+   * omits it accepts `text` and `digest` only. Whether images are classified depends on the
+   * pinned profile.
+   */
+  contentTypes: z.array(ContentType).min(1).optional(),
 });
 /** What a deployment supports. */
 export type Capabilities = z.infer<typeof Capabilities>;
