@@ -349,6 +349,37 @@ importers:
         specifier: 'catalog:'
         version: 3.2.7(@types/node@24.19.2)(supports-color@10.2.2)
 
+  packages/shadow-report:
+    dependencies:
+      '@gmacko/hall-monitor-clef':
+        specifier: workspace:*
+        version: link:../clef
+      '@gmacko/hall-monitor-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@gmacko/hall-monitor-core':
+        specifier: workspace:*
+        version: link:../core
+      '@gmacko/hall-monitor-costing':
+        specifier: workspace:*
+        version: link:../costing
+      '@gmacko/hall-monitor-evaluators':
+        specifier: workspace:*
+        version: link:../evaluators
+      '@gmacko/hall-monitor-policy':
+        specifier: workspace:*
+        version: link:../policy
+      '@gmacko/hall-monitor-test-fixtures':
+        specifier: workspace:*
+        version: link:../test-fixtures
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
+    devDependencies:
+      vitest:
+        specifier: 'catalog:'
+        version: 3.2.7(@types/node@24.19.2)(supports-color@10.2.2)
+
   packages/test-fixtures:
     dependencies:
       '@gmacko/hall-monitor-contracts':

@@ -9,7 +9,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p apps/worker/tsconfig.json --noEmit",
     "test": "vitest run",
     "check:boundaries": "node scripts/check-boundaries.mjs",
-    "lint": "pnpm check:boundaries && pnpm typecheck"
+    "lint": "pnpm check:boundaries && pnpm typecheck",
+    "shadow-report": "node --experimental-transform-types --disable-warning=ExperimentalWarning packages/shadow-report/src/bin.ts",
+    "rollback-drill": "node scripts/rollback-drill.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

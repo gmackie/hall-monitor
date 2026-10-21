@@ -19,6 +19,7 @@ cost receipt. It never authorizes access to student data, impersonates a teacher
 | `packages/core` | Evaluation orchestration |
 | `packages/client` | TypeScript client used by products |
 | `packages/test-fixtures` | Synthetic fixtures only; never real student data |
+| `packages/shadow-report` | Shadow-run reports and policy decision diffs over synthetic corpora (private) |
 | `apps/worker` | Cloudflare Worker HTTP API |
 
 ## Rules
@@ -65,6 +66,37 @@ the tenant sets `allowStudentShadow` (logged as `shadow.refused`). Such profiles
 learner never sees unmoderated content; shadowing them would let blocked content reach a child
 while the service appears to moderate, so the opt-in is reserved for synthetic or staff-only
 traffic under the [launch checklist](docs/launch/launch-checklist.md).
+
+## Shadow reports and decision diffs
+
+`pnpm shadow-report` runs the real evaluation core over the frozen synthetic corpus (or
+`--cases file.jsonl`, where every line must carry `"synthetic": true`) and reports the decision
+distribution per profile, grade band and category, agreement with the expected decisions,
+precision and recall per category and band (`scoreCorpus`), measured p50/p95 latency per stage,
+and the estimated gross cost per 1,000 evaluations from the receipts.
+
+```sh
+pnpm shadow-report --profile student-9-12 --out report.json --markdown report.md
+pnpm shadow-report diff --candidate candidate-overlays.json --out diff.json
+pnpm shadow-report render report.json
+```
+
+`diff` evaluates the same corpus under a baseline (built-in profiles, or `--baseline`) and a
+candidate policy revision (`{profileId: PolicyOverlay}`, applied tighten-only as the Worker does)
+and lists every case whose decision changed, by transition and by reason code. The library also
+diffs resolver versions (`resolverVariant`). `--classifier` is `fake` by default (a local
+all-clear stand-in with estimated usage, so costs are labelled simulated), `none`, or `gateway`
+(real, billed Clef calls via AI Gateway with payload logging off; synthetic cases only). Reports
+hold identifiers, codes and numbers; `--include-text` adds the synthetic text of mismatched or
+changed cases.
+
+## Launch readiness
+
+[`docs/launch/`](docs/launch/) holds the [launch checklist template](docs/launch/launch-checklist.md)
+(the M7 gates, each with evidence and owner fields), the
+[incident runbook](docs/launch/incident-runbook.md) and the
+[rollback drill](docs/launch/rollback-drill.md). `pnpm rollback-drill` runs the drill against the
+workerd test harness; it is also part of `pnpm test`.
 
 ## Consuming from another repo
 
