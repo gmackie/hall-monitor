@@ -29,6 +29,9 @@ const WIRE_SCHEMAS = {
   EvaluationResult: contracts.EvaluationResult,
   ErrorBody: contracts.ErrorBody,
   Capabilities: contracts.Capabilities,
+  BatchEvaluationRequest: contracts.BatchEvaluationRequest,
+  BatchEvaluationResponse: contracts.BatchEvaluationResponse,
+  ReceiptRecord: contracts.ReceiptRecord,
 } satisfies Record<string, z.ZodType>;
 
 function fixture(name: string): unknown {
