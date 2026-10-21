@@ -124,9 +124,9 @@ describe("POST /v1/evaluations", () => {
   });
 
   it("replays the stored result for a repeated key without calling the classifier again", async () => {
-    const token = await mintToken("schoolos");
+    const token = () => mintToken("schoolos");
     const request = evaluationRequest();
-    const first = await post("/v1/evaluations", token, request);
+    const first = await post("/v1/evaluations", await token(), request);
     const firstBody = await first.text();
     const second = await post("/v1/evaluations", await mintToken("schoolos"), structuredClone(request));
     expect(second.status).toBe(200);
@@ -136,20 +136,20 @@ describe("POST /v1/evaluations", () => {
   });
 
   it("replays regardless of the caller's JSON key order", async () => {
-    const token = await mintToken("schoolos");
+    const token = () => mintToken("schoolos");
     const request = evaluationRequest();
-    await post("/v1/evaluations", token, request);
+    await post("/v1/evaluations", await token(), request);
     const reordered = Object.fromEntries(Object.entries(request).reverse());
-    expect((await post("/v1/evaluations", token, reordered)).headers.get("idempotent-replayed")).toBe("true");
+    expect((await post("/v1/evaluations", await token(), reordered)).headers.get("idempotent-replayed")).toBe("true");
     expect(fakeAi.calls).toHaveLength(1);
   });
 
   it("returns 409 when a key is reused for a different request", async () => {
-    const token = await mintToken("schoolos");
+    const token = () => mintToken("schoolos");
     const request = evaluationRequest();
-    await post("/v1/evaluations", token, request);
+    await post("/v1/evaluations", await token(), request);
     const reused = { ...request, content: { type: "text", text: `${SENTINEL} a different question` } };
-    const body = await expectError(await post("/v1/evaluations", token, reused), 409, "idempotency_conflict");
+    const body = await expectError(await post("/v1/evaluations", await token(), reused), 409, "idempotency_conflict");
     expect(body.retryable).toBe(false);
     expect(fakeAi.calls).toHaveLength(1);
   });
@@ -164,23 +164,23 @@ describe("POST /v1/evaluations", () => {
   });
 
   it("releases the key when an evaluation fails, so a retry can succeed", async () => {
-    const token = await mintToken("schoolos");
+    const token = () => mintToken("schoolos");
     const request = { ...evaluationRequest(), policy: { profileId: "no-such-profile", revision: "builtin-1" } };
-    await expectError(await post("/v1/evaluations", token, request), 404, "policy_not_found");
-    await expectError(await post("/v1/evaluations", token, request), 404, "policy_not_found");
+    await expectError(await post("/v1/evaluations", await token(), request), 404, "policy_not_found");
+    await expectError(await post("/v1/evaluations", await token(), request), 404, "policy_not_found");
   });
 
   it("rejects invalid requests naming fields only, never values", async () => {
-    const token = await mintToken("schoolos");
+    const token = () => mintToken("schoolos");
     const request = evaluationRequest();
     const body = await expectError(
-      await post("/v1/evaluations", token, { ...request, context: { ...request.context, gradeBand: SENTINEL } }),
+      await post("/v1/evaluations", await token(), { ...request, context: { ...request.context, gradeBand: SENTINEL } }),
       400,
       "invalid_request",
     );
     expect(body.message).toContain("context.gradeBand");
-    await expectError(await post("/v1/evaluations", token, { ...request, schemaVersion: "2.0" }), 400, "unsupported_schema");
-    const raw = await SELF.fetch(`${BASE}/v1/evaluations`, { method: "POST", headers: { authorization: `Bearer ${token}` }, body: `{${SENTINEL}` });
+    await expectError(await post("/v1/evaluations", await token(), { ...request, schemaVersion: "2.0" }), 400, "unsupported_schema");
+    const raw = await SELF.fetch(`${BASE}/v1/evaluations`, { method: "POST", headers: { authorization: `Bearer ${await token()}` }, body: `{${SENTINEL}` });
     await expectError(raw, 400, "invalid_request");
   });
 
@@ -217,27 +217,27 @@ describe("POST /v1/evaluations", () => {
 
 describe("policy overlays", () => {
   it("pins a tenant with an overlay to the overlay revision and clamps weakening fields", async () => {
-    const token = await mintToken("schoolos", { tenant: "tenant_overlay" });
+    const token = () => mintToken("schoolos", { tenant: "tenant_overlay" });
     const educator = {
       ...evaluationRequest({ tenant: "tenant_overlay", kind: "interaction.output" }),
       policy: { profileId: "educator", revision: "builtin-1" },
       context: { audience: "educator" as const, costCenterId: "cc_staff" },
     };
-    await expectError(await post("/v1/evaluations", token, educator), 404, "policy_not_found");
+    await expectError(await post("/v1/evaluations", await token(), educator), 404, "policy_not_found");
     const pinned = { ...educator, idempotencyKey: `${educator.idempotencyKey}_2`, policy: { profileId: "educator", revision: "district-7:3" } };
-    const result = EvaluationResult.parse(await (await post("/v1/evaluations", token, pinned)).json());
+    const result = EvaluationResult.parse(await (await post("/v1/evaluations", await token(), pinned)).json());
     expect(result.policyRevision).toBe("district-7:3");
     // The overlay made output moderation required, so the classifier ran on output.
     expect(fakeAi.calls).toHaveLength(1);
 
-    const capabilities = (await (await get("/v1/capabilities", token)).json()) as { policyProfiles: { id: string; revision: string }[] };
+    const capabilities = (await (await get("/v1/capabilities", await token())).json()) as { policyProfiles: { id: string; revision: string }[] };
     expect(capabilities.policyProfiles).toContainEqual({ id: "educator", revision: "district-7:3" });
   });
 });
 
 describe("POST /v1/evaluations:batch", () => {
   it("evaluates offline kinds in order, with per-item errors", async () => {
-    const token = await mintToken("schoolos");
+    const token = () => mintToken("schoolos");
     const candidate = (text: string) => ({
       ...evaluationRequest({ kind: "content.candidate", text }),
       policy: { profileId: "published-content", revision: "builtin-1" },
@@ -245,7 +245,7 @@ describe("POST /v1/evaluations:batch", () => {
     });
     const missing = { ...candidate(`${SENTINEL} third`), policy: { profileId: "missing", revision: "builtin-1" } };
     const requests = [candidate(`${SENTINEL} first`), candidate(`${SENTINEL} second ${HARASSMENT_MARKER}`), missing];
-    const response = await post("/v1/evaluations:batch", token, { requests });
+    const response = await post("/v1/evaluations:batch", await token(), { requests });
     expect(response.status).toBe(200);
     const body = (await response.json()) as { items: { status: string; result?: EvaluationResult; error?: { code: string } }[] };
     expect(body.items.map((item) => item.status)).toEqual(["ok", "ok", "error"]);
@@ -255,14 +255,14 @@ describe("POST /v1/evaluations:batch", () => {
   });
 
   it("rejects interactive kinds, oversize batches and other tenants' requests", async () => {
-    const token = await mintToken("schoolos");
-    await expectError(await post("/v1/evaluations:batch", token, { requests: [evaluationRequest({ kind: "interaction.input" })] }), 400, "invalid_request");
-    await expectError(await post("/v1/evaluations:batch", token, { requests: [evaluationRequest({ kind: "interaction.output" })] }), 400, "invalid_request");
+    const token = () => mintToken("schoolos");
+    await expectError(await post("/v1/evaluations:batch", await token(), { requests: [evaluationRequest({ kind: "interaction.input" })] }), 400, "invalid_request");
+    await expectError(await post("/v1/evaluations:batch", await token(), { requests: [evaluationRequest({ kind: "interaction.output" })] }), 400, "invalid_request");
     const many = Array.from({ length: 51 }, () => evaluationRequest({ kind: "content.candidate" }));
-    await expectError(await post("/v1/evaluations:batch", token, { requests: many }), 400, "invalid_request");
-    await expectError(await post("/v1/evaluations:batch", token, { requests: [] }), 400, "invalid_request");
+    await expectError(await post("/v1/evaluations:batch", await token(), { requests: many }), 400, "invalid_request");
+    await expectError(await post("/v1/evaluations:batch", await token(), { requests: [] }), 400, "invalid_request");
     const foreign = evaluationRequest({ kind: "content.candidate", tenant: "tenant_playtrek" });
-    await expectError(await post("/v1/evaluations:batch", token, { requests: [foreign] }), 403, "forbidden");
+    await expectError(await post("/v1/evaluations:batch", await token(), { requests: [foreign] }), 403, "forbidden");
     expect(fakeAi.calls).toHaveLength(0);
   });
 });
@@ -293,14 +293,14 @@ describe("health, readiness and capabilities", () => {
 
   it("requires authentication for readiness and checks the AI binding without calling it", async () => {
     await expectError(await get("/v1/ready"), 401, "unauthorized");
-    const token = await mintToken("schoolos");
-    const ready = await get("/v1/ready", token);
+    const token = () => mintToken("schoolos");
+    const ready = await get("/v1/ready", await token());
     expect(ready.status).toBe(200);
     expect(await ready.json()).toEqual({
       ready: true,
-      checks: { authentication: true, policyOverlays: true, tenantModes: true, idempotencyStore: true, classifier: true },
+      checks: { authentication: true, policyOverlays: true, tenantModes: true, idempotencyStore: true, replayGuard: true, classifier: true },
     });
-    const missingAi = await direct("/v1/ready", call("GET", token));
+    const missingAi = await direct("/v1/ready", call("GET", await token()));
     expect(missingAi.status).toBe(503);
     expect(((await missingAi.json()) as { checks: { classifier: boolean } }).checks.classifier).toBe(false);
     expect(fakeAi.calls).toHaveLength(0);

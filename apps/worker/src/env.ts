@@ -1,4 +1,5 @@
 import type { WorkersAiBinding } from "@gmacko/hall-monitor-clef";
+import type { TokenReplayGuard } from "./replay.ts";
 import type { IdempotencyStore } from "./store.ts";
 
 /** The Workers Rate Limiting binding, as far as this Worker uses it. */
@@ -10,6 +11,8 @@ export interface RateLimiter {
 export interface Env {
   /** Per-tenant idempotency records and receipts. */
   readonly IDEMPOTENCY_STORE: DurableObjectNamespace<IdempotencyStore>;
+  /** Service-token ids already presented. Without it, every authenticated route fails closed. */
+  readonly TOKEN_REPLAY_GUARD?: DurableObjectNamespace<TokenReplayGuard>;
   /** Workers AI, for the Clef classifier. Without it the classifier is unavailable. */
   readonly AI?: WorkersAiBinding;
   /** Per-tenant request limiter. Without it, no rate limit is applied. */

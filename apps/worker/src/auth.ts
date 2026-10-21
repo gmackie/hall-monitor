@@ -4,6 +4,13 @@ import { z } from "zod";
 /** Allowed clock skew, in seconds, when checking `exp`, `nbf` and `iat`. */
 export const CLOCK_SKEW_SECONDS = 60;
 
+/**
+ * The furthest in the future a token's `exp` may be, in seconds. Each accepted token id is
+ * remembered until `exp` plus the skew to refuse replays, so a bound on lifetime is a bound on
+ * that record; service tokens are minted per request and need far less.
+ */
+export const MAX_TOKEN_LIFETIME_SECONDS = 60 * 60;
+
 /** The longest bearer token accepted, in characters. */
 export const MAX_TOKEN_LENGTH = 8192;
 
@@ -52,7 +59,10 @@ export interface ServiceIdentity {
   /** The tenant every request on this token must belong to. */
   readonly tenant: string;
   readonly scopes: ReadonlySet<string>;
+  /** The token's `jti`. Each verified token is accepted once (see `TokenReplayGuard`). */
   readonly tokenId: string;
+  /** The token's `exp`, in seconds since the epoch. */
+  readonly expiresAt: number;
 }
 
 /** Why a token was refused. The reason is a fixed code, safe to log; it never quotes the token. */
@@ -64,6 +74,8 @@ export type AuthFailure =
   | "unknown_key"
   | "bad_signature"
   | "expired"
+  | "lifetime_too_long"
+  | "replayed"
   | "not_yet_valid"
   | "wrong_audience"
   | "missing_claim";
@@ -110,7 +122,9 @@ export function bearerToken(header: string | null): string {
  * Verifies a compact JWS service token: EdDSA (Ed25519) or ES256 only, signed by a key of a
  * configured issuer, with `iss`, `aud`, `exp`, optional `nbf`/`iat` (60 s skew), a `jti`, a
  * `tenant` and a `scope`. Every failure throws {@link AuthError}; nothing is trusted before the
- * signature checks out.
+ * signature checks out. `exp` may be at most {@link MAX_TOKEN_LIFETIME_SECONDS} ahead. Replay
+ * (a `jti` seen before) is checked by the caller against `TokenReplayGuard`, after verification,
+ * so unsigned tokens can never fill the replay record.
  */
 export async function verifyServiceToken(token: string, options: VerifyOptions): Promise<ServiceIdentity> {
   if (token.length > MAX_TOKEN_LENGTH) throw new AuthError("malformed_token");
@@ -142,6 +156,7 @@ export async function verifyServiceToken(token: string, options: VerifyOptions):
   if (!claims.success) throw new AuthError("missing_claim");
   const { exp, nbf, iat, aud, jti, tenant, scope } = claims.data;
   if (options.now >= exp + CLOCK_SKEW_SECONDS) throw new AuthError("expired");
+  if (exp > options.now + MAX_TOKEN_LIFETIME_SECONDS + CLOCK_SKEW_SECONDS) throw new AuthError("lifetime_too_long");
   if ((nbf !== undefined && options.now < nbf - CLOCK_SKEW_SECONDS) || (iat !== undefined && iat > options.now + CLOCK_SKEW_SECONDS)) {
     throw new AuthError("not_yet_valid");
   }
@@ -150,7 +165,7 @@ export async function verifyServiceToken(token: string, options: VerifyOptions):
   if (!audiences.some((candidate) => accepted.includes(candidate))) throw new AuthError("wrong_audience");
 
   const scopes = new Set((typeof scope === "string" ? scope.split(" ") : scope).filter((entry) => entry.length > 0));
-  return { issuer: issuer.iss, tenant, scopes, tokenId: jti };
+  return { issuer: issuer.iss, tenant, scopes, tokenId: jti, expiresAt: exp };
 }
 
 function selectKey(issuer: TrustedIssuer, algorithm: "EdDSA" | "ES256", kid: string | undefined): Jwk {

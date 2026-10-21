@@ -51,7 +51,7 @@ const error = (description: string) => jsonBody("ErrorBody", description);
 
 /** Error responses every authenticated route can return. */
 const AUTHENTICATED_ERRORS = {
-  "401": error("Missing, invalid or expired service token (`unauthorized`)."),
+  "401": error("Missing, invalid, expired or already-used service token (`unauthorized`, not retryable with the same token)."),
   "429": error("The tenant's request rate was exceeded (`rate_limited`); honor `Retry-After`."),
   "503": error("Service misconfigured or a dependency failed (`unavailable`)."),
 };
@@ -182,7 +182,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
           scheme: "bearer",
           bearerFormat: "JWT",
           description:
-            "A service JWT signed with EdDSA (Ed25519) or ES256 by an issuer in `HM_TRUSTED_ISSUERS`, carrying `iss`, `aud`, `exp`, optional `nbf`/`iat` (60 s skew), `jti`, `tenant` and `scope` (space-separated: `evaluate`, `receipts:read`).",
+            "A service JWT signed with EdDSA (Ed25519) or ES256 by an issuer in `HM_TRUSTED_ISSUERS`, carrying `iss`, `aud`, `exp` (at most one hour ahead), optional `nbf`/`iat` (60 s skew), `jti`, `tenant` and `scope` (space-separated: `evaluate`, `receipts:read`). Each token is accepted once: a replayed `(iss, jti)` is `401 unauthorized`, so mint a new token for every request and every retry.",
         },
       },
       schemas,

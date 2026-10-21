@@ -7,8 +7,14 @@
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
   "durable_objects": {
-    "bindings": [{ "name": "IDEMPOTENCY_STORE", "class_name": "IdempotencyStore" }]
+    "bindings": [
+      { "name": "IDEMPOTENCY_STORE", "class_name": "IdempotencyStore" },
+      { "name": "TOKEN_REPLAY_GUARD", "class_name": "TokenReplayGuard" }
+    ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["IdempotencyStore"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["IdempotencyStore"] },
+    { "tag": "v2", "new_sqlite_classes": ["TokenReplayGuard"] }
+  ],
   "vars": { "HM_AUDIENCE": "hall-monitor" }
 }

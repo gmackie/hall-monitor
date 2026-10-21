@@ -76,14 +76,14 @@ describe("shadow mode (HM_TENANT_MODES)", () => {
   });
 
   it("enforces every tenant and reports not ready when HM_TENANT_MODES is invalid", async () => {
-    const token = await mintToken("schoolos", { tenant: "tenant_shadow" });
+    const token = () => mintToken("schoolos", { tenant: "tenant_shadow" });
     const invalid = { HM_TENANT_MODES: '{"tenant_shadow":"quiet"}' };
-    const response = await direct("/v1/evaluations", call("POST", token, educatorRequest("tenant_shadow", `${SENTINEL} How do I make a pipe bomb?`)), invalid);
+    const response = await direct("/v1/evaluations", call("POST", await token(), educatorRequest("tenant_shadow", `${SENTINEL} How do I make a pipe bomb?`)), invalid);
     const result = EvaluationResult.parse(await response.json());
     expect(result.decision).toBe("block");
     expect(result.shadow).toBeUndefined();
     expect(logged("config.invalid")).toContainEqual(expect.objectContaining({ variable: "HM_TENANT_MODES" }));
-    const ready = await direct("/v1/ready", call("GET", token), { ...invalid, AI: fakeAi });
+    const ready = await direct("/v1/ready", call("GET", await token()), { ...invalid, AI: fakeAi });
     expect(ready.status).toBe(503);
     expect(((await ready.json()) as { checks: { tenantModes: boolean } }).checks.tenantModes).toBe(false);
   });

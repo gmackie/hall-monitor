@@ -16,7 +16,11 @@ export interface Transport {
   send(request: TransportRequest): Promise<Response>;
 }
 
-/** Supplies a short-lived bearer service token (a signed JWT) for each call. */
+/**
+ * Supplies a short-lived bearer service token (a signed JWT). Transports call it once per HTTP
+ * attempt, retries included, and Hall Monitor accepts each token's `jti` only once, so every call
+ * must return a newly minted token (see `serviceTokenSource`); never cache one.
+ */
 export type TokenSource = () => Promise<string>;
 
 /** Settings for {@link fetchTransport}. */
