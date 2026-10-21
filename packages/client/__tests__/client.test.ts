@@ -8,6 +8,8 @@ import {
   HallMonitorTimeoutError,
   SERVICE_BINDING_ORIGIN,
   serviceBindingTransport,
+  serviceTokenSource,
+  type SigningKey,
 } from "../src/index.ts";
 
 /** Synthetic request; the text is invented and must never appear in errors. */
@@ -224,5 +226,82 @@ describe("transports", () => {
     expect(seen[0]!.url).toBe(`${SERVICE_BINDING_ORIGIN}/v1/evaluations`);
     expect(seen[0]!.headers.get("authorization")).toBe("Bearer binding-token");
     expect(await seen[0]!.json()).toEqual(REQUEST);
+  });
+});
+
+describe("serviceTokenSource", () => {
+  const decode = (segment: string) => JSON.parse(Buffer.from(segment, "base64url").toString("utf8")) as Record<string, unknown>;
+
+  async function source(algorithm: "EdDSA" | "ES256", overrides: { lifetimeSeconds?: number } = {}) {
+    const pair =
+      algorithm === "EdDSA"
+        ? ((await crypto.subtle.generateKey({ name: "Ed25519" }, false, ["sign", "verify"])) as unknown as { privateKey: SigningKey; publicKey: SigningKey })
+        : await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, false, ["sign", "verify"]);
+    const getToken = serviceTokenSource({
+      issuer: "https://issuer.test",
+      audience: "hall-monitor",
+      tenant: "tenant_a",
+      scope: ["evaluate", "receipts:read"],
+      algorithm,
+      privateKey: pair.privateKey,
+      keyId: "key-1",
+      now: () => 1_800_000_000,
+      ...overrides,
+    });
+    return { getToken, publicKey: pair.publicKey };
+  }
+
+  it.each(["EdDSA", "ES256"] as const)("signs verifiable %s tokens with the service claims", async (algorithm) => {
+    const { getToken, publicKey } = await source(algorithm);
+    const token = await getToken();
+    const [header, payload, signature] = token.split(".") as [string, string, string];
+    expect(decode(header)).toEqual({ alg: algorithm, typ: "JWT", kid: "key-1" });
+    expect(decode(payload)).toEqual({
+      iss: "https://issuer.test",
+      aud: "hall-monitor",
+      iat: 1_800_000_000,
+      exp: 1_800_000_060,
+      jti: expect.any(String),
+      tenant: "tenant_a",
+      scope: "evaluate receipts:read",
+    });
+    const params = algorithm === "EdDSA" ? { name: "Ed25519" } : { name: "ECDSA", hash: "SHA-256" };
+    const valid = await crypto.subtle.verify(params, publicKey, Buffer.from(signature, "base64url"), new TextEncoder().encode(`${header}.${payload}`));
+    expect(valid).toBe(true);
+  });
+
+  it("mints a new jti on every call", async () => {
+    const { getToken } = await source("EdDSA");
+    const tokens = await Promise.all(Array.from({ length: 20 }, () => getToken()));
+    const jtis = tokens.map((token) => decode(token.split(".")[1]!).jti);
+    expect(new Set(jtis).size).toBe(20);
+  });
+
+  it("refuses lifetimes the service would reject", async () => {
+    await expect(source("EdDSA", { lifetimeSeconds: 3601 })).rejects.toThrow(RangeError);
+    await expect(source("EdDSA", { lifetimeSeconds: 0 })).rejects.toThrow(RangeError);
+  });
+
+  it("is asked for a new token on every retry attempt", async () => {
+    const { getToken } = await source("EdDSA");
+    const sent: string[] = [];
+    const fake = fakeFetch([json({ code: "unavailable", message: "down", retryable: true }, 503), json(RESULT)]);
+    const hm = createHallMonitorClient({
+      transport: fetchTransport({
+        baseUrl: "https://hm.example.test",
+        getToken: async () => {
+          const token = await getToken();
+          sent.push(token);
+          return token;
+        },
+        fetch: fake.fetch,
+      }),
+      random: () => 0,
+      sleep: async () => {},
+    });
+    await expect(hm.evaluate(REQUEST)).resolves.toEqual(RESULT);
+    const authorizations = fake.calls.map((call) => (call.init.headers as Record<string, string>).authorization);
+    expect(authorizations).toEqual(sent.map((token) => `Bearer ${token}`));
+    expect(new Set(sent.map((token) => decode(token.split(".")[1]!).jti)).size).toBe(2);
   });
 });
