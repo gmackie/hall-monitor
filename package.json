@@ -1,0 +1,19 @@
+{
+  "name": "hall-monitor",
+  "private": true,
+  "description": "Product-neutral moderation and evaluation service (Hall Monitor) shared by SchoolOS and PlayTrek.",
+  "type": "module",
+  "packageManager": "pnpm@12.8.1",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "check:boundaries": "node scripts/check-boundaries.mjs",
+    "lint": "pnpm check:boundaries && pnpm typecheck"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
