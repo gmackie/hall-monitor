@@ -1,0 +1,184 @@
+import { EvaluationKind, type EvaluationRequest, type Finding, type Severity, type UsageAttempt } from "@gmacko/hall-monitor-contracts";
+import { CLEF_FLASH_MODEL, CLEF_MODEL, CLOUDFLARE_WORKERS_AI, type PriceBook, priceAttempt } from "@gmacko/hall-monitor-costing";
+import type { EvaluatorPlugin, EvaluatorSignals } from "@gmacko/hall-monitor-evaluators";
+import { buildClefInput, CLEF_QUESTIONS, type ClefQuestion, parseClefOutput } from "./clef-protocol.ts";
+import { type ClefTransport, ClefTransportError } from "./transport.ts";
+
+/** Version of this plugin; bump when questions, thresholds or severity mapping change. */
+export const CLEF_CLASSIFIER_VERSION = "1.0.0";
+
+/** Default per-call timeout. */
+export const DEFAULT_CLEF_TIMEOUT_MS = 2500;
+
+/**
+ * Probability band treated as ambiguous: below `low` is clear, at or above `high` is a finding,
+ * and in between escalates or reports uncertainty.
+ *
+ * UNCALIBRATED: these are placeholders. They must be replaced with thresholds measured per
+ * category and grade band on the frozen corpus before any student rollout.
+ */
+export const UNCALIBRATED_THRESHOLDS = Object.freeze({ low: 0.35, high: 0.75 });
+
+/** Configuration for {@link createClefClassifier}. */
+export interface ClefClassifierOptions {
+  readonly transport: ClefTransport;
+  /** Prices each attempt; attempts carry this book's id. */
+  readonly priceBook: PriceBook;
+  /** Generates a unique attempt id. */
+  readonly newAttemptId: () => string;
+  readonly clock?: () => Date;
+  readonly primaryModel?: string;
+  readonly escalationModel?: string;
+  readonly thresholds?: { readonly low: number; readonly high: number };
+  readonly timeoutMs?: number;
+  /** Kinds that may escalate; others report ambiguity as uncertainty. */
+  readonly escalationKinds?: readonly EvaluationKind[];
+  readonly questions?: readonly ClefQuestion[];
+}
+
+type CallOutcome =
+  | { readonly kind: "scored"; readonly scores: Map<string, number> }
+  | { readonly kind: "malformed" }
+  | { readonly kind: "failed"; readonly timedOut: boolean };
+
+/**
+ * A Clef classifier plugin. It asks Clef-flash every category question in one request and, when
+ * any answer falls in the ambiguous band, escalates at most once to Clef if the profile enables
+ * escalation for this kind. Every provider call, including failures, yields one priced
+ * `UsageAttempt`; a call without reported usage is recorded with unknown cost, never zero.
+ *
+ * Failures never produce findings: a timeout, 429 or 5xx sets `classifierUnavailable` (and
+ * `classifierTimedOut`), and malformed output sets `uncertain`, leaving the decision to policy.
+ */
+export function createClefClassifier(options: ClefClassifierOptions): EvaluatorPlugin {
+  const primaryModel = options.primaryModel ?? CLEF_FLASH_MODEL;
+  const escalationModel = options.escalationModel ?? CLEF_MODEL;
+  const { low, high } = options.thresholds ?? UNCALIBRATED_THRESHOLDS;
+  if (!(0 <= low && low < high && high <= 1)) throw new RangeError("thresholds must satisfy 0 <= low < high <= 1");
+  const timeoutMs = options.timeoutMs ?? DEFAULT_CLEF_TIMEOUT_MS;
+  const escalationKinds = options.escalationKinds ?? ["interaction.input", "content.candidate"];
+  const questions = options.questions ?? CLEF_QUESTIONS;
+  const clock = options.clock ?? (() => new Date());
+
+  return {
+    id: "clef",
+    version: CLEF_CLASSIFIER_VERSION,
+    supportedKinds: EvaluationKind.options,
+    async evaluate(request, context) {
+      if (request.content.type !== "text") return { findings: [], attempts: [] };
+      const input = buildClefInput(request, request.content.text, questions);
+      const attempts: UsageAttempt[] = [];
+
+      const call = async (model: string): Promise<CallOutcome> => {
+        const attemptIndex = attempts.length;
+        try {
+          const result = await runWithTimeout(options.transport, model, input, timeoutMs, context.signal);
+          attempts.push(
+            price({
+              attemptId: options.newAttemptId(),
+              attemptIndex,
+              providerId: CLOUDFLARE_WORKERS_AI,
+              modelId: model,
+              sku: model,
+              priceBookId: options.priceBook.id,
+              units: { ...result.usage },
+              state: result.usage?.inputTokens === undefined ? "unknown" : "provider_reported",
+              ...(result.providerRequestId === undefined ? {} : { providerRequestId: result.providerRequestId }),
+              ...(result.gatewayLogId === undefined ? {} : { gatewayLogId: result.gatewayLogId }),
+            }),
+          );
+          const scores = parseClefOutput(result.output, questions);
+          return scores === null ? { kind: "malformed" } : { kind: "scored", scores };
+        } catch (error) {
+          // The provider may have processed (and billed) a request we gave up on.
+          attempts.push(
+            price({
+              attemptId: options.newAttemptId(),
+              attemptIndex,
+              providerId: CLOUDFLARE_WORKERS_AI,
+              modelId: model,
+              sku: model,
+              priceBookId: options.priceBook.id,
+              units: {},
+              state: "unknown",
+            }),
+          );
+          return { kind: "failed", timedOut: error instanceof ClefTimeoutError };
+        }
+      };
+      const price = (attempt: UsageAttempt) => priceAttempt(options.priceBook, attempt, { at: clock() }).attempt;
+      const ambiguous = (scores: Map<string, number>) => [...scores.values()].some((score) => score >= low && score < high);
+
+      const primary = await call(primaryModel);
+      if (primary.kind === "failed") {
+        return { findings: [], attempts, signals: { classifierUnavailable: true, ...(primary.timedOut ? { classifierTimedOut: true } : {}) } };
+      }
+      if (primary.kind === "malformed") return { findings: [], attempts, signals: { uncertain: true } };
+
+      let scores = primary.scores;
+      let fellBack = false;
+      if (ambiguous(scores) && context.profile.escalation.enabled && escalationKinds.includes(request.evaluationKind)) {
+        const escalated = await call(escalationModel);
+        if (escalated.kind === "scored") scores = escalated.scores;
+        else fellBack = true;
+      }
+
+      const findings = questions.flatMap((question): Finding[] => {
+        const score = scores.get(question.id)!;
+        return score >= high
+          ? [
+              {
+                evaluatorId: "clef",
+                evaluatorVersion: CLEF_CLASSIFIER_VERSION,
+                category: question.category,
+                reasonCode: `clef.${question.id}`,
+                severity: severityFor(question, request),
+                confidence: score,
+              },
+            ]
+          : [];
+      });
+      const signals: EvaluatorSignals = fellBack || ambiguous(scores) ? { uncertain: true } : {};
+      return { findings, attempts, signals };
+    },
+  };
+}
+
+/** Thrown when a call exceeds its timeout. */
+class ClefTimeoutError extends Error {
+  override readonly name = "ClefTimeoutError";
+}
+
+function severityFor(question: ClefQuestion, request: EvaluationRequest): Severity {
+  const studentFacing = request.context.audience === "student";
+  switch (question.category) {
+    case "self-harm":
+      return "support";
+    case "harassment":
+      return "hold";
+    case "prompt-injection":
+      return studentFacing && request.evaluationKind === "interaction.input" ? "block" : "hold";
+    default:
+      return studentFacing ? "block" : "hold";
+  }
+}
+
+async function runWithTimeout(transport: ClefTransport, model: string, input: unknown, timeoutMs: number, parent: AbortSignal) {
+  const controller = new AbortController();
+  const abort = () => controller.abort(parent.reason);
+  if (parent.aborted) throw new ClefTransportError("unavailable");
+  parent.addEventListener("abort", abort, { once: true });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new ClefTimeoutError(`Clef call exceeded ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([transport.run(model, input, { signal: controller.signal }), timeout]);
+  } finally {
+    clearTimeout(timer);
+    parent.removeEventListener("abort", abort);
+  }
+}
