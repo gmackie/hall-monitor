@@ -53,6 +53,49 @@ is unavailable and the profile's failure mode applies), `HM_AI_GATEWAY_ID` and t
 `TENANT_RATE_LIMITER` rate-limiting binding. Logs are JSON lines with fixed event names and
 content-free fields only.
 
+## Consuming from another repo
+
+The packages are not on npm (publishing needs owner approval). Each `v<version>` tag instead
+attaches `pnpm pack` tarballs and a `manifest.json` to a GitHub Release
+(`.github/workflows/release.yml`; `node scripts/pack-release.mjs` builds the same files into
+`dist/release/` locally). Packed manifests depend on each other by plain version
+(`"@gmacko/hall-monitor-contracts": "0.1.0"`), which would resolve against the npm registry, so a
+consumer must override **every** `@gmacko/hall-monitor-*` name, including transitive ones, to the
+release URLs. With pnpm 10+ put the overrides in `pnpm-workspace.yaml`:
+
+```yaml
+overrides:
+  '@gmacko/hall-monitor-contracts': https://github.com/gmackie/hall-monitor/releases/download/v0.1.0/gmacko-hall-monitor-contracts-0.1.0.tgz
+  '@gmacko/hall-monitor-costing': https://github.com/gmackie/hall-monitor/releases/download/v0.1.0/gmacko-hall-monitor-costing-0.1.0.tgz
+  '@gmacko/hall-monitor-policy': https://github.com/gmackie/hall-monitor/releases/download/v0.1.0/gmacko-hall-monitor-policy-0.1.0.tgz
+  '@gmacko/hall-monitor-evaluators': https://github.com/gmackie/hall-monitor/releases/download/v0.1.0/gmacko-hall-monitor-evaluators-0.1.0.tgz
+  '@gmacko/hall-monitor-clef': https://github.com/gmackie/hall-monitor/releases/download/v0.1.0/gmacko-hall-monitor-clef-0.1.0.tgz
+  '@gmacko/hall-monitor-core': https://github.com/gmackie/hall-monitor/releases/download/v0.1.0/gmacko-hall-monitor-core-0.1.0.tgz
+  '@gmacko/hall-monitor-client': https://github.com/gmackie/hall-monitor/releases/download/v0.1.0/gmacko-hall-monitor-client-0.1.0.tgz
+```
+
+(older pnpm: the same map under `"pnpm": { "overrides": { ... } }` in `package.json`), and depend on
+the packages you use by the same URL. pnpm 11 and later refuse URL-resolved *transitive*
+dependencies by default (`blockExoticSubdeps`), so URL overrides also need
+`blockExoticSubdeps: false` in `pnpm-workspace.yaml`. To keep that protection on, download the
+release tarballs into the consuming repo (for example `vendor/hall-monitor/`) and use
+`file:vendor/hall-monitor/<tarball>` in both the overrides and the dependencies instead; local
+tarballs are accepted with the default settings.
+
+```json
+"dependencies": {
+  "@gmacko/hall-monitor-client": "https://github.com/gmackie/hall-monitor/releases/download/v0.1.0/gmacko-hall-monitor-client-0.1.0.tgz"
+}
+```
+
+The packages ship TypeScript source (`exports` points at `./src/index.ts`, with `.ts` import
+specifiers). Bundlers (Wrangler, Vite, esbuild) and `tsx` consume them directly; Node's built-in
+type stripping does not run inside `node_modules`. Type-check consumers with
+`moduleResolution: "Bundler"` and `allowImportingTsExtensions`.
+
+**License: TODO (owner).** No package declares a license yet; the owner must choose one before
+these tarballs are relied on outside this account.
+
 ## Development
 
 ```sh
