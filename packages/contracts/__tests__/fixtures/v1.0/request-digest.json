@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0",
+  "requestId": "req_02",
+  "idempotencyKey": "idem_02",
+  "source": { "product": "playtrek", "tenantId": "tenant_opaque", "surface": "episode.review" },
+  "policy": { "profileId": "published-content", "revision": "2026-fall:1" },
+  "context": { "audience": "public", "costCenterId": "cc_content", "parentRequestId": "job_7" },
+  "evaluationKind": "content.candidate",
+  "content": {
+    "type": "digest",
+    "digest": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+    "mimeType": "image/png"
+  }
+}

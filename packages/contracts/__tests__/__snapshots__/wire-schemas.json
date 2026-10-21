@@ -1,0 +1,1251 @@
+{
+  "SchemaVersion": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "string",
+    "pattern": "^\\d{1,3}\\.\\d{1,3}$"
+  },
+  "OpaqueId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 128,
+    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+  },
+  "UsdNano": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "string",
+    "maxLength": 40,
+    "pattern": "^-?\\d+$"
+  },
+  "NonNegativeUsdNano": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "string",
+    "maxLength": 40,
+    "pattern": "^\\d+$"
+  },
+  "MachineCode": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "string",
+    "maxLength": 96,
+    "pattern": "^[a-z][a-z0-9_.]*$"
+  },
+  "Product": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "string",
+    "enum": [
+      "schoolos",
+      "playtrek",
+      "hall-monitor",
+      "other"
+    ]
+  },
+  "EvaluationKind": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "string",
+    "enum": [
+      "interaction.input",
+      "interaction.output",
+      "content.candidate",
+      "assessment.evaluator-result"
+    ]
+  },
+  "Decision": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "string",
+    "enum": [
+      "allow",
+      "coach",
+      "hold",
+      "block",
+      "support"
+    ]
+  },
+  "GradeBand": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "string",
+    "enum": [
+      "K-2",
+      "3-5",
+      "6-8",
+      "9-12",
+      "adult"
+    ]
+  },
+  "Audience": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "string",
+    "enum": [
+      "student",
+      "educator",
+      "public"
+    ]
+  },
+  "EvaluationContent": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "oneOf": [
+      {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "text"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32000
+          }
+        },
+        "required": [
+          "type",
+          "text"
+        ],
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "digest"
+          },
+          "digest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "mimeType": {
+            "type": "string",
+            "maxLength": 127,
+            "pattern": "^[a-z0-9][a-z0-9!#$&^_.+-]*\\/[a-z0-9][a-z0-9!#$&^_.+-]*$"
+          }
+        },
+        "required": [
+          "type",
+          "digest",
+          "mimeType"
+        ],
+        "additionalProperties": false
+      }
+    ]
+  },
+  "EvaluationRequest": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "schemaVersion": {
+        "type": "string",
+        "pattern": "^\\d{1,3}\\.\\d{1,3}$"
+      },
+      "requestId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+      },
+      "idempotencyKey": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+      },
+      "source": {
+        "type": "object",
+        "properties": {
+          "product": {
+            "type": "string",
+            "enum": [
+              "schoolos",
+              "playtrek",
+              "hall-monitor",
+              "other"
+            ]
+          },
+          "tenantId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "surface": {
+            "type": "string",
+            "maxLength": 96,
+            "pattern": "^[a-z][a-z0-9_.]*$"
+          }
+        },
+        "required": [
+          "product",
+          "tenantId",
+          "surface"
+        ],
+        "additionalProperties": false
+      },
+      "policy": {
+        "type": "object",
+        "properties": {
+          "profileId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          }
+        },
+        "required": [
+          "profileId",
+          "revision"
+        ],
+        "additionalProperties": false
+      },
+      "context": {
+        "type": "object",
+        "properties": {
+          "gradeBand": {
+            "type": "string",
+            "enum": [
+              "K-2",
+              "3-5",
+              "6-8",
+              "9-12",
+              "adult"
+            ]
+          },
+          "subject": {
+            "type": "string",
+            "maxLength": 96,
+            "pattern": "^[a-z][a-z0-9_.]*$"
+          },
+          "activityKind": {
+            "type": "string",
+            "maxLength": 96,
+            "pattern": "^[a-z][a-z0-9_.]*$"
+          },
+          "audience": {
+            "type": "string",
+            "enum": [
+              "student",
+              "educator",
+              "public"
+            ]
+          },
+          "graded": {
+            "type": "boolean"
+          },
+          "costCenterId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "parentRequestId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          }
+        },
+        "required": [
+          "audience",
+          "costCenterId"
+        ],
+        "additionalProperties": false
+      },
+      "evaluationKind": {
+        "type": "string",
+        "enum": [
+          "interaction.input",
+          "interaction.output",
+          "content.candidate",
+          "assessment.evaluator-result"
+        ]
+      },
+      "content": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "text"
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32000
+              }
+            },
+            "required": [
+              "type",
+              "text"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "digest"
+              },
+              "digest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "mimeType": {
+                "type": "string",
+                "maxLength": 127,
+                "pattern": "^[a-z0-9][a-z0-9!#$&^_.+-]*\\/[a-z0-9][a-z0-9!#$&^_.+-]*$"
+              }
+            },
+            "required": [
+              "type",
+              "digest",
+              "mimeType"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "conversation": {
+        "type": "object",
+        "properties": {
+          "priorMessageCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000
+          }
+        },
+        "required": [
+          "priorMessageCount"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "schemaVersion",
+      "requestId",
+      "idempotencyKey",
+      "source",
+      "policy",
+      "context",
+      "evaluationKind",
+      "content"
+    ],
+    "additionalProperties": false
+  },
+  "FindingCategory": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "string",
+    "enum": [
+      "safety",
+      "self-harm",
+      "harassment",
+      "sexual",
+      "violence",
+      "hate",
+      "privacy",
+      "prompt-injection",
+      "academic-integrity",
+      "age-fit",
+      "quality",
+      "rights",
+      "format"
+    ]
+  },
+  "Severity": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "string",
+    "enum": [
+      "info",
+      "warn",
+      "hold",
+      "block",
+      "support"
+    ]
+  },
+  "Finding": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "evaluatorId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+      },
+      "evaluatorVersion": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+      },
+      "category": {
+        "type": "string",
+        "enum": [
+          "safety",
+          "self-harm",
+          "harassment",
+          "sexual",
+          "violence",
+          "hate",
+          "privacy",
+          "prompt-injection",
+          "academic-integrity",
+          "age-fit",
+          "quality",
+          "rights",
+          "format"
+        ]
+      },
+      "reasonCode": {
+        "type": "string",
+        "maxLength": 96,
+        "pattern": "^[a-z][a-z0-9_.]*$"
+      },
+      "severity": {
+        "type": "string",
+        "enum": [
+          "info",
+          "warn",
+          "hold",
+          "block",
+          "support"
+        ]
+      },
+      "confidence": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "span": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 32000
+          },
+          "end": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 32000
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "evaluatorId",
+      "evaluatorVersion",
+      "category",
+      "reasonCode",
+      "severity"
+    ],
+    "additionalProperties": false
+  },
+  "UsageAttempt": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "attemptId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+      },
+      "attemptIndex": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 1000
+      },
+      "providerId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+      },
+      "modelId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "sku": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "priceBookId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+      },
+      "units": {
+        "type": "object",
+        "properties": {
+          "inputTokens": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "cachedInputTokens": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "outputTokens": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "neurons": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "additionalProperties": false
+      },
+      "grossUsdNano": {
+        "type": "string",
+        "maxLength": 40,
+        "pattern": "^\\d+$"
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "estimated",
+          "provider_reported",
+          "unknown"
+        ]
+      },
+      "providerRequestId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+      },
+      "gatewayLogId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+      }
+    },
+    "required": [
+      "attemptId",
+      "attemptIndex",
+      "providerId",
+      "modelId",
+      "sku",
+      "priceBookId",
+      "units",
+      "state"
+    ],
+    "additionalProperties": false
+  },
+  "CostReceipt": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "receiptId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+      },
+      "tenantId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+      },
+      "product": {
+        "type": "string",
+        "enum": [
+          "schoolos",
+          "playtrek",
+          "hall-monitor",
+          "other"
+        ]
+      },
+      "costCenterId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+      },
+      "logicalRequestId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+      },
+      "parentRequestId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "date-time",
+        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+      },
+      "purpose": {
+        "type": "string",
+        "maxLength": 96,
+        "pattern": "^[a-z][a-z0-9_.]*$"
+      },
+      "attempts": {
+        "maxItems": 16,
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "attemptId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+            },
+            "attemptIndex": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "providerId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+            },
+            "modelId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "sku": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "priceBookId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+            },
+            "units": {
+              "type": "object",
+              "properties": {
+                "inputTokens": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "cachedInputTokens": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "outputTokens": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "neurons": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "additionalProperties": false
+            },
+            "grossUsdNano": {
+              "type": "string",
+              "maxLength": 40,
+              "pattern": "^\\d+$"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "estimated",
+                "provider_reported",
+                "unknown"
+              ]
+            },
+            "providerRequestId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+            },
+            "gatewayLogId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+            }
+          },
+          "required": [
+            "attemptId",
+            "attemptIndex",
+            "providerId",
+            "modelId",
+            "sku",
+            "priceBookId",
+            "units",
+            "state"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "totalGrossUsdNano": {
+        "type": "string",
+        "maxLength": 40,
+        "pattern": "^\\d+$"
+      },
+      "hasUnknownCost": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "receiptId",
+      "tenantId",
+      "product",
+      "costCenterId",
+      "logicalRequestId",
+      "createdAt",
+      "purpose",
+      "attempts",
+      "totalGrossUsdNano",
+      "hasUnknownCost"
+    ],
+    "additionalProperties": false
+  },
+  "EvaluationResult": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "schemaVersion": {
+        "type": "string",
+        "pattern": "^\\d{1,3}\\.\\d{1,3}$"
+      },
+      "evaluationId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+      },
+      "requestId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+      },
+      "decision": {
+        "type": "string",
+        "enum": [
+          "allow",
+          "coach",
+          "hold",
+          "block",
+          "support"
+        ]
+      },
+      "reasonCodes": {
+        "maxItems": 64,
+        "type": "array",
+        "items": {
+          "type": "string",
+          "maxLength": 96,
+          "pattern": "^[a-z][a-z0-9_.]*$"
+        }
+      },
+      "findings": {
+        "maxItems": 256,
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "evaluatorId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+            },
+            "evaluatorVersion": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+            },
+            "category": {
+              "type": "string",
+              "enum": [
+                "safety",
+                "self-harm",
+                "harassment",
+                "sexual",
+                "violence",
+                "hate",
+                "privacy",
+                "prompt-injection",
+                "academic-integrity",
+                "age-fit",
+                "quality",
+                "rights",
+                "format"
+              ]
+            },
+            "reasonCode": {
+              "type": "string",
+              "maxLength": 96,
+              "pattern": "^[a-z][a-z0-9_.]*$"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "info",
+                "warn",
+                "hold",
+                "block",
+                "support"
+              ]
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "span": {
+              "type": "object",
+              "properties": {
+                "start": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 32000
+                },
+                "end": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 32000
+                }
+              },
+              "required": [
+                "start",
+                "end"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "evaluatorId",
+            "evaluatorVersion",
+            "category",
+            "reasonCode",
+            "severity"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "uncertain": {
+        "type": "boolean"
+      },
+      "policyRevision": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+      },
+      "evaluatorBundleRevision": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+      },
+      "resolverVersion": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+      },
+      "receipt": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "receiptId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+              },
+              "tenantId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+              },
+              "product": {
+                "type": "string",
+                "enum": [
+                  "schoolos",
+                  "playtrek",
+                  "hall-monitor",
+                  "other"
+                ]
+              },
+              "costCenterId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+              },
+              "logicalRequestId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+              },
+              "parentRequestId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "purpose": {
+                "type": "string",
+                "maxLength": 96,
+                "pattern": "^[a-z][a-z0-9_.]*$"
+              },
+              "attempts": {
+                "maxItems": 16,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "attemptId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+                    },
+                    "attemptIndex": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 1000
+                    },
+                    "providerId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+                    },
+                    "modelId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "sku": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "priceBookId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+                    },
+                    "units": {
+                      "type": "object",
+                      "properties": {
+                        "inputTokens": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "cachedInputTokens": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "outputTokens": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "neurons": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "grossUsdNano": {
+                      "type": "string",
+                      "maxLength": 40,
+                      "pattern": "^\\d+$"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "estimated",
+                        "provider_reported",
+                        "unknown"
+                      ]
+                    },
+                    "providerRequestId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+                    },
+                    "gatewayLogId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+                    }
+                  },
+                  "required": [
+                    "attemptId",
+                    "attemptIndex",
+                    "providerId",
+                    "modelId",
+                    "sku",
+                    "priceBookId",
+                    "units",
+                    "state"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "totalGrossUsdNano": {
+                "type": "string",
+                "maxLength": 40,
+                "pattern": "^\\d+$"
+              },
+              "hasUnknownCost": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "receiptId",
+              "tenantId",
+              "product",
+              "costCenterId",
+              "logicalRequestId",
+              "createdAt",
+              "purpose",
+              "attempts",
+              "totalGrossUsdNano",
+              "hasUnknownCost"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "degraded": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "enum": [
+              "classifier_timeout",
+              "classifier_unavailable",
+              "budget_exhausted"
+            ]
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "schemaVersion",
+      "evaluationId",
+      "requestId",
+      "decision",
+      "reasonCodes",
+      "findings",
+      "uncertain",
+      "policyRevision",
+      "evaluatorBundleRevision",
+      "resolverVersion",
+      "receipt"
+    ],
+    "additionalProperties": false
+  },
+  "ErrorBody": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "code": {
+        "type": "string",
+        "enum": [
+          "unauthorized",
+          "forbidden",
+          "invalid_request",
+          "unsupported_schema",
+          "policy_not_found",
+          "rate_limited",
+          "unavailable",
+          "idempotency_conflict"
+        ]
+      },
+      "message": {
+        "type": "string",
+        "maxLength": 500
+      },
+      "retryable": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "code",
+      "message",
+      "retryable"
+    ],
+    "additionalProperties": false
+  },
+  "Capabilities": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "schemaVersion": {
+        "type": "string",
+        "pattern": "^\\d{1,3}\\.\\d{1,3}$"
+      },
+      "supportedSchemaVersions": {
+        "minItems": 1,
+        "type": "array",
+        "items": {
+          "type": "string",
+          "pattern": "^\\d{1,3}\\.\\d{1,3}$"
+        }
+      },
+      "evaluationKinds": {
+        "minItems": 1,
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": [
+            "interaction.input",
+            "interaction.output",
+            "content.candidate",
+            "assessment.evaluator-result"
+          ]
+        }
+      },
+      "evaluatorBundles": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+            },
+            "revision": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+            }
+          },
+          "required": [
+            "id",
+            "revision"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "policyProfiles": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+            },
+            "revision": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+            }
+          },
+          "required": [
+            "id",
+            "revision"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "resolverVersion": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+      },
+      "classifier": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        },
+        "required": [
+          "enabled",
+          "models"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "schemaVersion",
+      "supportedSchemaVersions",
+      "evaluationKinds",
+      "evaluatorBundles",
+      "policyProfiles",
+      "resolverVersion",
+      "classifier"
+    ],
+    "additionalProperties": false
+  }
+}

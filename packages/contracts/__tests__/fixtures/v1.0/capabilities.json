@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "1.0",
+  "supportedSchemaVersions": ["1.0"],
+  "evaluationKinds": ["interaction.input", "interaction.output", "content.candidate", "assessment.evaluator-result"],
+  "evaluatorBundles": [{ "id": "hall-monitor-base", "revision": "base-1.0.0" }],
+  "policyProfiles": [{ "id": "educator", "revision": "builtin-1" }],
+  "resolverVersion": "resolver-1.0.0",
+  "classifier": { "enabled": true, "models": ["@cf/cloudflare/clef-flash", "@cf/cloudflare/clef"] }
+}

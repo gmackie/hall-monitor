@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0",
+  "evaluationId": "eval_02",
+  "requestId": "req_03",
+  "decision": "hold",
+  "reasonCodes": ["hall_monitor.unavailable"],
+  "findings": [],
+  "uncertain": true,
+  "policyRevision": "district-floor:3",
+  "evaluatorBundleRevision": "base-1.0.0",
+  "resolverVersion": "resolver-1.0.0",
+  "receipt": null,
+  "degraded": { "reason": "classifier_unavailable" }
+}

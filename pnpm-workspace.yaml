@@ -6,3 +6,6 @@ catalog:
   typescript: ^5.9.3
   vitest: ^3.2.6
   zod: ^4.1.12
+
+allowBuilds:
+  esbuild: false
