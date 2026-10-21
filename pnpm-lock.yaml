@@ -230,6 +230,12 @@ importers:
       '@gmacko/hall-monitor-client':
         specifier: workspace:*
         version: link:../../packages/client
+      '@gmacko/hall-monitor-shadow-report':
+        specifier: workspace:*
+        version: link:../../packages/shadow-report
+      '@gmacko/hall-monitor-test-fixtures':
+        specifier: workspace:*
+        version: link:../../packages/test-fixtures
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
