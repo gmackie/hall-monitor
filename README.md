@@ -135,46 +135,25 @@ workerd test harness; it is also part of `pnpm test`.
 
 ## Consuming from another repo
 
-The packages are not on npm (publishing needs owner approval). Each `v<version>` tag instead
-attaches `pnpm pack` tarballs and a `manifest.json` to a GitHub Release
-(`.github/workflows/release.yml`; `node scripts/pack-release.mjs` builds the same files into
-`dist/release/` locally). Packed manifests depend on each other by plain version
-(`"@gmacko/hall-monitor-contracts": "0.2.0"`), which would resolve against the npm registry, so a
-consumer must override **every** `@gmacko/hall-monitor-*` name, including transitive ones, to the
-release URLs. With pnpm 10+ put the overrides in `pnpm-workspace.yaml`:
+Each `v<version>` tag publishes the packages to the private ForgeGraph package registry
+(`https://npm.forgegraf.com/`) and attaches the same `pnpm pack` tarballs to a GitHub Release
+(`.github/workflows/release.yml`). Nothing is published to public npm.
 
-```yaml
-overrides:
-  '@gmacko/hall-monitor-contracts': https://github.com/gmackie/hall-monitor/releases/download/v0.2.0/gmacko-hall-monitor-contracts-0.2.0.tgz
-  '@gmacko/hall-monitor-costing': https://github.com/gmackie/hall-monitor/releases/download/v0.2.0/gmacko-hall-monitor-costing-0.2.0.tgz
-  '@gmacko/hall-monitor-policy': https://github.com/gmackie/hall-monitor/releases/download/v0.2.0/gmacko-hall-monitor-policy-0.2.0.tgz
-  '@gmacko/hall-monitor-evaluators': https://github.com/gmackie/hall-monitor/releases/download/v0.2.0/gmacko-hall-monitor-evaluators-0.2.0.tgz
-  '@gmacko/hall-monitor-clef': https://github.com/gmackie/hall-monitor/releases/download/v0.2.0/gmacko-hall-monitor-clef-0.2.0.tgz
-  '@gmacko/hall-monitor-core': https://github.com/gmackie/hall-monitor/releases/download/v0.2.0/gmacko-hall-monitor-core-0.2.0.tgz
-  '@gmacko/hall-monitor-client': https://github.com/gmackie/hall-monitor/releases/download/v0.2.0/gmacko-hall-monitor-client-0.2.0.tgz
+The registry owns the `@gmacko` scope (it does not proxy it from npm), so point the whole scope at it.
+`@gmacko/lti` and `@gmacko/clever` are mirrored there byte-for-byte, so their lockfile integrity is
+unchanged. In the consumer's `.npmrc`, with a token from `forge registry token create`:
+
+```ini
+@gmacko:registry=https://npm.forgegraf.com/
+//npm.forgegraf.com/:_authToken=${FORGEGRAPH_REGISTRY_TOKEN}
 ```
 
-(older pnpm: the same map under `"pnpm": { "overrides": { ... } }` in `package.json`), and depend on
-the packages you use by the same URL. pnpm 11 and later refuse URL-resolved *transitive*
-dependencies by default (`blockExoticSubdeps`), so URL overrides also need
-`blockExoticSubdeps: false` in `pnpm-workspace.yaml`. To keep that protection on, download the
-release tarballs into the consuming repo (for example `vendor/hall-monitor/`) and use
-`file:vendor/hall-monitor/<tarball>` in both the overrides and the dependencies instead; local
-tarballs are accepted with the default settings.
+Then depend on versions as usual, e.g. `"@gmacko/hall-monitor-client": "0.2.0"`.
 
-```json
-"dependencies": {
-  "@gmacko/hall-monitor-client": "https://github.com/gmackie/hall-monitor/releases/download/v0.2.0/gmacko-hall-monitor-client-0.2.0.tgz"
-}
-```
-
-The packages ship TypeScript source (`exports` points at `./src/index.ts`, with `.ts` import
-specifiers). Bundlers (Wrangler, Vite, esbuild) and `tsx` consume them directly; Node's built-in
-type stripping does not run inside `node_modules`. Type-check consumers with
-`moduleResolution: "Bundler"` and `allowImportingTsExtensions`.
-
-**License: TODO (owner).** No package declares a license yet; the owner must choose one before
-these tarballs are relied on outside this account.
+Without registry access, download the release tarballs into the consuming repo (for example
+`vendor/hall-monitor/`) and use `file:vendor/hall-monitor/<tarball>` both in the dependencies and in
+`overrides` for every `@gmacko/hall-monitor-*` name, since packed manifests depend on each other by
+version.
 
 ## Development
 
