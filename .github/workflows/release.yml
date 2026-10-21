@@ -1,5 +1,6 @@
 name: release
-# Attaches packed package tarballs to a GitHub Release for each v* tag. Nothing is published to npm.
+# For each v* tag: attaches packed package tarballs to a GitHub Release and publishes the same
+# tarballs to the private ForgeGraph package registry (npm.forgegraf.com). Nothing goes to public npm.
 on:
   push:
     tags: ["v*"]
@@ -27,3 +28,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release create "${GITHUB_REF_NAME}" dist/release/*.tgz dist/release/manifest.json --title "${GITHUB_REF_NAME}" --generate-notes --verify-tag
+      - name: Publish to the ForgeGraph registry
+        env:
+          FORGEGRAPH_REGISTRY_TOKEN: ${{ secrets.FORGEGRAPH_REGISTRY_TOKEN }}
+        run: node scripts/publish-registry.mjs
