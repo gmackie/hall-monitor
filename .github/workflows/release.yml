@@ -1,0 +1,29 @@
+name: release
+# Attaches packed package tarballs to a GitHub Release for each v* tag. Nothing is published to npm.
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm test
+      - name: Check the tag matches the package version
+        run: |
+          version="$(node -p "require('./packages/client/package.json').version")"
+          test "${GITHUB_REF_NAME}" = "v${version}" || { echo "tag ${GITHUB_REF_NAME} does not match v${version}"; exit 1; }
+      - run: node scripts/pack-release.mjs
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "${GITHUB_REF_NAME}" dist/release/*.tgz dist/release/manifest.json --title "${GITHUB_REF_NAME}" --generate-notes --verify-tag
