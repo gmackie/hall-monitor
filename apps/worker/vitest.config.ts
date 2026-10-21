@@ -1,4 +1,4 @@
-import { generateKeyPairSync, type JsonWebKey } from "node:crypto";
+import { generateKeyPairSync, type JsonWebKey, randomBytes } from "node:crypto";
 import { defineWorkersProject } from "@cloudflare/vitest-pool-workers/config";
 
 /**
@@ -40,6 +40,7 @@ export default defineWorkersProject({
           bindings: {
             HM_TRUSTED_ISSUERS: JSON.stringify(issuers),
             HM_POLICY_OVERLAYS: JSON.stringify(overlays),
+            HM_DIGEST_KEY: randomBytes(32).toString("hex"),
             TEST_SIGNING_KEYS: JSON.stringify({
               schoolos: { iss: issuers[0]!.iss, alg: "EdDSA", jwk: schoolos.privateJwk },
               playtrek: { iss: issuers[1]!.iss, alg: "ES256", jwk: playtrek.privateJwk },

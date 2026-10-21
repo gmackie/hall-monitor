@@ -221,8 +221,10 @@ async function runEvaluation(request: EvaluationRequest, identity: ServiceIdenti
   };
   if (config.overlays === undefined) return fail(new HttpError("unavailable", "policy configuration is invalid"));
 
+  if (env.HM_DIGEST_KEY === undefined || env.HM_DIGEST_KEY.length < 32) return fail(new HttpError("unavailable", "request digest key is not configured"));
+
   const store = storeFor(env, tenant);
-  const digest = await requestDigest(request);
+  const digest = await requestDigest(request, env.HM_DIGEST_KEY);
   const begun = await store.begin(request.idempotencyKey, digest);
   switch (begun.kind) {
     case "replay":

@@ -1,5 +1,6 @@
-// Hall Monitor Worker. Holds no secrets: issuer public keys, the audience and policy overlays
-// are plain configuration; set them per environment with `vars` or the dashboard.
+// Hall Monitor Worker. Issuer public keys, the audience and policy overlays are plain
+// configuration; set them per environment with `vars` or the dashboard. One secret is required:
+// `wrangler secret put HM_DIGEST_KEY` (32+ random characters) keys the stored request digests.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "hall-monitor",

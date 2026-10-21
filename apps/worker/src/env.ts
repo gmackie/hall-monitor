@@ -6,7 +6,7 @@ export interface RateLimiter {
   limit(options: { key: string }): Promise<{ success: boolean }>;
 }
 
-/** The Worker's bindings and configuration. None of these values is a secret. */
+/** The Worker's bindings and configuration. Only `HM_DIGEST_KEY` is a secret. */
 export interface Env {
   /** Per-tenant idempotency records and receipts. */
   readonly IDEMPOTENCY_STORE: DurableObjectNamespace<IdempotencyStore>;
@@ -22,6 +22,11 @@ export interface Env {
   readonly HM_POLICY_OVERLAYS?: string;
   /** AI Gateway id to route Clef calls through. */
   readonly HM_AI_GATEWAY_ID?: string;
+  /**
+   * Secret (set with `wrangler secret put`, at least 32 characters) that keys the request digests
+   * stored for idempotency. Without it, evaluations fail closed.
+   */
+  readonly HM_DIGEST_KEY?: string;
   /** How long idempotency records and receipts are kept, in seconds. Defaults to 24 hours. */
   readonly HM_RETENTION_SECONDS?: string;
 }
