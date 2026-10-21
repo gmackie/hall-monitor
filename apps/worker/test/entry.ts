@@ -2,7 +2,7 @@
 import worker, { type Env } from "../src/index.ts";
 import { fakeAi } from "./fake-ai.ts";
 
-export { IdempotencyStore } from "../src/index.ts";
+export { IdempotencyStore, TokenReplayGuard } from "../src/index.ts";
 
 export default {
   fetch(request, env) {

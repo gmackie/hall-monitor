@@ -14,6 +14,7 @@ export type LogEvent =
   | "shadow.refused"
   | "config.invalid"
   | "ratelimit.unavailable"
+  | "replay_guard.unavailable"
   | "internal.error";
 
 /**

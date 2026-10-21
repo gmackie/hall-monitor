@@ -66,7 +66,7 @@
             }
           },
           "401": {
-            "description": "Missing, invalid or expired service token (`unauthorized`).",
+            "description": "Missing, invalid, expired or already-used service token (`unauthorized`, not retryable with the same token).",
             "content": {
               "application/json": {
                 "schema": {
@@ -175,7 +175,7 @@
             }
           },
           "401": {
-            "description": "Missing, invalid or expired service token (`unauthorized`).",
+            "description": "Missing, invalid, expired or already-used service token (`unauthorized`, not retryable with the same token).",
             "content": {
               "application/json": {
                 "schema": {
@@ -244,7 +244,7 @@
             }
           },
           "401": {
-            "description": "Missing, invalid or expired service token (`unauthorized`).",
+            "description": "Missing, invalid, expired or already-used service token (`unauthorized`, not retryable with the same token).",
             "content": {
               "application/json": {
                 "schema": {
@@ -316,7 +316,7 @@
             }
           },
           "401": {
-            "description": "Missing, invalid or expired service token (`unauthorized`).",
+            "description": "Missing, invalid, expired or already-used service token (`unauthorized`, not retryable with the same token).",
             "content": {
               "application/json": {
                 "schema": {
@@ -385,7 +385,7 @@
             }
           },
           "401": {
-            "description": "Missing, invalid or expired service token (`unauthorized`).",
+            "description": "Missing, invalid, expired or already-used service token (`unauthorized`, not retryable with the same token).",
             "content": {
               "application/json": {
                 "schema": {
@@ -454,7 +454,7 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "JWT",
-        "description": "A service JWT signed with EdDSA (Ed25519) or ES256 by an issuer in `HM_TRUSTED_ISSUERS`, carrying `iss`, `aud`, `exp`, optional `nbf`/`iat` (60 s skew), `jti`, `tenant` and `scope` (space-separated: `evaluate`, `receipts:read`)."
+        "description": "A service JWT signed with EdDSA (Ed25519) or ES256 by an issuer in `HM_TRUSTED_ISSUERS`, carrying `iss`, `aud`, `exp` (at most one hour ahead), optional `nbf`/`iat` (60 s skew), `jti`, `tenant` and `scope` (space-separated: `evaluate`, `receipts:read`). Each token is accepted once: a replayed `(iss, jti)` is `401 unauthorized`, so mint a new token for every request and every retry."
       }
     },
     "schemas": {

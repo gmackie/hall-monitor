@@ -16,13 +16,14 @@ import { evaluate, HallMonitorError, parseEvaluationRequest } from "@gmacko/hall
 import { CLEF_FLASH_MODEL, CLEF_MODEL, PRICE_BOOK_CLOUDFLARE_2026_10_20 } from "@gmacko/hall-monitor-costing";
 import { defaultBundle } from "@gmacko/hall-monitor-evaluators";
 import { RESOLVER_VERSION } from "@gmacko/hall-monitor-policy";
-import { AuthError, bearerToken, SCOPE_EVALUATE, SCOPE_RECEIPTS_READ, type ServiceIdentity, verifyServiceToken } from "./auth.ts";
+import { AuthError, bearerToken, CLOCK_SKEW_SECONDS, SCOPE_EVALUATE, SCOPE_RECEIPTS_READ, type ServiceIdentity, verifyServiceToken } from "./auth.ts";
 import { type Config, enforcementFor, loadConfig, lookupPolicy, tenantProfiles } from "./config.ts";
 import { requestDigest } from "./digest.ts";
 import type { Env } from "./env.ts";
 import { errorResponse, HttpError, json, readJson } from "./http.ts";
 import { log } from "./log.ts";
 import { openApiJson } from "./openapi.ts";
+import { replayGuardName } from "./replay.ts";
 
 /** Largest single-evaluation body: 32k UTF-16 units of text plus an answer key, with headroom. */
 export const MAX_EVALUATION_BYTES = 512 * 1024;
@@ -92,9 +93,14 @@ function routeOf(method: string, path: string): Route {
   return { name: "not_found" };
 }
 
-/** Verifies the bearer token and, when given, that it grants `scope`. */
-async function authenticate(request: Request, config: Config, scope?: string): Promise<ServiceIdentity> {
+/**
+ * Verifies the bearer token, claims its `jti` so the token cannot be presented again and, when
+ * given, checks that it grants `scope`. A replayed token is `401 unauthorized` and not retryable:
+ * a client retry must mint a new token.
+ */
+async function authenticate(request: Request, env: Env, config: Config, scope?: string): Promise<ServiceIdentity> {
   if (config.issuers === undefined) throw new HttpError("unavailable", "service authentication is not configured");
+  if (env.TOKEN_REPLAY_GUARD === undefined) throw new HttpError("unavailable", "service authentication is not configured");
   let identity: ServiceIdentity;
   try {
     identity = await verifyServiceToken(bearerToken(request.headers.get("authorization")), {
@@ -107,6 +113,18 @@ async function authenticate(request: Request, config: Config, scope?: string): P
     log("info", "auth.rejected", { authFailure, status: 401 });
     throw new HttpError("unauthorized", "a valid service token is required");
   }
+  const guard = env.TOKEN_REPLAY_GUARD.get(env.TOKEN_REPLAY_GUARD.idFromName(replayGuardName(identity.issuer, identity.tenant)));
+  let firstUse: boolean;
+  try {
+    firstUse = await guard.claim(identity.issuer, identity.tokenId, (identity.expiresAt + CLOCK_SKEW_SECONDS) * 1000);
+  } catch (error) {
+    log("error", "replay_guard.unavailable", { tenant: identity.tenant, errorName: errorName(error) });
+    throw new HttpError("unavailable", "service authentication is unavailable", { retryable: true });
+  }
+  if (!firstUse) {
+    log("info", "auth.rejected", { tenant: identity.tenant, authFailure: "replayed", status: 401 });
+    throw new HttpError("unauthorized", "a valid service token is required");
+  }
   if (scope !== undefined && !identity.scopes.has(scope)) {
     throw new HttpError("forbidden", `token lacks the ${scope} scope`);
   }
@@ -115,12 +133,13 @@ async function authenticate(request: Request, config: Config, scope?: string): P
 
 async function ready(request: Request, env: Env): Promise<Response> {
   const config = loadConfig(env);
-  await authenticate(request, config);
+  await authenticate(request, env, config);
   const checks = {
     authentication: config.issuers !== undefined && (config.audience !== undefined || config.issuers.every((issuer) => issuer.audiences !== undefined)),
     policyOverlays: config.overlays !== undefined,
     tenantModes: config.tenantModes !== undefined,
     idempotencyStore: env.IDEMPOTENCY_STORE !== undefined,
+    replayGuard: env.TOKEN_REPLAY_GUARD !== undefined,
     // Presence and shape only: readiness never makes a billed model call.
     classifier: typeof env.AI?.run === "function",
   };
@@ -130,7 +149,7 @@ async function ready(request: Request, env: Env): Promise<Response> {
 
 async function capabilities(request: Request, env: Env): Promise<Response> {
   const config = loadConfig(env);
-  const identity = await authenticate(request, config);
+  const identity = await authenticate(request, env, config);
   const classifierEnabled = env.AI !== undefined;
   const body: Capabilities = {
     schemaVersion: SCHEMA_VERSION,
@@ -146,7 +165,7 @@ async function capabilities(request: Request, env: Env): Promise<Response> {
 
 async function evaluateOne(request: Request, env: Env): Promise<Response> {
   const config = loadConfig(env);
-  const identity = await authenticate(request, config, SCOPE_EVALUATE);
+  const identity = await authenticate(request, env, config, SCOPE_EVALUATE);
   const parsed = parseOrThrow(await readJson(request, MAX_EVALUATION_BYTES));
   assertTenant(identity, parsed);
   const outcome = await runEvaluation(parsed, identity, config, env);
@@ -157,7 +176,7 @@ async function evaluateOne(request: Request, env: Env): Promise<Response> {
 async function evaluateBatch(request: Request, env: Env): Promise<Response> {
   const started = Date.now();
   const config = loadConfig(env);
-  const identity = await authenticate(request, config, SCOPE_EVALUATE);
+  const identity = await authenticate(request, env, config, SCOPE_EVALUATE);
   const body = await readJson(request, MAX_BATCH_BYTES);
   const items = typeof body === "object" && body !== null ? (body as { requests?: unknown }).requests : undefined;
   if (!Array.isArray(items) || items.length === 0 || items.length > MAX_BATCH_SIZE) {
@@ -196,7 +215,7 @@ async function evaluateBatch(request: Request, env: Env): Promise<Response> {
 }
 
 async function readReceipt(request: Request, env: Env, rawId: string): Promise<Response> {
-  const identity = await authenticate(request, loadConfig(env), SCOPE_RECEIPTS_READ);
+  const identity = await authenticate(request, env, loadConfig(env), SCOPE_RECEIPTS_READ);
   let evaluationId: string;
   try {
     evaluationId = decodeURIComponent(rawId);

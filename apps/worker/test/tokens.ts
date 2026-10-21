@@ -11,6 +11,19 @@ interface SigningKey {
 
 const keys = JSON.parse(env.TEST_SIGNING_KEYS) as Record<Signer, SigningKey>;
 
+/** A configured signer's issuer, algorithm, key id and private key, for tests that sign tokens themselves. */
+export function signingKey(signer: Signer) {
+  const key = keys[signer];
+  const { kid: _kid, ...material } = key.jwk;
+  const algorithm = key.alg === "EdDSA" ? { name: "Ed25519" } : { name: "ECDSA", namedCurve: "P-256" };
+  return {
+    iss: key.iss,
+    alg: key.alg,
+    jwk: key.jwk,
+    privateKey: () => crypto.subtle.importKey("jwk", material, algorithm, false, ["sign"]),
+  };
+}
+
 const encoder = new TextEncoder();
 const base64Url = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const encodeJson = (value: unknown) => base64Url(encoder.encode(JSON.stringify(value)));

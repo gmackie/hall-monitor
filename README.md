@@ -49,7 +49,12 @@ The OpenAPI document is generated from the zod contracts (`z.toJSONSchema`) and 
 
 Every authenticated route takes a bearer service JWT (EdDSA/Ed25519 or ES256) from an issuer in
 `HM_TRUSTED_ISSUERS` (`[{"iss","jwks":{"keys":[...]},"audiences"?}]`), with `aud` = `HM_AUDIENCE`
-(or the issuer's `audiences`), `exp`, optional `nbf`/`iat` (60 s skew), `jti`, `tenant` and `scope`.
+(or the issuer's `audiences`), `exp` (at most one hour ahead), optional `nbf`/`iat` (60 s skew), `jti`,
+`tenant` and `scope`. Tokens are single-use: the `TokenReplayGuard` Durable Object records each
+verified `(iss, jti)` until `exp` + skew (purged by alarm) and answers a replay with `401
+unauthorized`, so callers mint a new token per request and per retry (the client's
+`serviceTokenSource` does; transports ask for a token on every attempt). Without the
+`TOKEN_REPLAY_GUARD` binding, authenticated routes fail closed with 503.
 A request's `source.tenantId` must equal the token's `tenant` (403 otherwise). Idempotency
 records and receipts live in a per-tenant Durable Object for `HM_RETENTION_SECONDS` (default 24 h);
 reusing a key with a different request is `409 idempotency_conflict`. Optional:
