@@ -42,6 +42,13 @@ export const PolicyProfile = z.object({
     budgetExhausted: z.literal("block_generative"),
   }),
   /**
+   * Whether image content is sent to the classifier. Absent means off: images are then not
+   * moderated, which the core resolves like an unavailable classifier under the profile's failure
+   * mode (`fail_closed` holds; `deterministic_only` decides from the accompanying text and reports
+   * a degraded result), with reason code `hall_monitor.image_moderation_disabled`.
+   */
+  imageModeration: z.boolean().optional(),
+  /**
    * Minimum decisions by reason code. An override can only make a finding's outcome stricter,
    * never more lenient, so it cannot be used to switch a check off.
    */

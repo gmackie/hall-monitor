@@ -24,6 +24,7 @@ export const PolicyOverlay = z.object({
     .object({ enabled: z.boolean().optional(), maxShare: z.number().min(0).max(1).optional() })
     .optional(),
   failureMode: z.object({ classifierUnavailable: ClassifierFailureMode.optional() }).optional(),
+  imageModeration: z.boolean().optional(),
   actionOverrides: z.record(MachineCode, Decision).optional(),
 });
 /** Changes a narrower scope asks to make to a floor. */
@@ -52,6 +53,12 @@ export interface OverlayResult {
  * `contextual` → `scaffolded`; escalation and student-facing can be switched on but not off;
  * the escalation share target can rise but not fall; `deterministic_only` → `fail_closed`; and an
  * action override can only raise the minimum decision for its reason code. The audience is fixed.
+ *
+ * Image moderation's strict direction depends on the effective failure mode, since a profile that
+ * does not classify images handles them as an unavailable classifier: under `fail_closed` turning
+ * it off is the tightening (every image is held), under `deterministic_only` turning it on is.
+ * So an overlay cannot enable image moderation on a fail-closed floor that leaves it off (the
+ * student floors): that needs a new floor revision, after calibration.
  */
 export function applyOverlay(floor: PolicyProfile, overlay: PolicyOverlay): OverlayResult {
   const requested = PolicyOverlay.parse(overlay);
@@ -96,6 +103,9 @@ export function applyOverlay(floor: PolicyProfile, overlay: PolicyOverlay): Over
       budgetExhausted: floor.failureMode.budgetExhausted,
     },
   };
+  const failClosed = profile.failureMode.classifierUnavailable === "fail_closed";
+  const imageModeration = tighten("imageModeration", floor.imageModeration === true, requested.imageModeration, (a, b) => a === b || (failClosed ? !a : a));
+  if (imageModeration || floor.imageModeration !== undefined || requested.imageModeration !== undefined) profile.imageModeration = imageModeration;
 
   const overrides: Record<string, Decision> = { ...floor.actionOverrides };
   for (const [reasonCode, decision] of Object.entries(requested.actionOverrides ?? {}).sort(([a], [b]) => a.localeCompare(b))) {

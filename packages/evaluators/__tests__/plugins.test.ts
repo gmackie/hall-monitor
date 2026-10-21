@@ -181,3 +181,23 @@ describe("defaultBundle", () => {
     expect(second).toEqual(first);
   });
 });
+
+describe("image content", () => {
+  const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYGAAAAAEAAH2FzhVAAAAAElFTkSuQmCC";
+  const withImage = (text?: string) => ({
+    ...request("unused"),
+    content: { type: "image" as const, images: [{ mimeType: "image/png" as const, base64: PNG }], ...(text === undefined ? {} : { text }) },
+  });
+  const context = { profile: BUILTIN_PROFILES["student-9-12"]!, signal: new AbortController().signal };
+
+  it("checks the accompanying text with the text evaluators", async () => {
+    const output = await runPlugins(defaultBundle.plugins, withImage("email me at sam.synthetic@example.com"), context);
+    expect(output.findings.map((finding) => finding.reasonCode)).toContain("privacy.email");
+    expect(JSON.stringify(output)).not.toContain(PNG);
+  });
+
+  it("finds nothing deterministic in images alone", async () => {
+    const output = await runPlugins(defaultBundle.plugins, withImage(), context);
+    expect(output.findings).toEqual([]);
+  });
+});

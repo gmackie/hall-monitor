@@ -1,6 +1,6 @@
 import { EvaluationKind, type FindingCategory, type Severity } from "@gmacko/hall-monitor-contracts";
 import { deterministicEvaluator, type FindingDraft } from "../plugin.ts";
-import { ACADEMIC_FRAMING, foldForMatching, matchRules, type PatternRule } from "../text.ts";
+import { ACADEMIC_FRAMING, foldForMatching, matchRules, type PatternRule, textOf } from "../text.ts";
 
 interface Harm {
   readonly category: FindingCategory;
@@ -86,8 +86,9 @@ export const harmfulContentEvaluator = deterministicEvaluator({
   version: "1.0.0",
   supportedKinds: EvaluationKind.options,
   inspect(request) {
-    if (request.content.type !== "text") return [];
-    const folded = foldForMatching(request.content.text);
+    const text = textOf(request);
+    if (text === null) return [];
+    const folded = foldForMatching(text);
     const framed = ACADEMIC_FRAMING.test(folded);
     const findings: FindingDraft[] = matchRules(folded, RULES).map((harm) => ({
       category: harm.category,

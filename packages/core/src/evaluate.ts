@@ -71,6 +71,13 @@ export interface EvaluateDeps {
   readonly resolve?: DecisionResolver;
 }
 
+/** Evaluator id of findings the core records itself. */
+export const CORE_EVALUATOR_ID = "hall-monitor-core";
+/** Version of the core's own findings. */
+export const CORE_EVALUATOR_VERSION = "1.0.0";
+/** Reason code recorded when image content is not classified because its profile leaves image moderation off. */
+export const IMAGE_MODERATION_DISABLED = "hall_monitor.image_moderation_disabled";
+
 const PURPOSE: Readonly<Record<EvaluationKind, string>> = {
   "interaction.input": "moderation.input",
   "interaction.output": "moderation.output",
@@ -81,7 +88,10 @@ const PURPOSE: Readonly<Record<EvaluationKind, string>> = {
 /**
  * Evaluates one request: validates it, runs the deterministic bundle, classifies when policy
  * requires it and the deterministic findings are not already decisive, resolves the decision and
- * builds the cost receipt (null when no provider was called). In shadow mode the decision is then
+ * builds the cost receipt (null when no provider was called). Image content is classified only
+ * under a profile with `imageModeration`; otherwise it is recorded as
+ * {@link IMAGE_MODERATION_DISABLED} and, where moderation is required, resolved as an unavailable
+ * classifier, so a fail-closed profile holds it. In shadow mode the decision is then
  * recorded rather than enforced (see {@link applyEnforcement}).
  *
  * The result is content-free by construction: it is assembled only from findings, reason codes,
@@ -103,7 +113,17 @@ export async function evaluate(input: unknown, deps: EvaluateDeps): Promise<Eval
 
   const mode = moderationMode(profile, request.evaluationKind);
   const decisive = findings.some((finding) => finding.severity === "block" || finding.severity === "support");
-  if (mode !== "off" && request.content.type === "text" && !decisive) {
+  const unmoderatedImages = request.content.type === "image" && profile.imageModeration !== true;
+  if (mode !== "off" && unmoderatedImages) {
+    findings.push({
+      evaluatorId: CORE_EVALUATOR_ID,
+      evaluatorVersion: CORE_EVALUATOR_VERSION,
+      category: "format",
+      reasonCode: IMAGE_MODERATION_DISABLED,
+      severity: "info",
+    });
+    if (mode === "required") flags = { ...flags, classifierUnavailable: true };
+  } else if (mode !== "off" && request.content.type !== "digest" && !decisive) {
     const classified = await classify(request, deps, context, mode);
     findings.push(...classified.findings);
     attempts.push(...classified.attempts);

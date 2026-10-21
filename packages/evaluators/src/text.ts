@@ -1,8 +1,11 @@
 import type { EvaluationRequest, Span } from "@gmacko/hall-monitor-contracts";
 
-/** The request's text, or null when only a digest was supplied. */
+/**
+ * The request's text: the text content, or the text accompanying image content. Null when there
+ * is none (a digest, or images alone).
+ */
 export function textOf(request: EvaluationRequest): string | null {
-  return request.content.type === "text" ? request.content.text : null;
+  return request.content.type === "digest" ? null : (request.content.text ?? null);
 }
 
 const INVISIBLE = /[­​-‏‪-‮⁠-⁤﻿]/g;

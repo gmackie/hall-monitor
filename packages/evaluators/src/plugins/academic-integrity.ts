@@ -1,5 +1,5 @@
 import { deterministicEvaluator } from "../plugin.ts";
-import { foldForMatching } from "../text.ts";
+import { foldForMatching, textOf } from "../text.ts";
 
 const WORK = "(essay|paper|homework|assignment|worksheet|lab report|report|project|book report|test|quiz|exam|problem set)";
 
@@ -28,8 +28,9 @@ export const academicIntegrityEvaluator = deterministicEvaluator({
   version: "1.0.0",
   supportedKinds: ["interaction.input"],
   inspect(request) {
-    if (request.content.type !== "text") return [];
-    const folded = foldForMatching(request.content.text);
+    const text = textOf(request);
+    if (text === null) return [];
+    const folded = foldForMatching(text);
     return DIRECT_ANSWER.some((pattern) => pattern.test(folded))
       ? [{ category: "academic-integrity", reasonCode: "academic_integrity.direct_answer_request", severity: "warn" }]
       : [];

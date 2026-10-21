@@ -10,7 +10,10 @@ function define(profile: PolicyProfile): PolicyProfile {
   return Object.freeze(parsed);
 }
 
-/** Educator-facing work: incoming text is moderated, outgoing optionally, answers may be direct. */
+/**
+ * Educator-facing work: incoming text is moderated, outgoing optionally, answers may be direct.
+ * Images are classified.
+ */
 export const EDUCATOR_PROFILE = define({
   id: "educator",
   revision: BUILTIN_PROFILE_REVISION,
@@ -21,9 +24,13 @@ export const EDUCATOR_PROFILE = define({
   answerAssistance: "direct",
   escalation: { enabled: true, maxShare: 0.1 },
   failureMode: { classifierUnavailable: "deterministic_only", budgetExhausted: "block_generative" },
+  imageModeration: true,
 });
 
-/** Students in grades 6-8: both directions moderated, scaffolded help, fail closed. */
+/**
+ * Students in grades 6-8: both directions moderated, scaffolded help, fail closed. Image
+ * moderation is off until image thresholds are calibrated for the band, so every image is held.
+ */
 export const STUDENT_6_8_PROFILE = define({
   id: "student-6-8",
   revision: BUILTIN_PROFILE_REVISION,
@@ -36,7 +43,10 @@ export const STUDENT_6_8_PROFILE = define({
   failureMode: { classifierUnavailable: "fail_closed", budgetExhausted: "block_generative" },
 });
 
-/** Students in grades 9-12: both directions moderated, contextual help, fail closed. */
+/**
+ * Students in grades 9-12: both directions moderated, contextual help, fail closed. Image
+ * moderation is off until image thresholds are calibrated for the band, so every image is held.
+ */
 export const STUDENT_9_12_PROFILE = define({
   id: "student-9-12",
   revision: BUILTIN_PROFILE_REVISION,
@@ -51,7 +61,8 @@ export const STUDENT_9_12_PROFILE = define({
 
 /**
  * Content proposed for publication. Candidates are checked on the way in; there is no output
- * stage. Safety-critical publishing holds rather than publishing unreviewed.
+ * stage. Safety-critical publishing holds rather than publishing unreviewed. Images are
+ * classified, and ambiguous ones are held.
  */
 export const PUBLISHED_CONTENT_PROFILE = define({
   id: "published-content",
@@ -63,6 +74,7 @@ export const PUBLISHED_CONTENT_PROFILE = define({
   answerAssistance: "contextual",
   escalation: { enabled: true, maxShare: 0.1 },
   failureMode: { classifierUnavailable: "fail_closed", budgetExhausted: "block_generative" },
+  imageModeration: true,
 });
 
 /** Every built-in profile, keyed by id. */

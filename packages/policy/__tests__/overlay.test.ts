@@ -7,6 +7,7 @@ import {
   decisionRank,
   EDUCATOR_PROFILE,
   ModerationMode,
+  PUBLISHED_CONTENT_PROFILE,
   PolicyProfile,
   resolveDecision,
   STUDENT_6_8_PROFILE,
@@ -107,3 +108,37 @@ describe("applyOverlay", () => {
 function defined<T extends Record<string, unknown>>(value: T): { [K in keyof T]?: Exclude<T[K], undefined> } {
   return Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined)) as { [K in keyof T]?: Exclude<T[K], undefined> };
 }
+
+describe("image moderation", () => {
+  it("is on for educator and published content, and off for student floors until calibrated", () => {
+    expect(EDUCATOR_PROFILE.imageModeration).toBe(true);
+    expect(PUBLISHED_CONTENT_PROFILE.imageModeration).toBe(true);
+    expect(STUDENT_6_8_PROFILE.imageModeration).toBeUndefined();
+    expect(STUDENT_9_12_PROFILE.imageModeration).toBeUndefined();
+  });
+
+  it("cannot be enabled by an overlay on a fail-closed floor, where off holds every image", () => {
+    const { profile, violations } = applyOverlay(STUDENT_9_12_PROFILE, { revision: "district:1", imageModeration: true });
+    expect(profile.imageModeration).toBe(false);
+    expect(violations).toEqual([{ field: "imageModeration", floor: "false", requested: "true" }]);
+    expect(applyOverlay(PUBLISHED_CONTENT_PROFILE, { revision: "district:1", imageModeration: false })).toMatchObject({
+      profile: { imageModeration: false },
+      violations: [],
+    });
+  });
+
+  it("cannot be disabled on a deterministic-only floor, where off lets images through unmoderated", () => {
+    const { profile, violations } = applyOverlay(EDUCATOR_PROFILE, { revision: "district:1", imageModeration: false });
+    expect(profile.imageModeration).toBe(true);
+    expect(violations).toEqual([{ field: "imageModeration", floor: "true", requested: "false" }]);
+    // Tightening the failure mode to fail_closed in the same overlay makes off the strict choice.
+    const strict = applyOverlay(EDUCATOR_PROFILE, { revision: "district:2", imageModeration: false, failureMode: { classifierUnavailable: "fail_closed" } });
+    expect(strict.violations).toEqual([]);
+    expect(strict.profile).toMatchObject({ imageModeration: false, failureMode: { classifierUnavailable: "fail_closed" } });
+  });
+
+  it("leaves profiles without the field unchanged when an overlay does not mention it", () => {
+    expect(applyOverlay(STUDENT_9_12_PROFILE, { revision: "district:1" }).profile).not.toHaveProperty("imageModeration");
+    expect(applyOverlay(EDUCATOR_PROFILE, { revision: "district:1" }).profile.imageModeration).toBe(true);
+  });
+});
