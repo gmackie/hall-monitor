@@ -105,7 +105,7 @@ describe("POST /v1/evaluations", () => {
     expect(response.status).toBe(200);
     const result = EvaluationResult.parse(await response.json());
     expect(result).toMatchObject({ requestId: request.requestId, decision: "allow", uncertain: false, policyRevision: "builtin-1" });
-    expect(result.evaluatorBundleRevision).toBe("base-1.0.0:clef-1.0.0");
+    expect(result.evaluatorBundleRevision).toBe("base-1.0.0:clef-1.1.0");
     expect(fakeAi.calls.map((entry) => entry.model)).toEqual(["@cf/cloudflare/clef-flash"]);
     const receipt = CostReceipt.parse(result.receipt);
     expect(receipt).toMatchObject({ tenantId: "tenant_schoolos", purpose: "moderation.input", hasUnknownCost: false });
