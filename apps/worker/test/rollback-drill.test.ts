@@ -62,7 +62,10 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("rollback drill", () => {
+// Drill 2 evaluates the corpus twice, one request at a time; it takes about 1.5 s alone but can
+// pass vitest's 5 s default when the full suite (including multi-megabyte image bodies) shares the
+// machine, so the drill gets an explicit budget.
+describe("rollback drill", { timeout: 30_000 }, () => {
   it("drill 1: an unavailable classifier holds student traffic (fail closed), even for a shadow tenant", async () => {
     const fixture = DRILL_CASES.cases.find((candidate) => candidate.id === "benign-02")!;
     phase++;

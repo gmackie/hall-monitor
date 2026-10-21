@@ -1,14 +1,26 @@
 import { EvaluationKind, type EvaluationRequest, type Finding, type Severity, type UsageAttempt } from "@gmacko/hall-monitor-contracts";
 import { CLEF_FLASH_MODEL, CLEF_MODEL, CLOUDFLARE_WORKERS_AI, type PriceBook, priceAttempt } from "@gmacko/hall-monitor-costing";
 import type { EvaluatorPlugin, EvaluatorSignals } from "@gmacko/hall-monitor-evaluators";
-import { buildClefInput, CLEF_QUESTIONS, clefRequestFor, type ClefQuestion, parseClefOutput } from "./clef-protocol.ts";
+import {
+  buildClefImageInput,
+  buildClefInput,
+  CLEF_IMAGE_QUESTIONS,
+  CLEF_QUESTIONS,
+  type ClefInput,
+  clefRequestFor,
+  type ClefQuestion,
+  parseClefOutput,
+} from "./clef-protocol.ts";
 import { type ClefTransport, ClefTransportError } from "./transport.ts";
 
 /** Version of this plugin; bump when questions, thresholds or severity mapping change. */
-export const CLEF_CLASSIFIER_VERSION = "1.0.0";
+export const CLEF_CLASSIFIER_VERSION = "1.1.0";
 
 /** Default per-call timeout. */
 export const DEFAULT_CLEF_TIMEOUT_MS = 2500;
+
+/** Default per-call timeout when the request carries images, which take longer to process. */
+export const DEFAULT_CLEF_IMAGE_TIMEOUT_MS = 6000;
 
 /**
  * Probability band treated as ambiguous: below `low` is clear, at or above `high` is a finding,
@@ -31,9 +43,13 @@ export interface ClefClassifierOptions {
   readonly escalationModel?: string;
   readonly thresholds?: { readonly low: number; readonly high: number };
   readonly timeoutMs?: number;
+  /** Per-call timeout for requests with images. */
+  readonly imageTimeoutMs?: number;
   /** Kinds that may escalate; others report ambiguity as uncertainty. */
   readonly escalationKinds?: readonly EvaluationKind[];
   readonly questions?: readonly ClefQuestion[];
+  /** Questions for image content; defaults to {@link CLEF_IMAGE_QUESTIONS}. */
+  readonly imageQuestions?: readonly ClefQuestion[];
 }
 
 type CallOutcome =
@@ -47,6 +63,11 @@ type CallOutcome =
  * escalation for this kind. Every provider call, including failures, yields one priced
  * `UsageAttempt`; a call without reported usage is recorded with unknown cost, never zero.
  *
+ * Image content (whose profile allows image moderation; the core checks that) is classified the
+ * same way, sending the images with any accompanying text to the same models and asking
+ * {@link CLEF_IMAGE_QUESTIONS}. Image tokens are part of the provider-reported input tokens; they
+ * are never estimated from image sizes, so a call without reported usage has unknown cost.
+ *
  * Failures never produce findings: a timeout, 429 or 5xx sets `classifierUnavailable` (and
  * `classifierTimedOut`), and malformed output sets `uncertain`, leaving the decision to policy.
  */
@@ -55,9 +76,11 @@ export function createClefClassifier(options: ClefClassifierOptions): EvaluatorP
   const escalationModel = options.escalationModel ?? CLEF_MODEL;
   const { low, high } = options.thresholds ?? UNCALIBRATED_THRESHOLDS;
   if (!(0 <= low && low < high && high <= 1)) throw new RangeError("thresholds must satisfy 0 <= low < high <= 1");
-  const timeoutMs = options.timeoutMs ?? DEFAULT_CLEF_TIMEOUT_MS;
+  const textTimeoutMs = options.timeoutMs ?? DEFAULT_CLEF_TIMEOUT_MS;
+  const imageTimeoutMs = options.imageTimeoutMs ?? DEFAULT_CLEF_IMAGE_TIMEOUT_MS;
   const escalationKinds = options.escalationKinds ?? ["interaction.input", "content.candidate"];
-  const questions = options.questions ?? CLEF_QUESTIONS;
+  const textQuestions = options.questions ?? CLEF_QUESTIONS;
+  const imageQuestions = options.imageQuestions ?? CLEF_IMAGE_QUESTIONS;
   const clock = options.clock ?? (() => new Date());
 
   return {
@@ -65,8 +88,20 @@ export function createClefClassifier(options: ClefClassifierOptions): EvaluatorP
     version: CLEF_CLASSIFIER_VERSION,
     supportedKinds: EvaluationKind.options,
     async evaluate(request, context) {
-      if (request.content.type !== "text") return { findings: [], attempts: [] };
-      const input = buildClefInput(request, request.content.text, questions);
+      let input: ClefInput;
+      let questions: readonly ClefQuestion[];
+      let timeoutMs: number;
+      if (request.content.type === "text") {
+        questions = textQuestions;
+        input = buildClefInput(request, request.content.text, questions);
+        timeoutMs = textTimeoutMs;
+      } else if (request.content.type === "image") {
+        questions = imageQuestions;
+        input = buildClefImageInput(request, request.content, questions);
+        timeoutMs = imageTimeoutMs;
+      } else {
+        return { findings: [], attempts: [] };
+      }
       const attempts: UsageAttempt[] = [];
 
       const call = async (model: string): Promise<CallOutcome> => {

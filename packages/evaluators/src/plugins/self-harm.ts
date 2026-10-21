@@ -1,6 +1,6 @@
 import { EvaluationKind } from "@gmacko/hall-monitor-contracts";
 import { deterministicEvaluator } from "../plugin.ts";
-import { foldForMatching } from "../text.ts";
+import { foldForMatching, textOf } from "../text.ts";
 
 /**
  * First-person distress phrases. Third-person and literary phrasing ("why does Hamlet want to
@@ -33,8 +33,9 @@ export const selfHarmEvaluator = deterministicEvaluator({
   version: "1.0.0",
   supportedKinds: EvaluationKind.options.filter((kind) => kind !== "assessment.evaluator-result"),
   inspect(request) {
-    if (request.content.type !== "text") return [];
-    const folded = foldForMatching(request.content.text);
+    const text = textOf(request);
+    if (text === null) return [];
+    const folded = foldForMatching(text);
     return DISTRESS.some((pattern) => pattern.test(folded))
       ? [{ category: "self-harm", reasonCode: "self_harm.disclosure", severity: "support" }]
       : [];

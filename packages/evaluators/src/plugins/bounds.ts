@@ -1,5 +1,6 @@
 import { EvaluationKind } from "@gmacko/hall-monitor-contracts";
 import { deterministicEvaluator, type FindingDraft } from "../plugin.ts";
+import { textOf } from "../text.ts";
 
 const CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 const BIDI_OVERRIDE = /[‪-‮⁦-⁩]/;
@@ -20,7 +21,9 @@ export const boundsEvaluator = deterministicEvaluator({
     if (request.content.type === "digest") {
       return [{ category: "format", reasonCode: "format.content_not_inspected", severity: "info" }];
     }
-    const text = request.content.text;
+    // Images are classified by the model (when the profile allows); only accompanying text is checked here.
+    const text = textOf(request);
+    if (text === null) return [];
     const findings: FindingDraft[] = [];
     if (hasLoneSurrogate(text)) findings.push({ category: "format", reasonCode: "format.invalid_encoding", severity: "hold" });
     if (CONTROL.test(text)) findings.push({ category: "format", reasonCode: "format.control_characters", severity: "warn" });

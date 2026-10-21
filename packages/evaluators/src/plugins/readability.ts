@@ -1,5 +1,6 @@
 import type { GradeBand } from "@gmacko/hall-monitor-contracts";
 import { deterministicEvaluator } from "../plugin.ts";
+import { textOf } from "../text.ts";
 
 /** The highest Flesch-Kincaid grade suited to each band; adult content has no ceiling. */
 const BAND_CEILING: Readonly<Record<GradeBand, number>> = { "K-2": 3, "3-5": 6, "6-8": 9, "9-12": 13, adult: Infinity };
@@ -40,8 +41,9 @@ export const readabilityEvaluator = deterministicEvaluator({
   supportedKinds: ["content.candidate"],
   inspect(request) {
     const band = request.context.gradeBand;
-    if (request.content.type !== "text" || band === undefined) return [];
-    const grade = fleschKincaidGrade(request.content.text);
+    const text = textOf(request);
+    if (text === null || band === undefined) return [];
+    const grade = fleschKincaidGrade(text);
     return grade !== null && grade > BAND_CEILING[band] + SLACK
       ? [{ category: "age-fit", reasonCode: "age_fit.readability_above_band", severity: "warn" }]
       : [];

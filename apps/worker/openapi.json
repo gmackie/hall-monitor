@@ -668,6 +668,52 @@
               "digest",
               "mimeType"
             ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "image"
+              },
+              "images": {
+                "minItems": 1,
+                "maxItems": 4,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "mimeType": {
+                      "type": "string",
+                      "enum": [
+                        "image/png",
+                        "image/jpeg",
+                        "image/webp"
+                      ]
+                    },
+                    "base64": {
+                      "type": "string",
+                      "minLength": 4,
+                      "maxLength": 5592408,
+                      "pattern": "^[A-Za-z0-9+/]*={0,2}$"
+                    }
+                  },
+                  "required": [
+                    "mimeType",
+                    "base64"
+                  ]
+                }
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32000
+              }
+            },
+            "required": [
+              "type",
+              "images"
+            ]
           }
         ]
       },
@@ -1241,6 +1287,18 @@
               "enabled",
               "models"
             ]
+          },
+          "contentTypes": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "text",
+                "digest",
+                "image"
+              ]
+            }
           }
         },
         "required": [

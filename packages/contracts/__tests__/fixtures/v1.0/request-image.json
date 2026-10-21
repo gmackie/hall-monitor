@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1.0",
+  "requestId": "req_img_01",
+  "idempotencyKey": "idem_img_01",
+  "source": {
+    "product": "schoolos",
+    "tenantId": "tenant_opaque",
+    "surface": "teacher.upload"
+  },
+  "policy": {
+    "profileId": "educator",
+    "revision": "builtin-1"
+  },
+  "context": {
+    "audience": "educator",
+    "costCenterId": "cc_staff"
+  },
+  "evaluationKind": "content.candidate",
+  "content": {
+    "type": "image",
+    "images": [
+      {
+        "mimeType": "image/png",
+        "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYGAAAAAEAAH2FzhVAAAAAElFTkSuQmCC"
+      }
+    ],
+    "text": "Diagram of a plant cell for the unit opener"
+  }
+}

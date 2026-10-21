@@ -1,6 +1,6 @@
 {
   "name": "@gmacko/hall-monitor-shadow-report",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Shadow-run reports and policy decision diffs over synthetic Hall Monitor corpora. Synthetic data only.",
   "type": "module",
   "private": true,

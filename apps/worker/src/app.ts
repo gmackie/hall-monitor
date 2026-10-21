@@ -1,6 +1,7 @@
 import { CLEF_CLASSIFIER_VERSION, createClefClassifier, workersAiBindingTransport } from "@gmacko/hall-monitor-clef";
 import {
   BATCH_EVALUATION_KINDS,
+  ContentType,
   type BatchEvaluationItem,
   type BatchEvaluationResponse,
   type Capabilities,
@@ -25,8 +26,12 @@ import { log } from "./log.ts";
 import { openApiJson } from "./openapi.ts";
 import { replayGuardName } from "./replay.ts";
 
-/** Largest single-evaluation body: 32k UTF-16 units of text plus an answer key, with headroom. */
-export const MAX_EVALUATION_BYTES = 512 * 1024;
+/**
+ * Largest single-evaluation body: up to 8 MiB of images (about 10.7 MiB as base64) plus 32k UTF-16
+ * units of text and an answer key, with headroom. It also keeps the Clef request under Clef's
+ * 13 MiB body limit.
+ */
+export const MAX_EVALUATION_BYTES = 12 * 1024 * 1024;
 /** Largest batch body. */
 export const MAX_BATCH_BYTES = 8 * 1024 * 1024;
 /** Batch items evaluated concurrently. */
@@ -159,6 +164,7 @@ async function capabilities(request: Request, env: Env): Promise<Response> {
     policyProfiles: config.overlays === undefined ? [] : tenantProfiles(config, identity.tenant),
     resolverVersion: RESOLVER_VERSION,
     classifier: { enabled: classifierEnabled, models: classifierEnabled ? [CLEF_FLASH_MODEL, CLEF_MODEL] : [] },
+    contentTypes: [...ContentType.options],
   };
   return json(body);
 }

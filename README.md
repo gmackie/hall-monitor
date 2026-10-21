@@ -77,7 +77,32 @@ learner never sees unmoderated content; shadowing them would let blocked content
 while the service appears to moderate, so the opt-in is reserved for synthetic or staff-only
 traffic under the [launch checklist](docs/launch/launch-checklist.md).
 
-## Shadow reports and decision diffs
+## Image moderation
+
+`content` may be `{"type": "image", "images": [{"mimeType", "base64"}], "text"?}`: one to four
+embedded PNG, JPEG or WebP images (padded base64 whose file signature matches `mimeType`; at most
+4 MiB each and 8 MiB in total, decoded; no URLs), with optional accompanying text. These are Clef's
+own image limits. The accompanying text goes through the deterministic evaluators like any text.
+The images go to the classifier, but only under a profile with `imageModeration`. When a profile
+does not moderate images, the result carries `hall_monitor.image_moderation_disabled` and is
+resolved as an unavailable classifier. A `fail_closed` profile therefore holds every image.
+
+| Built-in profile | Images |
+|---|---|
+| `educator`, `published-content` | Classified |
+| `student-6-8`, `student-9-12` | Held, until image thresholds are calibrated per band and a new floor revision enables them |
+
+Overlays stay tighten-only. Under `fail_closed`, off is the strict setting, so an overlay can turn
+images off but not on. Under `deterministic_only` it is the reverse. Images are sent to Clef-flash
+and escalated to Clef with the same questions, reworded for images; both models accept the same
+images. Clef-omni is not used: it adds audio and video, which this API does not accept, and costs
+$0.15 per million input tokens against Clef-flash's $0.038. Image tokens are billed as input tokens
+(one per 32x32 block plus 3, capped at 1,024 per image). Receipts use the provider-reported input
+tokens, which include them. A call without reported usage is recorded with unknown cost; image
+tokens are never estimated from bytes. Image bytes are never logged, stored or echoed: idempotency
+keeps only a keyed digest of the request. `GET /v1/capabilities` lists `contentTypes`.
+
+
 
 `pnpm shadow-report` runs the real evaluation core over the frozen synthetic corpus (or
 `--cases file.jsonl`, where every line must carry `"synthetic": true`) and reports the decision
@@ -114,19 +139,19 @@ The packages are not on npm (publishing needs owner approval). Each `v<version>`
 attaches `pnpm pack` tarballs and a `manifest.json` to a GitHub Release
 (`.github/workflows/release.yml`; `node scripts/pack-release.mjs` builds the same files into
 `dist/release/` locally). Packed manifests depend on each other by plain version
-(`"@gmacko/hall-monitor-contracts": "0.1.0"`), which would resolve against the npm registry, so a
+(`"@gmacko/hall-monitor-contracts": "0.2.0"`), which would resolve against the npm registry, so a
 consumer must override **every** `@gmacko/hall-monitor-*` name, including transitive ones, to the
 release URLs. With pnpm 10+ put the overrides in `pnpm-workspace.yaml`:
 
 ```yaml
 overrides:
-  '@gmacko/hall-monitor-contracts': https://github.com/gmackie/hall-monitor/releases/download/v0.1.0/gmacko-hall-monitor-contracts-0.1.0.tgz
-  '@gmacko/hall-monitor-costing': https://github.com/gmackie/hall-monitor/releases/download/v0.1.0/gmacko-hall-monitor-costing-0.1.0.tgz
-  '@gmacko/hall-monitor-policy': https://github.com/gmackie/hall-monitor/releases/download/v0.1.0/gmacko-hall-monitor-policy-0.1.0.tgz
-  '@gmacko/hall-monitor-evaluators': https://github.com/gmackie/hall-monitor/releases/download/v0.1.0/gmacko-hall-monitor-evaluators-0.1.0.tgz
-  '@gmacko/hall-monitor-clef': https://github.com/gmackie/hall-monitor/releases/download/v0.1.0/gmacko-hall-monitor-clef-0.1.0.tgz
-  '@gmacko/hall-monitor-core': https://github.com/gmackie/hall-monitor/releases/download/v0.1.0/gmacko-hall-monitor-core-0.1.0.tgz
-  '@gmacko/hall-monitor-client': https://github.com/gmackie/hall-monitor/releases/download/v0.1.0/gmacko-hall-monitor-client-0.1.0.tgz
+  '@gmacko/hall-monitor-contracts': https://github.com/gmackie/hall-monitor/releases/download/v0.2.0/gmacko-hall-monitor-contracts-0.2.0.tgz
+  '@gmacko/hall-monitor-costing': https://github.com/gmackie/hall-monitor/releases/download/v0.2.0/gmacko-hall-monitor-costing-0.2.0.tgz
+  '@gmacko/hall-monitor-policy': https://github.com/gmackie/hall-monitor/releases/download/v0.2.0/gmacko-hall-monitor-policy-0.2.0.tgz
+  '@gmacko/hall-monitor-evaluators': https://github.com/gmackie/hall-monitor/releases/download/v0.2.0/gmacko-hall-monitor-evaluators-0.2.0.tgz
+  '@gmacko/hall-monitor-clef': https://github.com/gmackie/hall-monitor/releases/download/v0.2.0/gmacko-hall-monitor-clef-0.2.0.tgz
+  '@gmacko/hall-monitor-core': https://github.com/gmackie/hall-monitor/releases/download/v0.2.0/gmacko-hall-monitor-core-0.2.0.tgz
+  '@gmacko/hall-monitor-client': https://github.com/gmackie/hall-monitor/releases/download/v0.2.0/gmacko-hall-monitor-client-0.2.0.tgz
 ```
 
 (older pnpm: the same map under `"pnpm": { "overrides": { ... } }` in `package.json`), and depend on
@@ -139,7 +164,7 @@ tarballs are accepted with the default settings.
 
 ```json
 "dependencies": {
-  "@gmacko/hall-monitor-client": "https://github.com/gmackie/hall-monitor/releases/download/v0.1.0/gmacko-hall-monitor-client-0.1.0.tgz"
+  "@gmacko/hall-monitor-client": "https://github.com/gmackie/hall-monitor/releases/download/v0.2.0/gmacko-hall-monitor-client-0.2.0.tgz"
 }
 ```
 

@@ -2,7 +2,16 @@ import type { EvaluationRequest } from "@gmacko/hall-monitor-contracts";
 import { buildReceipt, CLEF_FLASH_MODEL, CLEF_MODEL, PRICE_BOOK_CLOUDFLARE_2026_10_20 } from "@gmacko/hall-monitor-costing";
 import { EDUCATOR_PROFILE, type PolicyProfile, STUDENT_9_12_PROFILE } from "@gmacko/hall-monitor-policy";
 import { describe, expect, it } from "vitest";
-import { buildClefInput, clefRequestFor, ClefTransportError, createClefClassifier, extractClefUsage, parseClefOutput } from "../src/index.ts";
+import {
+  buildClefInput,
+  CLEF_IMAGE_QUESTIONS,
+  CLEF_QUESTIONS,
+  clefRequestFor,
+  ClefTransportError,
+  createClefClassifier,
+  extractClefUsage,
+  parseClefOutput,
+} from "../src/index.ts";
 import { FakeTransport, scored } from "./fake-transport.ts";
 
 const TEXT = "Why does photosynthesis need light?";
@@ -21,7 +30,11 @@ function request(overrides: Partial<EvaluationRequest> = {}): EvaluationRequest 
   };
 }
 
-function classify(transport: FakeTransport, profile: PolicyProfile = STUDENT_9_12_PROFILE, options: { timeoutMs?: number; req?: EvaluationRequest } = {}) {
+function classify(
+  transport: FakeTransport,
+  profile: PolicyProfile = STUDENT_9_12_PROFILE,
+  options: { timeoutMs?: number; imageTimeoutMs?: number; req?: EvaluationRequest } = {},
+) {
   let next = 0;
   const classifier = createClefClassifier({
     transport,
@@ -29,6 +42,7 @@ function classify(transport: FakeTransport, profile: PolicyProfile = STUDENT_9_1
     newAttemptId: () => `att_${next++}`,
     clock: () => new Date("2026-10-20T12:00:00Z"),
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+    ...(options.imageTimeoutMs === undefined ? {} : { imageTimeoutMs: options.imageTimeoutMs }),
   });
   return classifier.evaluate(options.req ?? request(), { profile, signal: new AbortController().signal });
 }
@@ -188,5 +202,80 @@ describe("Clef request shape", () => {
 
   it("rejects a non-Clef model selector", () => {
     expect(() => clefRequestFor("@cf/cloudflare/clef-omni", buildClefInput(request(), TEXT))).toThrow(RangeError);
+  });
+});
+
+/** A synthetic 1x1 PNG. Its bytes must never appear in findings or attempts. */
+const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYGAAAAAEAAH2FzhVAAAAAElFTkSuQmCC";
+
+function imageRequest(text?: string): EvaluationRequest {
+  return request({
+    evaluationKind: "content.candidate",
+    content: { type: "image", images: [{ mimeType: "image/png", base64: PNG }, { mimeType: "image/png", base64: PNG }], ...(text === undefined ? {} : { text }) },
+  });
+}
+
+describe("image content", () => {
+  it("sends the images in Clef's base64 form with the image questions to Clef-flash", async () => {
+    const transport = new FakeTransport([scored({}, 0.02, 1093)]);
+    const output = await classify(transport, STUDENT_9_12_PROFILE, { req: imageRequest("A labelled diagram") });
+    expect(transport.calls.map((call) => call.model)).toEqual([CLEF_FLASH_MODEL]);
+    const input = transport.calls[0]!.input as Record<string, unknown>;
+    expect(input).toMatchObject({
+      model: "clef-flash",
+      images: [
+        { content_type: "image/png", base64: PNG },
+        { content_type: "image/png", base64: PNG },
+      ],
+      state: { text: "A labelled diagram", audience: "student", evaluationKind: "content.candidate" },
+    });
+    expect(input.questions).toEqual(Object.fromEntries(CLEF_IMAGE_QUESTIONS.map(({ id, instructions }) => [id, { type: "noul", instructions }])));
+    expect(output.findings).toEqual([]);
+    // Image tokens arrive inside the reported input tokens: 1,093 at $0.038 per million.
+    expect(output.attempts).toMatchObject([{ units: { inputTokens: 1093 }, grossUsdNano: "41534", state: "provider_reported" }]);
+    expect(JSON.stringify(output)).not.toContain(PNG);
+  });
+
+  it("sends images without text as a state with labels only", async () => {
+    const transport = new FakeTransport([scored()]);
+    await classify(transport, STUDENT_9_12_PROFILE, { req: imageRequest() });
+    const state = (transport.calls[0]!.input as { state: Record<string, unknown> }).state;
+    expect(state).toEqual({ audience: "student", evaluationKind: "content.candidate", gradeBand: "9-12" });
+  });
+
+  it("turns confident image scores into findings with the text severities", async () => {
+    const output = await classify(new FakeTransport([scored({ sexual: 0.93, self_harm: 0.9 })]), STUDENT_9_12_PROFILE, { req: imageRequest() });
+    expect(output.findings.map((f) => [f.reasonCode, f.severity])).toEqual([
+      ["clef.self_harm", "support"],
+      ["clef.sexual", "block"],
+    ]);
+  });
+
+  it("escalates an ambiguous image to Clef with the same images", async () => {
+    const transport = new FakeTransport([scored({ violence: 0.5 }, 0.02, 1093), scored({ violence: 0.9 }, 0.02, 1500)]);
+    const output = await classify(transport, STUDENT_9_12_PROFILE, { req: imageRequest() });
+    expect(transport.calls.map((call) => call.model)).toEqual([CLEF_FLASH_MODEL, CLEF_MODEL]);
+    expect((transport.calls[1]!.input as { model: string; images: unknown[] }).model).toBe("clef");
+    expect((transport.calls[1]!.input as { images: unknown[] }).images).toHaveLength(2);
+    expect(output.findings.map((f) => f.reasonCode)).toEqual(["clef.violence"]);
+    expect(output.attempts.map((a) => a.grossUsdNano)).toEqual(["41534", "360000"]);
+  });
+
+  it("records unknown cost, never an estimate from image size, when usage is missing", async () => {
+    const output = await classify(new FakeTransport([scored({}, 0.02, null)]), STUDENT_9_12_PROFILE, { req: imageRequest() });
+    expect(output.attempts).toMatchObject([{ units: {}, state: "unknown" }]);
+    expect(output.attempts[0]).not.toHaveProperty("grossUsdNano");
+  });
+
+  it("uses the longer image timeout for images and reports a timeout as unavailability", async () => {
+    const slowText = await classify(new FakeTransport([scored()]), STUDENT_9_12_PROFILE, { timeoutMs: 1, imageTimeoutMs: 1000 });
+    expect(slowText.signals).toEqual({});
+    const output = await classify(new FakeTransport(["hang"]), STUDENT_9_12_PROFILE, { timeoutMs: 1000, imageTimeoutMs: 5, req: imageRequest() });
+    expect(output.signals).toEqual({ classifierUnavailable: true, classifierTimedOut: true });
+    expect(output.attempts).toMatchObject([{ state: "unknown" }]);
+  });
+
+  it("asks the image questions under the same ids and categories as the text questions", () => {
+    expect(CLEF_IMAGE_QUESTIONS.map(({ id, category }) => [id, category])).toEqual(CLEF_QUESTIONS.map(({ id, category }) => [id, category]));
   });
 });

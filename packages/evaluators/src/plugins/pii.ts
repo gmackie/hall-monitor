@@ -1,7 +1,7 @@
 import type { EvaluationRequest, Severity, Span } from "@gmacko/hall-monitor-contracts";
 import { EvaluationKind } from "@gmacko/hall-monitor-contracts";
 import { deterministicEvaluator, type FindingDraft } from "../plugin.ts";
-import { spansOf } from "../text.ts";
+import { spansOf, textOf } from "../text.ts";
 
 /** At most this many spans are reported per kind of identifier. */
 const MAX_SPANS_PER_KIND = 20;
@@ -53,8 +53,8 @@ export const piiEvaluator = deterministicEvaluator({
   version: "1.0.0",
   supportedKinds: EvaluationKind.options,
   inspect(request) {
-    if (request.content.type !== "text") return [];
-    const text = request.content.text;
+    const text = textOf(request);
+    if (text === null) return [];
     const taken: Span[] = [];
     const findings: FindingDraft[] = [];
     for (const detector of DETECTORS) {

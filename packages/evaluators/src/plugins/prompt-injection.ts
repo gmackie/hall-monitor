@@ -1,6 +1,6 @@
 import { EvaluationKind } from "@gmacko/hall-monitor-contracts";
 import { deterministicEvaluator } from "../plugin.ts";
-import { foldForMatching, matchRules, type PatternRule } from "../text.ts";
+import { foldForMatching, matchRules, type PatternRule, textOf } from "../text.ts";
 
 type Technique = "instruction_override" | "system_prompt_exfiltration" | "role_override" | "instruction_smuggling";
 
@@ -60,11 +60,12 @@ export const promptInjectionEvaluator = deterministicEvaluator({
   version: "1.0.0",
   supportedKinds: EvaluationKind.options,
   inspect(request) {
-    if (request.content.type !== "text") return [];
-    const folded = foldForMatching(request.content.text);
+    const text = textOf(request);
+    if (text === null) return [];
+    const folded = foldForMatching(text);
     const techniques = matchRules(folded, RULES);
     if (techniques.length === 0) return [];
-    const indirect = QUOTED_DOCUMENT.test(request.content.text.toLowerCase());
+    const indirect = QUOTED_DOCUMENT.test(text.toLowerCase());
     const severity = request.evaluationKind === "interaction.input" && request.context.audience === "student" ? "block" : "hold";
     return [
       { category: "prompt-injection", reasonCode: indirect ? "prompt_injection.indirect" : "prompt_injection.direct", severity },

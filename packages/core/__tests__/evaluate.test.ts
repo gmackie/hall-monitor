@@ -2,18 +2,20 @@ import { createClefClassifier, CLEF_QUESTIONS, type ClefTransport, ClefTransport
 import type { EvaluationRequest } from "@gmacko/hall-monitor-contracts";
 import { CLEF_FLASH_MODEL, CLEF_MODEL, PRICE_BOOK_CLOUDFLARE_2026_10_20 } from "@gmacko/hall-monitor-costing";
 import { defaultBundle } from "@gmacko/hall-monitor-evaluators";
-import { BUILTIN_PROFILES } from "@gmacko/hall-monitor-policy";
+import { BUILTIN_PROFILES, EDUCATOR_PROFILE, type PolicyProfile, STUDENT_9_12_PROFILE } from "@gmacko/hall-monitor-policy";
 import { CORPUS, fixtureRequest } from "@gmacko/hall-monitor-test-fixtures";
 import { describe, expect, it } from "vitest";
-import { type EvaluateDeps, evaluate, HallMonitorError } from "../src/index.ts";
+import { type EvaluateDeps, evaluate, HallMonitorError, IMAGE_MODERATION_DISABLED } from "../src/index.ts";
 
 type Reply = ClefTransportResult | Error | "hang";
 
 class ScriptedTransport implements ClefTransport {
   readonly models: string[] = [];
+  readonly inputs: unknown[] = [];
   constructor(private readonly replies: Reply[]) {}
-  async run(model: string, _input: unknown, { signal }: { signal: AbortSignal }): Promise<ClefTransportResult> {
+  async run(model: string, input: unknown, { signal }: { signal: AbortSignal }): Promise<ClefTransportResult> {
     this.models.push(model);
+    this.inputs.push(input);
     const reply = this.replies.shift();
     if (reply === undefined) throw new Error("unexpected call");
     if (reply === "hang") return new Promise((_, reject) => signal.addEventListener("abort", () => reject(new Error("aborted"))));
@@ -72,7 +74,7 @@ describe("evaluate", () => {
       reasonCodes: [],
       uncertain: false,
       policyRevision: "builtin-1",
-      evaluatorBundleRevision: "base-1.0.0:clef-1.0.0",
+      evaluatorBundleRevision: "base-1.0.0:clef-1.1.0",
       resolverVersion: "resolver-1.0.0",
     });
     expect(result.receipt).toEqual({
@@ -200,5 +202,83 @@ describe("evaluate", () => {
     expect(((await errorOf(null)) as HallMonitorError).body.code).toBe("invalid_request");
     const missing = (await errorOf({ ...valid, policy: { profileId: "student-9-12", revision: "nope" } })) as HallMonitorError;
     expect(missing.body.code).toBe("policy_not_found");
+  });
+});
+
+describe("image content", () => {
+  /** A synthetic 1x1 PNG; it must never appear in a result. */
+  const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYGAAAAAEAAH2FzhVAAAAAElFTkSuQmCC";
+
+  function imageRequest(profile: PolicyProfile, text?: string): EvaluationRequest {
+    const base = fixture(profile.studentFacing ? "benign-02" : "benign-09");
+    return {
+      ...base,
+      evaluationKind: "content.candidate",
+      policy: { profileId: profile.id, revision: "builtin-1" },
+      content: { type: "image", images: [{ mimeType: "image/png", base64: PNG }], ...(text === undefined ? {} : { text }) },
+    };
+  }
+  const withProfile = (profile: PolicyProfile): Pick<EvaluateDeps, "policies"> => ({ policies: () => profile });
+
+  it("holds images for a student profile that does not moderate them, without calling the classifier", async () => {
+    const transport = new ScriptedTransport([]);
+    const result = await evaluate(imageRequest(STUDENT_9_12_PROFILE), deps(transport));
+    expect(transport.models).toEqual([]);
+    expect(result).toMatchObject({
+      decision: "hold",
+      uncertain: true,
+      degraded: { reason: "classifier_unavailable" },
+      receipt: null,
+      reasonCodes: ["hall_monitor.unavailable", IMAGE_MODERATION_DISABLED],
+    });
+    expect(result.findings).toEqual([
+      { evaluatorId: "hall-monitor-core", evaluatorVersion: "1.0.0", category: "format", reasonCode: IMAGE_MODERATION_DISABLED, severity: "info" },
+    ]);
+  });
+
+  it("still applies deterministic checks to the accompanying text when images are not moderated", async () => {
+    const result = await evaluate(imageRequest(STUDENT_9_12_PROFILE, "I want to kill myself"), deps(new ScriptedTransport([])));
+    expect(result.decision).toBe("support");
+    expect(result.reasonCodes).toContain(IMAGE_MODERATION_DISABLED);
+  });
+
+  it("classifies images under a profile with image moderation and receipts the reported usage", async () => {
+    const transport = new ScriptedTransport([answer({}, 1093)]);
+    const result = await evaluate(imageRequest(EDUCATOR_PROFILE, "Unit opener"), deps(transport));
+    expect(transport.models).toEqual([CLEF_FLASH_MODEL]);
+    expect(transport.inputs[0]).toMatchObject({ images: [{ content_type: "image/png", base64: PNG }], state: { text: "Unit opener" } });
+    expect(result).toMatchObject({ decision: "allow", reasonCodes: [], uncertain: false });
+    expect(result.receipt).toMatchObject({ purpose: "content.review", totalGrossUsdNano: "41534", hasUnknownCost: false });
+    expect(JSON.stringify(result)).not.toContain(PNG);
+  });
+
+  it("acts on image findings like text findings", async () => {
+    const profile = { ...STUDENT_9_12_PROFILE, revision: "calibrated-1", imageModeration: true };
+    const result = await evaluate(imageRequest(profile), deps(new ScriptedTransport([answer({ sexual: 0.95 })]), withProfile(profile)));
+    expect(result).toMatchObject({ decision: "block", reasonCodes: ["clef.sexual"] });
+  });
+
+  it("decides from the text and reports a degraded result for a deterministic-only profile without image moderation", async () => {
+    const profile = { ...EDUCATOR_PROFILE, revision: "no-images-1", imageModeration: false };
+    const transport = new ScriptedTransport([]);
+    const result = await evaluate(imageRequest(profile), deps(transport, withProfile(profile)));
+    expect(transport.models).toEqual([]);
+    expect(result).toMatchObject({
+      decision: "allow",
+      degraded: { reason: "classifier_unavailable" },
+      reasonCodes: ["hall_monitor.deterministic_only", IMAGE_MODERATION_DISABLED],
+    });
+  });
+
+  it("holds images when the classifier fails, with unknown cost", async () => {
+    const profile = { ...STUDENT_9_12_PROFILE, revision: "calibrated-1", imageModeration: true };
+    const result = await evaluate(imageRequest(profile), deps(new ScriptedTransport([new ClefTransportError("unavailable", 503)]), withProfile(profile)));
+    expect(result).toMatchObject({ decision: "hold", degraded: { reason: "classifier_unavailable" }, receipt: { hasUnknownCost: true } });
+  });
+
+  it("skips images entirely when the moderation stage is off", async () => {
+    const profile = { ...EDUCATOR_PROFILE, revision: "off-1", inputModeration: "off" as const };
+    const result = await evaluate(imageRequest(profile), deps(new ScriptedTransport([]), withProfile(profile)));
+    expect(result).toMatchObject({ decision: "allow", reasonCodes: [], receipt: null });
   });
 });
