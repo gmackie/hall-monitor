@@ -1,0 +1,17 @@
+{
+  "name": "@gmacko/hall-monitor-clef",
+  "version": "0.1.0",
+  "description": "Cloudflare Workers AI Clef classifier plugin for Hall Monitor, with bounded escalation and per-attempt metering.",
+  "type": "module",
+  "private": false,
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "test": "vitest run" },
+  "dependencies": {
+    "@gmacko/hall-monitor-contracts": "workspace:*",
+    "@gmacko/hall-monitor-costing": "workspace:*",
+    "@gmacko/hall-monitor-evaluators": "workspace:*",
+    "@gmacko/hall-monitor-policy": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": { "vitest": "catalog:" }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "@gmacko/hall-monitor-core",
+  "version": "0.1.0",
+  "description": "Hall Monitor evaluation orchestration: validation, deterministic checks, classification, decision and receipt.",
+  "type": "module",
+  "private": false,
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "test": "vitest run" },
+  "dependencies": {
+    "@gmacko/hall-monitor-contracts": "workspace:*",
+    "@gmacko/hall-monitor-costing": "workspace:*",
+    "@gmacko/hall-monitor-evaluators": "workspace:*",
+    "@gmacko/hall-monitor-policy": "workspace:*"
+  },
+  "devDependencies": {
+    "@gmacko/hall-monitor-clef": "workspace:*",
+    "@gmacko/hall-monitor-test-fixtures": "workspace:*",
+    "vitest": "catalog:"
+  }
+}
