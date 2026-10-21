@@ -22,6 +22,7 @@ import { requestDigest } from "./digest.ts";
 import type { Env } from "./env.ts";
 import { errorResponse, HttpError, json, readJson } from "./http.ts";
 import { log } from "./log.ts";
+import { openApiJson } from "./openapi.ts";
 
 /** Largest single-evaluation body: 32k UTF-16 units of text plus an answer key, with headroom. */
 export const MAX_EVALUATION_BYTES = 512 * 1024;
@@ -38,6 +39,8 @@ export async function handle(request: Request, env: Env): Promise<Response> {
     switch (route.name) {
       case "health":
         return json({ status: "ok" });
+      case "openapi":
+        return new Response(openApiJson(), { headers: { "content-type": "application/json; charset=utf-8", "cache-control": "public, max-age=300" } });
       case "ready":
         return await ready(request, env);
       case "capabilities":
@@ -64,15 +67,17 @@ export async function handle(request: Request, env: Env): Promise<Response> {
 }
 
 type Route =
-  | { readonly name: "health" | "ready" | "capabilities" | "evaluate" | "batch" | "method_not_allowed" | "not_found" }
+  | { readonly name: "health" | "openapi" | "ready" | "capabilities" | "evaluate" | "batch" | "method_not_allowed" | "not_found" }
   | { readonly name: "receipt"; readonly evaluationId: string };
 
 function routeOf(method: string, path: string): Route {
-  const want = (expected: string, name: "health" | "ready" | "capabilities" | "evaluate" | "batch"): Route =>
+  const want = (expected: string, name: "health" | "openapi" | "ready" | "capabilities" | "evaluate" | "batch"): Route =>
     method === expected ? { name } : { name: "method_not_allowed" };
   switch (path) {
     case "/v1/health":
       return want("GET", "health");
+    case "/v1/openapi.json":
+      return want("GET", "openapi");
     case "/v1/ready":
       return want("GET", "ready");
     case "/v1/capabilities":

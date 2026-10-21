@@ -41,6 +41,11 @@ cost receipt. It never authorizes access to student data, impersonates a teacher
 | `GET /v1/receipts/{evaluationId}` | `receipts:read` scope | The caller tenant's receipt record |
 | `GET /v1/ready` | any valid token | Configuration and binding checks; never makes a billed call |
 | `GET /v1/health` | public | `{"status":"ok"}` and nothing else |
+| `GET /v1/openapi.json` | public | The OpenAPI 3.1 document for this API |
+
+The OpenAPI document is generated from the zod contracts (`z.toJSONSchema`) and committed at
+[`apps/worker/openapi.json`](apps/worker/openapi.json). After changing a contract or a route, run
+`pnpm openapi` and commit the result; `pnpm lint` (and so CI) fails on drift via `pnpm openapi:check`.
 
 Every authenticated route takes a bearer service JWT (EdDSA/Ed25519 or ES256) from an issuer in
 `HM_TRUSTED_ISSUERS` (`[{"iss","jwks":{"keys":[...]},"audiences"?}]`), with `aud` = `HM_AUDIENCE`
