@@ -25,6 +25,9 @@ stages:
           buildCommand: pnpm install --frozen-lockfile
           deployCommand: pnpm exec wrangler deploy --domain hall-monitor.gmac.io
           syncSecrets: true
+          # The production health probe ForgeGraph runs after a deploy, and that its delivery
+          # receipts to Kanbanger cite; the top-level `health` block does not set it.
+          healthCheckUrl: https://hall-monitor.gmac.io/v1/health
 
 health:
   # Unauthenticated liveness. Readiness (/v1/ready) needs a service token and is checked by hand.
