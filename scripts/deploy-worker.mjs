@@ -1,5 +1,6 @@
-// Deploys apps/worker with `wrangler deploy`, uploading the Worker's per-deployment configuration
-// with the new version. ForgeGraph's production target runs this (see .forgegraph.yaml).
+// Deploys apps/worker by hand with `wrangler deploy`, uploading the Worker's per-deployment
+// configuration with the new version. ForgeGraph's production deploy does the same with its own
+// steps (see .forgegraph.yaml); CI runs this with --dry-run to check the bundle.
 //
 // The issuer keys, policy overlays, tenant modes and AI Gateway ID differ per deployment, so they
 // are not in wrangler.jsonc, whose `vars` every deploy would overwrite. They are Worker secrets

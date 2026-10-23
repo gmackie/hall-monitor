@@ -79,13 +79,14 @@ traffic under the [launch checklist](docs/launch/launch-checklist.md).
 
 ## Deploying
 
-Production is deployed by ForgeGraph (`.forgegraph.yaml`): `forge deploy create production --wait`
-runs `node scripts/deploy-worker.mjs` once CI is green for the commit. Everything the Worker reads
-except `HM_AUDIENCE` (`HM_DIGEST_KEY`, `HM_TRUSTED_ISSUERS`, `HM_POLICY_OVERLAYS`,
-`HM_TENANT_MODES`, `HM_AI_GATEWAY_ID`) is a Worker secret, because a deploy replaces the Worker's
-`vars` with `wrangler.jsonc`'s and never touches secrets. The script uploads whichever of them are
-set in its environment with the new version and keeps the rest; ForgeGraph keeps them as stage
-secrets. `HM_DIGEST_KEY` is required: without it every evaluation is refused.
+Production is deployed by ForgeGraph (`.forgegraph.yaml`): a merge to `main` runs `wrangler
+deploy` from a ForgeGraph node once CI is green, then copies the stage's secrets to the Worker.
+Everything the Worker reads except `HM_AUDIENCE` (`HM_DIGEST_KEY`, `HM_TRUSTED_ISSUERS`,
+`HM_POLICY_OVERLAYS`, `HM_TENANT_MODES`, `HM_AI_GATEWAY_ID`) is a Worker secret, because a deploy
+replaces the Worker's `vars` with `wrangler.jsonc`'s and never touches secrets. `HM_DIGEST_KEY` is
+required: without it every evaluation is refused. To deploy by hand instead, run
+`node scripts/deploy-worker.mjs`, which uploads whichever of those settings are set in its
+environment with the new version and keeps the rest.
 
 ## Image moderation
 
