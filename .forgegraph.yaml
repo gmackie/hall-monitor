@@ -1,10 +1,12 @@
-# ForgeGraph delivery for Hall Monitor (HM-12). `forge deploy create production --wait` runs the
-# production target's deploy command on a ForgeGraph node, after CI is green for the commit.
+# ForgeGraph delivery for Hall Monitor (HM-12). A merge to main deploys the production target from
+# a ForgeGraph node once CI is green: `buildCommand` and then `deployCommand` run in apps/worker
+# (the directory of `configPath`), with Cloudflare credentials from the workspace integration.
 #
 # The Worker's per-deployment configuration lives in ForgeGraph stage secrets
-# (`forge secret set <KEY> --stage production`): HM_DIGEST_KEY, HM_TRUSTED_ISSUERS and, optionally,
-# HM_POLICY_OVERLAYS, HM_TENANT_MODES and HM_AI_GATEWAY_ID. scripts/deploy-worker.mjs uploads the
-# ones present in its environment as Worker secrets with each version; see apps/worker/wrangler.jsonc.
+# (`forge secret set <KEY> --stage production --stdin`): HM_DIGEST_KEY, HM_TRUSTED_ISSUERS and,
+# optionally, HM_POLICY_OVERLAYS, HM_TENANT_MODES and HM_AI_GATEWAY_ID. `syncSecrets` copies every
+# stage secret to the Worker after each deploy; see apps/worker/wrangler.jsonc for why they are
+# secrets rather than vars.
 
 app: hall-monitor
 server: https://forgegraf.com
@@ -21,7 +23,8 @@ stages:
           workerName: hall-monitor
           configPath: apps/worker/wrangler.jsonc
           buildCommand: pnpm install --frozen-lockfile
-          deploy: node scripts/deploy-worker.mjs --domain hall-monitor.gmac.io
+          deployCommand: pnpm exec wrangler deploy --domain hall-monitor.gmac.io
+          syncSecrets: true
 
 health:
   # Unauthenticated liveness. Readiness (/v1/ready) needs a service token and is checked by hand.
