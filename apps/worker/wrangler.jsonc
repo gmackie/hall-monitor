@@ -1,6 +1,9 @@
-// Hall Monitor Worker. Issuer public keys, the audience and policy overlays are plain
-// configuration; set them per environment with `vars` or the dashboard. One secret is required:
-// `wrangler secret put HM_DIGEST_KEY` (32+ random characters) keys the stored request digests.
+// Hall Monitor Worker. The per-deployment configuration is not here, because every deploy replaces
+// `vars` with this file's: set HM_DIGEST_KEY (32+ random characters, keys the stored request
+// digests, required), HM_TRUSTED_ISSUERS, HM_POLICY_OVERLAYS, HM_TENANT_MODES and HM_AI_GATEWAY_ID
+// as Worker secrets, which a deploy never deletes. `node scripts/deploy-worker.mjs` uploads any of
+// them set in its environment; `wrangler secret put` works too. For `wrangler dev`, put them in
+// apps/worker/.dev.vars.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "hall-monitor",
@@ -24,14 +27,13 @@
     { "name": "TENANT_RATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 600, "period": 60 } }
   ],
   "vars": {
-    "HM_AUDIENCE": "hall-monitor",
-    // Set per environment: [{"iss": "...", "jwks": {"keys": [...]}, "audiences": ["..."]}]
-    "HM_TRUSTED_ISSUERS": "",
-    "HM_POLICY_OVERLAYS": "",
-    // Optional: {"tenant": "shadow" | "enforce" | {"mode": "shadow", "allowStudentShadow": true}}.
-    // Unlisted tenants are enforced. Student profiles with required moderation are never
-    // shadowed without allowStudentShadow (see docs/launch/launch-checklist.md).
-    "HM_TENANT_MODES": "",
-    "HM_AI_GATEWAY_ID": ""
+    "HM_AUDIENCE": "hall-monitor"
   }
+  // Secrets (see above):
+  // - HM_TRUSTED_ISSUERS: [{"iss": "...", "jwks": {"keys": [...]}, "audiences": ["..."]}]
+  // - HM_POLICY_OVERLAYS: {"tenant": {"profileId": {...overlay}}}, optional
+  // - HM_TENANT_MODES: {"tenant": "shadow" | "enforce" | {"mode": "shadow", "allowStudentShadow": true}},
+  //   optional. Unlisted tenants are enforced. Student profiles with required moderation are never
+  //   shadowed without allowStudentShadow (see docs/launch/launch-checklist.md).
+  // - HM_AI_GATEWAY_ID: the AI Gateway Clef calls go through, optional
 }

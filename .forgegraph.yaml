@@ -1,0 +1,30 @@
+# ForgeGraph delivery for Hall Monitor (HM-12). `forge deploy create production --wait` runs the
+# production target's deploy command on a ForgeGraph node, after CI is green for the commit.
+#
+# The Worker's per-deployment configuration lives in ForgeGraph stage secrets
+# (`forge secret set <KEY> --stage production`): HM_DIGEST_KEY, HM_TRUSTED_ISSUERS and, optionally,
+# HM_POLICY_OVERLAYS, HM_TENANT_MODES and HM_AI_GATEWAY_ID. scripts/deploy-worker.mjs uploads the
+# ones present in its environment as Worker secrets with each version; see apps/worker/wrangler.jsonc.
+
+app: hall-monitor
+server: https://forgegraf.com
+
+stages:
+  - name: production
+    url: https://hall-monitor.gmac.io
+    sortOrder: 20
+    targets:
+      - name: worker
+        platform: cloudflare-workers
+        nodeId: bf11e7b1-b9de-45be-a89d-ae08049c7598  # hetzner-fg runs the deploy
+        config:
+          workerName: hall-monitor
+          configPath: apps/worker/wrangler.jsonc
+          buildCommand: pnpm install --frozen-lockfile
+          deploy: node scripts/deploy-worker.mjs --domain hall-monitor.gmac.io
+
+health:
+  # Unauthenticated liveness. Readiness (/v1/ready) needs a service token and is checked by hand.
+  url: /v1/health
+  interval: 60
+  timeout: 10

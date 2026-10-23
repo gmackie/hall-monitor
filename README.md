@@ -31,7 +31,7 @@ cost receipt. It never authorizes access to student data, impersonates a teacher
 
 ## Worker API
 
-`apps/worker` serves the HTTP API (do not deploy without owner approval):
+`apps/worker` serves the HTTP API (see [Deploying](#deploying)):
 
 | Route | Auth | Purpose |
 |---|---|---|
@@ -76,6 +76,16 @@ the tenant sets `allowStudentShadow` (logged as `shadow.refused`). Such profiles
 learner never sees unmoderated content; shadowing them would let blocked content reach a child
 while the service appears to moderate, so the opt-in is reserved for synthetic or staff-only
 traffic under the [launch checklist](docs/launch/launch-checklist.md).
+
+## Deploying
+
+Production is deployed by ForgeGraph (`.forgegraph.yaml`): `forge deploy create production --wait`
+runs `node scripts/deploy-worker.mjs` once CI is green for the commit. Everything the Worker reads
+except `HM_AUDIENCE` (`HM_DIGEST_KEY`, `HM_TRUSTED_ISSUERS`, `HM_POLICY_OVERLAYS`,
+`HM_TENANT_MODES`, `HM_AI_GATEWAY_ID`) is a Worker secret, because a deploy replaces the Worker's
+`vars` with `wrangler.jsonc`'s and never touches secrets. The script uploads whichever of them are
+set in its environment with the new version and keeps the rest; ForgeGraph keeps them as stage
+secrets. `HM_DIGEST_KEY` is required: without it every evaluation is refused.
 
 ## Image moderation
 

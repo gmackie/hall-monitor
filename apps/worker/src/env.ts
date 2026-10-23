@@ -7,7 +7,10 @@ export interface RateLimiter {
   limit(options: { key: string }): Promise<{ success: boolean }>;
 }
 
-/** The Worker's bindings and configuration. Only `HM_DIGEST_KEY` is a secret. */
+/**
+ * The Worker's bindings and configuration. Everything but `HM_AUDIENCE` is deployed as a secret,
+ * so a deploy never overwrites it (see wrangler.jsonc); only `HM_DIGEST_KEY` is confidential.
+ */
 export interface Env {
   /** Per-tenant idempotency records and receipts. */
   readonly IDEMPOTENCY_STORE: DurableObjectNamespace<IdempotencyStore>;
