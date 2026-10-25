@@ -21,6 +21,8 @@ const rogue = keyPair("ed25519", "schoolos-1");
 const issuers = [
   { iss: "https://schoolos.test/issuer", jwks: { keys: [schoolos.publicJwk] } },
   { iss: "https://playtrek.test/issuer", jwks: { keys: [playtrek.publicJwk] }, audiences: ["hall-monitor", "hall-monitor-playtrek"] },
+  // SchoolOS renamed to EducateOS: its guard's new issuer name with the same key, as in production.
+  { iss: "https://educateos.test/issuer", jwks: { keys: [schoolos.publicJwk] } },
 ];
 
 const overlays = {
@@ -54,6 +56,7 @@ export default defineWorkersProject({
               schoolos: { iss: issuers[0]!.iss, alg: "EdDSA", jwk: schoolos.privateJwk },
               playtrek: { iss: issuers[1]!.iss, alg: "ES256", jwk: playtrek.privateJwk },
               rogue: { iss: issuers[0]!.iss, alg: "EdDSA", jwk: rogue.privateJwk },
+              educateos: { iss: issuers[2]!.iss, alg: "EdDSA", jwk: schoolos.privateJwk },
             }),
           },
         },

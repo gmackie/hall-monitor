@@ -1,6 +1,6 @@
 {
   "name": "@gmacko/hall-monitor-clef",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Cloudflare Workers AI Clef classifier plugin for Hall Monitor, with bounded escalation and per-attempt metering.",
   "type": "module",
   "private": false,

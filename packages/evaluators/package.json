@@ -1,6 +1,6 @@
 {
   "name": "@gmacko/hall-monitor-evaluators",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Hall Monitor evaluator plugin interface and the deterministic base bundle.",
   "type": "module",
   "private": false,

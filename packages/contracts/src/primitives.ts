@@ -37,8 +37,11 @@ export const MachineCode = z
 /** A lowercase dotted machine code. */
 export type MachineCode = z.infer<typeof MachineCode>;
 
-/** The product asking for an evaluation or owning a cost. */
-export const Product = z.enum(["schoolos", "playtrek", "hall-monitor", "other"]);
+/**
+ * The product asking for an evaluation or owning a cost. `educateos` is SchoolOS's new name;
+ * `schoolos` stays accepted, and is treated the same, until EducateOS has switched.
+ */
+export const Product = z.enum(["educateos", "schoolos", "playtrek", "hall-monitor", "other"]);
 /** The product asking for an evaluation or owning a cost. */
 export type Product = z.infer<typeof Product>;
 

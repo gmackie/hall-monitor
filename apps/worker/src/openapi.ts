@@ -86,7 +86,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     info: {
       title: "Hall Monitor API",
       version: SCHEMA_VERSION,
-      summary: "Product-neutral moderation and evaluation for SchoolOS and PlayTrek.",
+      summary: "Product-neutral moderation and evaluation for EducateOS (formerly SchoolOS) and PlayTrek.",
       description:
         "Evaluates content or requested activity under a pinned policy revision and returns findings, a decision and a content-free cost receipt. `info.version` is the wire schema version. Responses never echo request content.",
     },

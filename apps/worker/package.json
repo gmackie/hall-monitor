@@ -1,6 +1,6 @@
 {
   "name": "@gmacko/hall-monitor-worker",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Hall Monitor's Cloudflare Worker HTTP API: signed service auth, idempotency and tenant-scoped receipts.",
   "type": "module",
   "private": true,

@@ -1,7 +1,10 @@
 import { env } from "cloudflare:test";
 
-/** A signer configured for this test run (see vitest.config.ts). `rogue` reuses a trusted kid with an untrusted key. */
-export type Signer = "schoolos" | "playtrek" | "rogue";
+/**
+ * A signer configured for this test run (see vitest.config.ts). `rogue` reuses a trusted kid with an
+ * untrusted key; `educateos` is a second issuer with the same key as `schoolos`.
+ */
+export type Signer = "schoolos" | "educateos" | "playtrek" | "rogue";
 
 interface SigningKey {
   readonly iss: string;
@@ -37,7 +40,7 @@ export interface MintOptions {
 }
 
 /**
- * Mints a service token signed with a test key: Ed25519 (EdDSA) for `schoolos` and `rogue`,
+ * Mints a service token signed with a test key: Ed25519 (EdDSA) for `schoolos`, `educateos` and `rogue`,
  * P-256 (ES256) for `playtrek`. Defaults: audience `hall-monitor`, five-minute lifetime, both scopes.
  */
 export async function mintToken(signer: Signer, options: MintOptions = {}): Promise<string> {
