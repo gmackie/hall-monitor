@@ -1,6 +1,6 @@
 {
   "name": "@gmacko/hall-monitor-client",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "TypeScript client for the Hall Monitor HTTP API, over HTTPS or a Cloudflare service binding.",
   "type": "module",
   "private": false,

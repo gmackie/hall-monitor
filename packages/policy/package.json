@@ -1,6 +1,6 @@
 {
   "name": "@gmacko/hall-monitor-policy",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Hall Monitor policy profiles, district floors and the deterministic decision resolver.",
   "type": "module",
   "private": false,

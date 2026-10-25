@@ -96,6 +96,20 @@ describe("service authentication (fail closed)", () => {
     const request = evaluationRequest({ tenant: "tenant_playtrek" });
     expect((await post("/v1/evaluations", token, { ...request, source: { ...request.source, product: "playtrek" } })).status).toBe(200);
   });
+  it("accepts EducateOS (formerly SchoolOS) under its new product id and issuer, and still under the old ones", async () => {
+    const request = evaluationRequest();
+    const renamed = { ...request, source: { ...request.source, product: "educateos" as const } };
+    const response = await post("/v1/evaluations", await mintToken("educateos"), renamed);
+    expect(response.status).toBe(200);
+    const result = EvaluationResult.parse(await response.json());
+    expect(result.decision).toBe("allow");
+    expect(CostReceipt.parse(result.receipt).product).toBe("educateos");
+    // The old product id under the new issuer, and the new product id under the old issuer.
+    const mixed = evaluationRequest();
+    expect((await post("/v1/evaluations", await mintToken("educateos"), mixed)).status).toBe(200);
+    const legacy = evaluationRequest();
+    expect((await post("/v1/evaluations", await mintToken("schoolos"), { ...legacy, source: { ...legacy.source, product: "educateos" } })).status).toBe(200);
+  });
 });
 
 describe("POST /v1/evaluations", () => {

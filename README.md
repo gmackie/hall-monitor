@@ -1,6 +1,6 @@
 # Hall Monitor
 
-Product-neutral moderation and evaluation service shared by SchoolOS and PlayTrek.
+Product-neutral moderation and evaluation service shared by EducateOS (formerly SchoolOS) and PlayTrek.
 
 Hall Monitor answers one question: *is this content or requested activity appropriate for this
 product, role, curriculum context and institutional policy, and what should happen next?* It
@@ -159,7 +159,7 @@ unchanged. In the consumer's `.npmrc`, with a token from `forge registry token c
 //npm.forgegraf.com/:_authToken=${FORGEGRAPH_REGISTRY_TOKEN}
 ```
 
-Then depend on versions as usual, e.g. `"@gmacko/hall-monitor-client": "0.2.0"`.
+Then depend on versions as usual, e.g. `"@gmacko/hall-monitor-client": "0.3.0"`.
 
 Without registry access, download the release tarballs into the consuming repo (for example
 `vendor/hall-monitor/`) and use `file:vendor/hall-monitor/<tarball>` both in the dependencies and in
