@@ -116,7 +116,7 @@ describe("buildReceipt", () => {
   const base = {
     receiptId: "rcpt_1",
     tenantId: "tenant_1",
-    product: "schoolos",
+    product: "educateos",
     costCenterId: "cc_1",
     logicalRequestId: "req_1",
     createdAt: "2026-10-20T12:00:00.000Z",

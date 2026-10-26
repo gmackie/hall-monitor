@@ -27,7 +27,7 @@
   "receipt": {
     "receiptId": "rcpt_02",
     "tenantId": "tenant_opaque",
-    "product": "schoolos",
+    "product": "educateos",
     "costCenterId": "cc_biology",
     "logicalRequestId": "req_02",
     "createdAt": "2026-10-20T12:00:00.000Z",

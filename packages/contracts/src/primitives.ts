@@ -38,10 +38,10 @@ export const MachineCode = z
 export type MachineCode = z.infer<typeof MachineCode>;
 
 /**
- * The product asking for an evaluation or owning a cost. `educateos` is SchoolOS's new name;
- * `schoolos` stays accepted, and is treated the same, until EducateOS has switched.
+ * The product asking for an evaluation or owning a cost. `educateos` is SchoolOS's new name; the old
+ * `schoolos` id was a transition alias and is no longer accepted (0.4.0).
  */
-export const Product = z.enum(["educateos", "schoolos", "playtrek", "hall-monitor", "other"]);
+export const Product = z.enum(["educateos", "playtrek", "hall-monitor", "other"]);
 /** The product asking for an evaluation or owning a cost. */
 export type Product = z.infer<typeof Product>;
 

@@ -2,9 +2,9 @@ import { env } from "cloudflare:test";
 
 /**
  * A signer configured for this test run (see vitest.config.ts). `rogue` reuses a trusted kid with an
- * untrusted key; `educateos` is a second issuer with the same key as `schoolos`.
+ * untrusted key; `schoolos` signs with EducateOS's key under the retired, untrusted SchoolOS issuer.
  */
-export type Signer = "schoolos" | "educateos" | "playtrek" | "rogue";
+export type Signer = "educateos" | "schoolos" | "playtrek" | "rogue";
 
 interface SigningKey {
   readonly iss: string;
@@ -40,7 +40,7 @@ export interface MintOptions {
 }
 
 /**
- * Mints a service token signed with a test key: Ed25519 (EdDSA) for `schoolos`, `educateos` and `rogue`,
+ * Mints a service token signed with a test key: Ed25519 (EdDSA) for `educateos`, `schoolos` and `rogue`,
  * P-256 (ES256) for `playtrek`. Defaults: audience `hall-monitor`, five-minute lifetime, both scopes.
  */
 export async function mintToken(signer: Signer, options: MintOptions = {}): Promise<string> {
@@ -54,7 +54,7 @@ export async function mintToken(signer: Signer, options: MintOptions = {}): Prom
       iat: now,
       exp: now + 300,
       jti: crypto.randomUUID(),
-      tenant: options.tenant ?? "tenant_schoolos",
+      tenant: options.tenant ?? "tenant_educateos",
       scope: options.scope ?? "evaluate receipts:read",
       ...options.claims,
     }).filter(([, v]) => v !== undefined),

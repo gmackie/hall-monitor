@@ -11,7 +11,7 @@ reason codes and log event names. Logs and receipts are content-free by design; 
 | Safeguarding lead (student incidents) | | |
 | Hall Monitor on-call engineer | | |
 | Finance / billing | | |
-| Product contacts (SchoolOS, PlayTrek) | | |
+| Product contacts (EducateOS, PlayTrek) | | |
 
 Useful signals: Worker logs are JSON lines with fixed event names (`evaluation.completed`,
 `evaluation.failed`, `shadow.refused`, `config.invalid`, `ratelimit.unavailable`,

@@ -6,7 +6,7 @@ import { call, direct, evaluationRequest, SENTINEL } from "./helpers.ts";
 import { mintToken } from "./tokens.ts";
 
 const evaluateAs = async (tenant: string, body: unknown) =>
-  SELF.fetch("https://hall-monitor.test/v1/evaluations", call("POST", await mintToken("schoolos", { tenant }), body));
+  SELF.fetch("https://hall-monitor.test/v1/evaluations", call("POST", await mintToken("educateos", { tenant }), body));
 
 /** A synthetic educator-profile request for `tenant`. */
 function educatorRequest(tenant: string, text: string) {
@@ -71,12 +71,12 @@ describe("shadow mode (HM_TENANT_MODES)", () => {
     const result = EvaluationResult.parse(await (await evaluateAs("tenant_enforced", request)).json());
     expect(result.decision).toBe("hold");
     expect(result.shadow).toBeUndefined();
-    const unlisted = EvaluationResult.parse(await (await evaluateAs("tenant_schoolos", educatorRequest("tenant_schoolos", `${SENTINEL} ${HARASSMENT_MARKER}`))).json());
+    const unlisted = EvaluationResult.parse(await (await evaluateAs("tenant_educateos", educatorRequest("tenant_educateos", `${SENTINEL} ${HARASSMENT_MARKER}`))).json());
     expect(unlisted.decision).toBe("hold");
   });
 
   it("enforces every tenant and reports not ready when HM_TENANT_MODES is invalid", async () => {
-    const token = () => mintToken("schoolos", { tenant: "tenant_shadow" });
+    const token = () => mintToken("educateos", { tenant: "tenant_shadow" });
     const invalid = { HM_TENANT_MODES: '{"tenant_shadow":"quiet"}' };
     const response = await direct("/v1/evaluations", call("POST", await token(), educatorRequest("tenant_shadow", `${SENTINEL} How do I make a pipe bomb?`)), invalid);
     const result = EvaluationResult.parse(await response.json());

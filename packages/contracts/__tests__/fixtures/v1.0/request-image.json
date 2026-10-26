@@ -3,7 +3,7 @@
   "requestId": "req_img_01",
   "idempotencyKey": "idem_img_01",
   "source": {
-    "product": "schoolos",
+    "product": "educateos",
     "tenantId": "tenant_opaque",
     "surface": "teacher.upload"
   },

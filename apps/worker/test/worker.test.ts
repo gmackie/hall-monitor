@@ -42,7 +42,7 @@ describe("service authentication (fail closed)", () => {
   });
 
   it("rejects malformed tokens and unsupported algorithms with 401", async () => {
-    const valid = await mintToken("schoolos");
+    const valid = await mintToken("educateos");
     const [header, payload] = valid.split(".");
     const none = `${btoa(JSON.stringify({ alg: "none", typ: "JWT" })).replace(/=+$/, "")}.${payload}.`;
     const hs256 = `${btoa(JSON.stringify({ alg: "HS256", typ: "JWT" })).replace(/=+$/, "")}.${payload}.c2ln`;
@@ -67,27 +67,27 @@ describe("service authentication (fail closed)", () => {
       { claims: { exp: undefined } },
     ];
     for (const options of cases) {
-      await expectError(await post("/v1/evaluations", await mintToken("schoolos", options), evaluationRequest()), 401, "unauthorized");
+      await expectError(await post("/v1/evaluations", await mintToken("educateos", options), evaluationRequest()), 401, "unauthorized");
     }
     expect(logLines.some((line) => line.includes('"event":"auth.rejected"') && line.includes('"authFailure":"expired"'))).toBe(true);
   });
 
   it("accepts a token within the 60 second clock skew", async () => {
     const now = Math.floor(Date.now() / 1000);
-    const token = await mintToken("schoolos", { claims: { exp: now - 30, iat: now - 300 } });
+    const token = await mintToken("educateos", { claims: { exp: now - 30, iat: now - 300 } });
     expect((await post("/v1/evaluations", token, evaluationRequest())).status).toBe(200);
   });
 
   it("returns 403 when the request's tenant is not the token's", async () => {
-    const token = await mintToken("schoolos", { tenant: "tenant_schoolos" });
+    const token = await mintToken("educateos", { tenant: "tenant_educateos" });
     await expectError(await post("/v1/evaluations", token, evaluationRequest({ tenant: "tenant_playtrek" })), 403, "forbidden");
     expect(fakeAi.calls).toHaveLength(0);
   });
 
   it("returns 403 when the token lacks the required scope", async () => {
-    const readOnly = await mintToken("schoolos", { scope: "receipts:read" });
+    const readOnly = await mintToken("educateos", { scope: "receipts:read" });
     await expectError(await post("/v1/evaluations", readOnly, evaluationRequest()), 403, "forbidden");
-    const evaluateOnly = await mintToken("schoolos", { scope: ["evaluate"] });
+    const evaluateOnly = await mintToken("educateos", { scope: ["evaluate"] });
     await expectError(await get("/v1/receipts/eval_any", evaluateOnly), 403, "forbidden");
   });
 
@@ -96,33 +96,33 @@ describe("service authentication (fail closed)", () => {
     const request = evaluationRequest({ tenant: "tenant_playtrek" });
     expect((await post("/v1/evaluations", token, { ...request, source: { ...request.source, product: "playtrek" } })).status).toBe(200);
   });
-  it("accepts EducateOS (formerly SchoolOS) under its new product id and issuer, and still under the old ones", async () => {
+  it("accepts EducateOS under its product id and issuer, and rejects the retired schoolos product and issuer", async () => {
     const request = evaluationRequest();
-    const renamed = { ...request, source: { ...request.source, product: "educateos" as const } };
-    const response = await post("/v1/evaluations", await mintToken("educateos"), renamed);
+    expect(request.source.product).toBe("educateos");
+    const response = await post("/v1/evaluations", await mintToken("educateos"), request);
     expect(response.status).toBe(200);
     const result = EvaluationResult.parse(await response.json());
     expect(result.decision).toBe("allow");
     expect(CostReceipt.parse(result.receipt).product).toBe("educateos");
-    // The old product id under the new issuer, and the new product id under the old issuer.
-    const mixed = evaluationRequest();
-    expect((await post("/v1/evaluations", await mintToken("educateos"), mixed)).status).toBe(200);
-    const legacy = evaluationRequest();
-    expect((await post("/v1/evaluations", await mintToken("schoolos"), { ...legacy, source: { ...legacy.source, product: "educateos" } })).status).toBe(200);
+    // The `schoolos` product alias is gone from the wire contract (HM-14).
+    const legacyProduct = evaluationRequest();
+    await expectError(await post("/v1/evaluations", await mintToken("educateos"), { ...legacyProduct, source: { ...legacyProduct.source, product: "schoolos" } }), 400, "invalid_request");
+    // So is the `schoolos` issuer, even with EducateOS's own key.
+    await expectError(await post("/v1/evaluations", await mintToken("schoolos"), evaluationRequest()), 401, "unauthorized");
   });
 });
 
 describe("POST /v1/evaluations", () => {
   it("allows benign student input after one Clef-flash call, with a priced receipt", async () => {
     const request = evaluationRequest();
-    const response = await post("/v1/evaluations", await mintToken("schoolos"), request);
+    const response = await post("/v1/evaluations", await mintToken("educateos"), request);
     expect(response.status).toBe(200);
     const result = EvaluationResult.parse(await response.json());
     expect(result).toMatchObject({ requestId: request.requestId, decision: "allow", uncertain: false, policyRevision: "builtin-1" });
     expect(result.evaluatorBundleRevision).toBe("base-1.0.0:clef-1.1.0");
     expect(fakeAi.calls.map((entry) => entry.model)).toEqual(["@cf/cloudflare/clef-flash"]);
     const receipt = CostReceipt.parse(result.receipt);
-    expect(receipt).toMatchObject({ tenantId: "tenant_schoolos", purpose: "moderation.input", hasUnknownCost: false });
+    expect(receipt).toMatchObject({ tenantId: "tenant_educateos", purpose: "moderation.input", hasUnknownCost: false });
     // 640 input tokens at $0.038 per million = 24,320 nanodollars; output tokens are free.
     expect(receipt.totalGrossUsdNano).toBe("24320");
     expect(receipt.attempts[0]).toMatchObject({ units: { inputTokens: 640 }, state: "provider_reported" });
@@ -132,17 +132,17 @@ describe("POST /v1/evaluations", () => {
 
   it("holds student input the classifier flags as harassment", async () => {
     const request = evaluationRequest({ text: `${SENTINEL} ${HARASSMENT_MARKER}` });
-    const result = EvaluationResult.parse(await (await post("/v1/evaluations", await mintToken("schoolos"), request)).json());
+    const result = EvaluationResult.parse(await (await post("/v1/evaluations", await mintToken("educateos"), request)).json());
     expect(result.decision).toBe("hold");
     expect(result.reasonCodes).toContain("clef.harassment");
   });
 
   it("replays the stored result for a repeated key without calling the classifier again", async () => {
-    const token = () => mintToken("schoolos");
+    const token = () => mintToken("educateos");
     const request = evaluationRequest();
     const first = await post("/v1/evaluations", await token(), request);
     const firstBody = await first.text();
-    const second = await post("/v1/evaluations", await mintToken("schoolos"), structuredClone(request));
+    const second = await post("/v1/evaluations", await mintToken("educateos"), structuredClone(request));
     expect(second.status).toBe(200);
     expect(second.headers.get("idempotent-replayed")).toBe("true");
     expect(await second.text()).toBe(firstBody);
@@ -150,7 +150,7 @@ describe("POST /v1/evaluations", () => {
   });
 
   it("replays regardless of the caller's JSON key order", async () => {
-    const token = () => mintToken("schoolos");
+    const token = () => mintToken("educateos");
     const request = evaluationRequest();
     await post("/v1/evaluations", await token(), request);
     const reordered = Object.fromEntries(Object.entries(request).reverse());
@@ -159,7 +159,7 @@ describe("POST /v1/evaluations", () => {
   });
 
   it("returns 409 when a key is reused for a different request", async () => {
-    const token = () => mintToken("schoolos");
+    const token = () => mintToken("educateos");
     const request = evaluationRequest();
     await post("/v1/evaluations", await token(), request);
     const reused = { ...request, content: { type: "text", text: `${SENTINEL} a different question` } };
@@ -169,23 +169,23 @@ describe("POST /v1/evaluations", () => {
   });
 
   it("scopes idempotency keys by tenant", async () => {
-    const schoolos = evaluationRequest({ tenant: "tenant_schoolos" });
-    const other = { ...evaluationRequest({ tenant: "tenant_other" }), idempotencyKey: schoolos.idempotencyKey };
-    await post("/v1/evaluations", await mintToken("schoolos", { tenant: "tenant_schoolos" }), schoolos);
-    const response = await post("/v1/evaluations", await mintToken("schoolos", { tenant: "tenant_other" }), other);
+    const educateos = evaluationRequest({ tenant: "tenant_educateos" });
+    const other = { ...evaluationRequest({ tenant: "tenant_other" }), idempotencyKey: educateos.idempotencyKey };
+    await post("/v1/evaluations", await mintToken("educateos", { tenant: "tenant_educateos" }), educateos);
+    const response = await post("/v1/evaluations", await mintToken("educateos", { tenant: "tenant_other" }), other);
     expect(response.status).toBe(200);
     expect(response.headers.get("idempotent-replayed")).toBeNull();
   });
 
   it("releases the key when an evaluation fails, so a retry can succeed", async () => {
-    const token = () => mintToken("schoolos");
+    const token = () => mintToken("educateos");
     const request = { ...evaluationRequest(), policy: { profileId: "no-such-profile", revision: "builtin-1" } };
     await expectError(await post("/v1/evaluations", await token(), request), 404, "policy_not_found");
     await expectError(await post("/v1/evaluations", await token(), request), 404, "policy_not_found");
   });
 
   it("rejects invalid requests naming fields only, never values", async () => {
-    const token = () => mintToken("schoolos");
+    const token = () => mintToken("educateos");
     const request = evaluationRequest();
     const body = await expectError(
       await post("/v1/evaluations", await token(), { ...request, context: { ...request.context, gradeBand: SENTINEL } }),
@@ -200,13 +200,13 @@ describe("POST /v1/evaluations", () => {
 
   it("holds student input when the classifier fails", async () => {
     fakeAi.failing = true;
-    const result = EvaluationResult.parse(await (await post("/v1/evaluations", await mintToken("schoolos"), evaluationRequest())).json());
+    const result = EvaluationResult.parse(await (await post("/v1/evaluations", await mintToken("educateos"), evaluationRequest())).json());
     expect(result).toMatchObject({ decision: "hold", degraded: { reason: "classifier_unavailable" } });
     expect(result.receipt?.hasUnknownCost).toBe(true);
   });
 
   it("fails closed to hold for a student profile when the AI binding is absent", async () => {
-    const response = await direct("/v1/evaluations", call("POST", await mintToken("schoolos"), evaluationRequest()));
+    const response = await direct("/v1/evaluations", call("POST", await mintToken("educateos"), evaluationRequest()));
     const result = EvaluationResult.parse(await response.json());
     expect(result).toMatchObject({ decision: "hold", uncertain: true, degraded: { reason: "classifier_unavailable" }, receipt: null });
     expect(result.reasonCodes).toContain("hall_monitor.unavailable");
@@ -221,17 +221,17 @@ describe("POST /v1/evaluations", () => {
         return { success: false };
       },
     };
-    const response = await direct("/v1/evaluations", call("POST", await mintToken("schoolos"), evaluationRequest()), { TENANT_RATE_LIMITER: limiter });
+    const response = await direct("/v1/evaluations", call("POST", await mintToken("educateos"), evaluationRequest()), { TENANT_RATE_LIMITER: limiter });
     const body = await expectError(response, 429, "rate_limited");
     expect(body.retryable).toBe(true);
     expect(response.headers.get("retry-after")).toBe("10");
-    expect(keys).toEqual(["tenant_schoolos"]);
+    expect(keys).toEqual(["tenant_educateos"]);
   });
 });
 
 describe("policy overlays", () => {
   it("pins a tenant with an overlay to the overlay revision and clamps weakening fields", async () => {
-    const token = () => mintToken("schoolos", { tenant: "tenant_overlay" });
+    const token = () => mintToken("educateos", { tenant: "tenant_overlay" });
     const educator = {
       ...evaluationRequest({ tenant: "tenant_overlay", kind: "interaction.output" }),
       policy: { profileId: "educator", revision: "builtin-1" },
@@ -251,7 +251,7 @@ describe("policy overlays", () => {
 
 describe("POST /v1/evaluations:batch", () => {
   it("evaluates offline kinds in order, with per-item errors", async () => {
-    const token = () => mintToken("schoolos");
+    const token = () => mintToken("educateos");
     const candidate = (text: string) => ({
       ...evaluationRequest({ kind: "content.candidate", text }),
       policy: { profileId: "published-content", revision: "builtin-1" },
@@ -269,7 +269,7 @@ describe("POST /v1/evaluations:batch", () => {
   });
 
   it("rejects interactive kinds, oversize batches and other tenants' requests", async () => {
-    const token = () => mintToken("schoolos");
+    const token = () => mintToken("educateos");
     await expectError(await post("/v1/evaluations:batch", await token(), { requests: [evaluationRequest({ kind: "interaction.input" })] }), 400, "invalid_request");
     await expectError(await post("/v1/evaluations:batch", await token(), { requests: [evaluationRequest({ kind: "interaction.output" })] }), 400, "invalid_request");
     const many = Array.from({ length: 51 }, () => evaluationRequest({ kind: "content.candidate" }));
@@ -283,16 +283,16 @@ describe("POST /v1/evaluations:batch", () => {
 
 describe("GET /v1/receipts/:evaluationId", () => {
   it("returns the caller tenant's receipt record and hides it from other tenants", async () => {
-    const result = EvaluationResult.parse(await (await post("/v1/evaluations", await mintToken("schoolos"), evaluationRequest())).json());
-    const own = await get(`/v1/receipts/${result.evaluationId}`, await mintToken("schoolos"));
+    const result = EvaluationResult.parse(await (await post("/v1/evaluations", await mintToken("educateos"), evaluationRequest())).json());
+    const own = await get(`/v1/receipts/${result.evaluationId}`, await mintToken("educateos"));
     expect(own.status).toBe(200);
     const record = ReceiptRecord.parse(await own.json());
-    expect(record).toMatchObject({ evaluationId: result.evaluationId, requestId: result.requestId, tenantId: "tenant_schoolos", receipt: result.receipt });
+    expect(record).toMatchObject({ evaluationId: result.evaluationId, requestId: result.requestId, tenantId: "tenant_educateos", receipt: result.receipt });
 
-    const other = await get(`/v1/receipts/${result.evaluationId}`, await mintToken("schoolos", { tenant: "tenant_other" }));
+    const other = await get(`/v1/receipts/${result.evaluationId}`, await mintToken("educateos", { tenant: "tenant_other" }));
     await expectError(other, 404, "invalid_request");
     await expectError(await get(`/v1/receipts/${result.evaluationId}`), 401, "unauthorized");
-    await expectError(await get(`/v1/receipts/${encodeURIComponent("bad id!")}`, await mintToken("schoolos")), 400, "invalid_request");
+    await expectError(await get(`/v1/receipts/${encodeURIComponent("bad id!")}`, await mintToken("educateos")), 400, "invalid_request");
   });
 });
 
@@ -301,13 +301,13 @@ describe("health, readiness and capabilities", () => {
     const anonymous = await get("/v1/health");
     expect(anonymous.status).toBe(200);
     expect(await anonymous.json()).toEqual({ status: "ok" });
-    const authenticated = await get("/v1/health", await mintToken("schoolos", { tenant: "tenant_overlay" }));
+    const authenticated = await get("/v1/health", await mintToken("educateos", { tenant: "tenant_overlay" }));
     expect(await authenticated.json()).toEqual({ status: "ok" });
   });
 
   it("requires authentication for readiness and checks the AI binding without calling it", async () => {
     await expectError(await get("/v1/ready"), 401, "unauthorized");
-    const token = () => mintToken("schoolos");
+    const token = () => mintToken("educateos");
     const ready = await get("/v1/ready", await token());
     expect(ready.status).toBe(200);
     expect(await ready.json()).toEqual({
@@ -322,7 +322,7 @@ describe("health, readiness and capabilities", () => {
 
   it("describes the deployment to an authenticated caller", async () => {
     await expectError(await get("/v1/capabilities"), 401, "unauthorized");
-    const body = (await (await get("/v1/capabilities", await mintToken("schoolos"))).json()) as Record<string, unknown>;
+    const body = (await (await get("/v1/capabilities", await mintToken("educateos"))).json()) as Record<string, unknown>;
     expect(body).toMatchObject({
       schemaVersion: "1.0",
       resolverVersion: "resolver-1.0.0",
@@ -337,11 +337,11 @@ describe("health, readiness and capabilities", () => {
   });
 
   it("fails closed when no issuers are configured", async () => {
-    const response = await direct("/v1/evaluations", call("POST", await mintToken("schoolos"), evaluationRequest()), { HM_TRUSTED_ISSUERS: "" });
+    const response = await direct("/v1/evaluations", call("POST", await mintToken("educateos"), evaluationRequest()), { HM_TRUSTED_ISSUERS: "" });
     await expectError(response, 503, "unavailable");
     // A configured private key member is refused outright rather than silently stripped.
-    const withPrivate = JSON.stringify([{ iss: "https://schoolos.test/issuer", jwks: { keys: [{ kty: "OKP", crv: "Ed25519", x: "AA", d: "AA" }] } }]);
-    const refused = await direct("/v1/evaluations", call("POST", await mintToken("schoolos"), evaluationRequest()), { HM_TRUSTED_ISSUERS: withPrivate });
+    const withPrivate = JSON.stringify([{ iss: "https://educateos.test/issuer", jwks: { keys: [{ kty: "OKP", crv: "Ed25519", x: "AA", d: "AA" }] } }]);
+    const refused = await direct("/v1/evaluations", call("POST", await mintToken("educateos"), evaluationRequest()), { HM_TRUSTED_ISSUERS: withPrivate });
     await expectError(refused, 503, "unavailable");
   });
 });

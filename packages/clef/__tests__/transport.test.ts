@@ -46,7 +46,7 @@ describe("gatewayFetchTransport", () => {
       accountId: "acct",
       gatewayId: "gw",
       token: "test-token",
-      metadata: { product: "schoolos" },
+      metadata: { product: "educateos" },
       fetch: async (url, init) => {
         seen.url = String(url);
         if (init !== undefined) seen.init = init;
@@ -63,7 +63,7 @@ describe("gatewayFetchTransport", () => {
     });
     const result = await transport(response, seen).run("@cf/cloudflare/clef-flash", { input: "x" }, { signal });
     expect(seen.url).toBe("https://gateway.ai.cloudflare.com/v1/acct/gw/workers-ai/@cf/cloudflare/clef-flash");
-    expect(seen.init?.headers).toMatchObject({ "cf-aig-collect-log-payload": "false", "cf-aig-metadata": '{"product":"schoolos"}' });
+    expect(seen.init?.headers).toMatchObject({ "cf-aig-collect-log-payload": "false", "cf-aig-metadata": '{"product":"educateos"}' });
     expect(result).toEqual({ output: { answers: {}, usage: { input_tokens: 9, output_tokens: 0 } }, usage: { inputTokens: 9 }, providerRequestId: "8f00aa-SJC", gatewayLogId: "log_9" });
   });
 

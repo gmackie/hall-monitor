@@ -65,6 +65,13 @@ describe("wire schema compatibility", () => {
   });
 });
 
+describe("Product", () => {
+  it("no longer accepts the retired schoolos alias (0.4.0)", () => {
+    expect(contracts.Product.safeParse("educateos").success).toBe(true);
+    expect(contracts.Product.safeParse("schoolos").success).toBe(false);
+  });
+});
+
 describe("isCompatibleSchemaVersion", () => {
   it("accepts every supported version", () => {
     for (const version of contracts.SUPPORTED_SCHEMA_VERSIONS) {
