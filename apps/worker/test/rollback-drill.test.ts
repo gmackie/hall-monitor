@@ -30,14 +30,14 @@ function drillRequest(fixture: FixtureCase, revision: string): EvaluationRequest
   return {
     ...request,
     idempotencyKey: `drill_${phase}_${fixture.id}`,
-    source: { product: "schoolos", tenantId: TENANT, surface: "drill" },
+    source: { product: "educateos", tenantId: TENANT, surface: "drill" },
     policy: { profileId: "student-9-12", revision },
   };
 }
 
 /** Evaluates `request` against the Worker deployed with `overlays` (and the fake AI unless `ai` is false). */
 async function evaluateUnder(overlays: unknown, request: EvaluationRequest, options: { ai?: boolean; env?: Partial<Env> } = {}) {
-  const token = await mintToken("schoolos", { tenant: TENANT });
+  const token = await mintToken("educateos", { tenant: TENANT });
   const deployed: Partial<Env> = { HM_POLICY_OVERLAYS: JSON.stringify(overlays), ...options.env, ...(options.ai === false ? {} : { AI: fakeAi }) };
   return direct("/v1/evaluations", call("POST", token, request), deployed);
 }
@@ -134,7 +134,7 @@ describe("rollback drill", { timeout: 30_000 }, () => {
     expect(await replay.text()).toBe(body);
     expect(fakeAi.calls).toHaveLength(1);
 
-    const token = await mintToken("schoolos", { tenant: TENANT });
+    const token = await mintToken("educateos", { tenant: TENANT });
     const receipt = await direct(`/v1/receipts/${result.evaluationId}`, call("GET", token));
     expect(receipt.status).toBe(200);
     expect(await receipt.json()).toMatchObject({ evaluationId: result.evaluationId, receipt: result.receipt });

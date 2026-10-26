@@ -14,16 +14,17 @@ function keyPair(type: "ed25519" | "p256", kid: string): { publicJwk: JsonWebKey
   };
 }
 
-const schoolos = keyPair("ed25519", "schoolos-1");
+// EducateOS's guard key keeps its historical key id `schoolos-1`, as in production.
+const educateos = keyPair("ed25519", "schoolos-1");
 const playtrek = keyPair("p256", "playtrek-1");
 const rogue = keyPair("ed25519", "schoolos-1");
 
 const issuers = [
-  { iss: "https://schoolos.test/issuer", jwks: { keys: [schoolos.publicJwk] } },
+  { iss: "https://educateos.test/issuer", jwks: { keys: [educateos.publicJwk] } },
   { iss: "https://playtrek.test/issuer", jwks: { keys: [playtrek.publicJwk] }, audiences: ["hall-monitor", "hall-monitor-playtrek"] },
-  // SchoolOS renamed to EducateOS: its guard's new issuer name with the same key, as in production.
-  { iss: "https://educateos.test/issuer", jwks: { keys: [schoolos.publicJwk] } },
 ];
+// The retired SchoolOS issuer (HM-14): EducateOS's key under its old issuer name, no longer trusted.
+const retiredSchoolosIssuer = "https://schoolos.test/issuer";
 
 const overlays = {
   // A district that tightens the educator floor; one weakening field is clamped.
@@ -53,10 +54,10 @@ export default defineWorkersProject({
             HM_TENANT_MODES: JSON.stringify(tenantModes),
             HM_DIGEST_KEY: randomBytes(32).toString("hex"),
             TEST_SIGNING_KEYS: JSON.stringify({
-              schoolos: { iss: issuers[0]!.iss, alg: "EdDSA", jwk: schoolos.privateJwk },
+              educateos: { iss: issuers[0]!.iss, alg: "EdDSA", jwk: educateos.privateJwk },
               playtrek: { iss: issuers[1]!.iss, alg: "ES256", jwk: playtrek.privateJwk },
               rogue: { iss: issuers[0]!.iss, alg: "EdDSA", jwk: rogue.privateJwk },
-              educateos: { iss: issuers[2]!.iss, alg: "EdDSA", jwk: schoolos.privateJwk },
+              schoolos: { iss: retiredSchoolosIssuer, alg: "EdDSA", jwk: educateos.privateJwk },
             }),
           },
         },

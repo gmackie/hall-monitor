@@ -7,7 +7,7 @@ import { call, evaluationRequest, SENTINEL } from "./helpers.ts";
 import { mintToken } from "./tokens.ts";
 
 const BASE = "https://hall-monitor.test";
-const post = async (body: unknown) => SELF.fetch(`${BASE}/v1/evaluations`, call("POST", await mintToken("schoolos"), body));
+const post = async (body: unknown) => SELF.fetch(`${BASE}/v1/evaluations`, call("POST", await mintToken("educateos"), body));
 
 /**
  * A synthetic PNG: the PNG signature followed by marker bytes, so its base64 contains a
@@ -95,7 +95,7 @@ describe("image content", () => {
 
     const oversize = SELF.fetch(`${BASE}/v1/evaluations`, {
       method: "POST",
-      headers: { authorization: `Bearer ${await mintToken("schoolos")}`, "content-type": "application/json" },
+      headers: { authorization: `Bearer ${await mintToken("educateos")}`, "content-type": "application/json" },
       body: "x".repeat(MAX_EVALUATION_BYTES + 1),
     });
     const response = await oversize;
@@ -103,7 +103,7 @@ describe("image content", () => {
   });
 
   it("advertises image content in capabilities", async () => {
-    const response = await SELF.fetch(`${BASE}/v1/capabilities`, call("GET", await mintToken("schoolos")));
+    const response = await SELF.fetch(`${BASE}/v1/capabilities`, call("GET", await mintToken("educateos")));
     expect(Capabilities.parse(await response.json()).contentTypes).toEqual(["text", "digest", "image"]);
   });
 });

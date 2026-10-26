@@ -1,7 +1,7 @@
 {
   "name": "hall-monitor",
   "private": true,
-  "description": "Product-neutral moderation and evaluation service (Hall Monitor) shared by SchoolOS and PlayTrek.",
+  "description": "Product-neutral moderation and evaluation service (Hall Monitor) shared by EducateOS and PlayTrek.",
   "type": "module",
   "packageManager": "pnpm@12.8.1",
   "engines": { "node": ">=22" },

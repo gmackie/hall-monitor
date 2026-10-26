@@ -34,59 +34,59 @@ async function expectUnauthorized(response: Response) {
 
 describe("service-token replay (jti)", () => {
   it("accepts a token once and rejects its replay with 401 unauthorized, not retryable", async () => {
-    const token = await mintToken("schoolos");
+    const token = await mintToken("educateos");
     expect((await post(token, evaluationRequest())).status).toBe(200);
     await expectUnauthorized(await post(token, evaluationRequest()));
     // The replay was refused before evaluation: one classifier call, for the first request only.
     expect(fakeAi.calls).toHaveLength(1);
     expect(logLines.some((line) => line.includes('"event":"auth.rejected"') && line.includes('"authFailure":"replayed"'))).toBe(true);
     // Read-only routes consume tokens too.
-    const read = await mintToken("schoolos");
+    const read = await mintToken("educateos");
     expect((await SELF.fetch(`${BASE}/v1/capabilities`, call("GET", read))).status).toBe(200);
     await expectUnauthorized(await SELF.fetch(`${BASE}/v1/capabilities`, call("GET", read)));
   });
 
   it("accepts distinct jti values, including for an idempotent replay of the same request", async () => {
     const request = evaluationRequest();
-    const first = await post(await mintToken("schoolos"), request);
-    const second = await post(await mintToken("schoolos"), request);
+    const first = await post(await mintToken("educateos"), request);
+    const second = await post(await mintToken("educateos"), request);
     expect([first.status, second.status]).toEqual([200, 200]);
     expect(second.headers.get("idempotent-replayed")).toBe("true");
   });
 
   it("scopes a jti to its issuer", async () => {
     const jti = crypto.randomUUID();
-    const schoolos = await mintToken("schoolos", { claims: { jti } });
-    const playtrek = await mintToken("playtrek", { tenant: "tenant_schoolos", claims: { jti, aud: "hall-monitor" } });
-    expect((await SELF.fetch(`${BASE}/v1/capabilities`, call("GET", schoolos))).status).toBe(200);
+    const educateos = await mintToken("educateos", { claims: { jti } });
+    const playtrek = await mintToken("playtrek", { tenant: "tenant_educateos", claims: { jti, aud: "hall-monitor" } });
+    expect((await SELF.fetch(`${BASE}/v1/capabilities`, call("GET", educateos))).status).toBe(200);
     expect((await SELF.fetch(`${BASE}/v1/capabilities`, call("GET", playtrek))).status).toBe(200);
   });
 
   it("accepts exactly one of two simultaneous uses of a token", async () => {
-    const token = await mintToken("schoolos");
+    const token = await mintToken("educateos");
     const responses = await Promise.all([post(token, evaluationRequest()), post(token, evaluationRequest())]);
     expect(responses.map((response) => response.status).sort()).toEqual([200, 401]);
   });
 
   it("refuses tokens whose lifetime exceeds the bound the replay record relies on", async () => {
     const now = Math.floor(Date.now() / 1000);
-    await expectUnauthorized(await post(await mintToken("schoolos", { claims: { exp: now + MAX_TOKEN_LIFETIME_SECONDS + 3600 } }), evaluationRequest()));
-    expect((await post(await mintToken("schoolos", { claims: { exp: now + MAX_TOKEN_LIFETIME_SECONDS } }), evaluationRequest())).status).toBe(200);
+    await expectUnauthorized(await post(await mintToken("educateos", { claims: { exp: now + MAX_TOKEN_LIFETIME_SECONDS + 3600 } }), evaluationRequest()));
+    expect((await post(await mintToken("educateos", { claims: { exp: now + MAX_TOKEN_LIFETIME_SECONDS } }), evaluationRequest())).status).toBe(200);
   });
 
   it("fails closed with 503 when the replay guard is not bound", async () => {
-    const response = await direct("/v1/evaluations", call("POST", await mintToken("schoolos"), evaluationRequest()), { TOKEN_REPLAY_GUARD: undefined } as unknown as Partial<Env>);
+    const response = await direct("/v1/evaluations", call("POST", await mintToken("educateos"), evaluationRequest()), { TOKEN_REPLAY_GUARD: undefined } as unknown as Partial<Env>);
     expect(response.status).toBe(503);
     expect(ErrorBody.parse(await response.json()).code).toBe("unavailable");
   });
 
   it("re-mints a token for each client retry, so an idempotent retry is not a replay", async () => {
-    const key = signingKey("schoolos");
+    const key = signingKey("educateos");
     const jtis: string[] = [];
     const getToken = serviceTokenSource({
       issuer: key.iss,
       audience: "hall-monitor",
-      tenant: "tenant_schoolos",
+      tenant: "tenant_educateos",
       scope: ["evaluate"],
       algorithm: key.alg,
       keyId: key.jwk.kid,

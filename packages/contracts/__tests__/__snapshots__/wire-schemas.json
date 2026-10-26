@@ -32,7 +32,6 @@
     "type": "string",
     "enum": [
       "educateos",
-      "schoolos",
       "playtrek",
       "hall-monitor",
       "other"
@@ -211,7 +210,6 @@
             "type": "string",
             "enum": [
               "educateos",
-              "schoolos",
               "playtrek",
               "hall-monitor",
               "other"
@@ -685,7 +683,6 @@
         "type": "string",
         "enum": [
           "educateos",
-          "schoolos",
           "playtrek",
           "hall-monitor",
           "other"
@@ -1050,7 +1047,6 @@
                 "type": "string",
                 "enum": [
                   "educateos",
-                  "schoolos",
                   "playtrek",
                   "hall-monitor",
                   "other"
@@ -1472,7 +1468,6 @@
                   "type": "string",
                   "enum": [
                     "educateos",
-                    "schoolos",
                     "playtrek",
                     "hall-monitor",
                     "other"
@@ -1906,7 +1901,6 @@
                               "type": "string",
                               "enum": [
                                 "educateos",
-                                "schoolos",
                                 "playtrek",
                                 "hall-monitor",
                                 "other"
@@ -2248,7 +2242,6 @@
                 "type": "string",
                 "enum": [
                   "educateos",
-                  "schoolos",
                   "playtrek",
                   "hall-monitor",
                   "other"

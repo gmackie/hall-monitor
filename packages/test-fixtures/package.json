@@ -1,6 +1,6 @@
 {
   "name": "@gmacko/hall-monitor-test-fixtures",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Synthetic Hall Monitor evaluation corpus and scoring helpers. Contains no real people or student data.",
   "type": "module",
   "private": false,

@@ -14,12 +14,12 @@ function fakeProduct(signer: Signer, tenant: string): HallMonitorClient {
   });
 }
 
-function schoolosRequest(): EvaluationRequest {
+function educateosRequest(): EvaluationRequest {
   return {
     schemaVersion: "1.0",
-    requestId: "req_schoolos_tutor_1",
-    idempotencyKey: "idem_schoolos_tutor_1",
-    source: { product: "schoolos", tenantId: "tenant_district_17", surface: "student.tutor" },
+    requestId: "req_educateos_tutor_1",
+    idempotencyKey: "idem_educateos_tutor_1",
+    source: { product: "educateos", tenantId: "tenant_district_17", surface: "student.tutor" },
     policy: { profileId: "student-6-8", revision: "builtin-1" },
     context: { audience: "student", gradeBand: "6-8", subject: "math", graded: true, costCenterId: "cc_math_tutor" },
     evaluationKind: "interaction.input",
@@ -44,32 +44,32 @@ function playtrekRequest(): EvaluationRequest {
 describe("cross-product acceptance", () => {
   beforeEach(() => fakeAi.reset());
 
-  it("serves SchoolOS and PlayTrek from the same Worker and keeps their receipts apart", async () => {
-    const schoolos = fakeProduct("schoolos", "tenant_district_17");
+  it("serves EducateOS and PlayTrek from the same Worker and keeps their receipts apart", async () => {
+    const educateos = fakeProduct("educateos", "tenant_district_17");
     const playtrek = fakeProduct("playtrek", "tenant_playtrek_studio");
 
-    const tutor = await schoolos.evaluate(schoolosRequest());
+    const tutor = await educateos.evaluate(educateosRequest());
     const [quest] = (await playtrek.evaluateBatch([playtrekRequest()])).items;
     expect(tutor.decision).toBe("allow");
     expect(quest?.status).toBe("ok");
     const questResult = quest?.status === "ok" ? quest.result : undefined;
     expect(questResult?.decision).toBe("allow");
 
-    const tutorReceipt = await schoolos.receipt(tutor.evaluationId);
+    const tutorReceipt = await educateos.receipt(tutor.evaluationId);
     const questReceipt = await playtrek.receipt(questResult!.evaluationId);
-    expect(tutorReceipt).toMatchObject({ tenantId: "tenant_district_17", receipt: { product: "schoolos", purpose: "moderation.input" } });
+    expect(tutorReceipt).toMatchObject({ tenantId: "tenant_district_17", receipt: { product: "educateos", purpose: "moderation.input" } });
     expect(questReceipt).toMatchObject({ tenantId: "tenant_playtrek_studio", receipt: { product: "playtrek", purpose: "content.review" } });
 
     // Neither product can read the other's receipts, even knowing the evaluation id.
-    expect(await schoolos.receipt(questResult!.evaluationId)).toBeNull();
+    expect(await educateos.receipt(questResult!.evaluationId)).toBeNull();
     expect(await playtrek.receipt(tutor.evaluationId)).toBeNull();
 
     // Nor act for the other's tenant.
-    await expect(playtrek.evaluate({ ...schoolosRequest(), idempotencyKey: "idem_cross_1" })).rejects.toMatchObject({ code: "forbidden", status: 403 });
+    await expect(playtrek.evaluate({ ...educateosRequest(), idempotencyKey: "idem_cross_1" })).rejects.toMatchObject({ code: "forbidden", status: 403 });
 
     // A retried call replays rather than re-billing.
     const calls = fakeAi.calls.length;
-    expect(await schoolos.evaluate(schoolosRequest())).toEqual(tutor);
+    expect(await educateos.evaluate(educateosRequest())).toEqual(tutor);
     expect(fakeAi.calls).toHaveLength(calls);
 
     const capabilities = await playtrek.capabilities();
