@@ -7,6 +7,20 @@ product, role, curriculum context and institutional policy, and what should happ
 returns findings and a decision (`allow`, `coach`, `hold`, `block`, `support`) plus a content-free
 cost receipt. It never authorizes access to student data, impersonates a teacher, or awards grades.
 
+## Proposed safety intelligence research (not shipped)
+
+A reviewed **proposal** for privacy-preserving cyberbullying prevention, social-action moderation,
+pseudonymous incident correlation, student nudges, provider-independent Nouls, FERPA/COPPA,
+Zero Data Retention, and limited external-evidence workflows lives at
+[docs/design/README.md](docs/design/README.md). See the [research/source register](docs/references.md)
+and [validation milestones](docs/validation-and-rollout.md).
+
+The existing Worker remains a request-scoped evaluator: **no incident graph, identity vault,
+cross-conversation monitoring, OSINT collector, teacher case viewer, or student nudge UI is shipped**.
+The proposed case evidence service would be separate from the current content-free receipts and
+would require district-specific legal, safeguarding, security, provider and model calibration
+approvals before any learner deployment. Do not interpret the new documents as a launch approval.
+
 ## Layout
 
 | Package | Purpose |
