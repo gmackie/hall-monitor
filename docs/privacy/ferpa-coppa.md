@@ -65,7 +65,7 @@ This profile governs collection purpose, source authorization, age handling, pro
 - State student-privacy and bullying requirements (e.g., Michigan) may provide shorter access response periods, breach notifications, data processor contract terms, reporting requirements or restrictions on biometric analysis.
 - PPRA needs separate review if a feature becomes psychological assessment or a sensitive student survey rather than ordinary safety screening; avoid AI diagnoses and hidden behavioral dossiers.
 - IDEA/Section 504, Title VI/IX, mandatory child-protection reporting, accessibility obligations and district retention schedules may matter by incident type. Use safeguarding/civil-rights specialists, not classifier labels, for decisions.
-- Public-school student speech rights constrain off-campus action. See [Mahanoy Area School District v. B.L.](https://www.supremecourt.gov/opinions/20pdf/20-1083_1b7d.pdf) and [external evidence policy](external-evidence.md). Validate case citation/version with counsel.
+- Public-school student speech rights constrain off-campus action. See [Mahanoy Area School District v. B.L.](https://www.supremecourt.gov/docket/docketfiles/html/public/20-255.html) and [external evidence policy](external-evidence.md). Validate case citation/version with counsel.
 
 ## Records system requirements
 
