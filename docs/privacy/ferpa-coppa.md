@@ -24,7 +24,7 @@ Pseudonymous ID != anonymous data: identities may be resolved by a school and to
 - Parents/eligible students generally have [inspection rights within 45 days](https://studentprivacy.ed.gov/legal-basics), with state laws sometimes shorter. They can request amendments of records they believe inaccurate and use prescribed procedures. AI labels and rationale should be available for appropriate explanation and challenge.
 - Multi-student evidence requires legally reviewed segregation/redaction/inspection. See [ED's video and multi-student guidance](https://studentprivacy.ed.gov/faq/faqs-photos-and-videos-under-ferpa); the same general access problem can arise in shared incident files.
 - Do not destroy records while a pending inspection request prohibits destruction; obey applicable state schedules, litigation holds and other preservation duties. **No universal FERPA TTL** applies to all incident files.
-- A genuine [health/safety emergency](https://studentprivacy.ed.gov/faq/what-records-or-information-can-be-disclosed-if-health-or-safety-emergency-exists) permits only condition-specific disclosures to appropriate parties where an articulable significant threat exists; document the rationale and recipients. Not permission for continuous general surveillance.
+- A genuine [health/safety emergency](https://studentprivacy.ed.gov/faq/how-does-school-know-when-health-or-safety-emergency-exists-so-disclosure-may-be-made-under) permits only condition-specific disclosures to appropriate parties where an articulable significant threat exists; document the rationale and recipients. Not permission for continuous general surveillance.
 
 ### Separation of responsibilities
 
