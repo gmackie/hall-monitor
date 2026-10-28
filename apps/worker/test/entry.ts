@@ -1,9 +1,9 @@
 // The Worker under test: the real handler with the fake AI binding injected. Nothing here ships.
-import type { TelemetryProducerTenantsV2 } from "@gmacko/hall-monitor-telemetry-contracts";
+import type { TelemetryProducerRetentionV2, TelemetryProducerTenantsV2 } from "@gmacko/hall-monitor-telemetry-contracts";
 import type { TelemetryBinding } from "@gmacko/hall-monitor-telemetry-sink";
 import worker, { type Env } from "../src/index.ts";
 import { IdempotencyStore as RealIdempotencyStore } from "../src/store.ts";
-import { binding, currentGrants, probe } from "./collector.ts";
+import { binding, currentGrants, currentRetention, probe } from "./collector.ts";
 import { fakeAi } from "./fake-ai.ts";
 
 export { TokenReplayGuard } from "../src/index.ts";
@@ -16,6 +16,9 @@ export { TokenReplayGuard } from "../src/index.ts";
 export class IdempotencyStore extends RealIdempotencyStore {
   protected override async producerGrants(): Promise<TelemetryProducerTenantsV2 | null> {
     return currentGrants();
+  }
+  protected override retentionPolicies(): TelemetryProducerRetentionV2 | null {
+    return currentRetention();
   }
   protected override collector(): TelemetryBinding | undefined {
     return binding;

@@ -18,6 +18,7 @@ export type LogEvent =
   | "internal.error"
   | "telemetry.delivery_failed"
   | "telemetry.coverage_gap"
+  | "telemetry.retention_inactive"
   | "telemetry.outbox_held";
 
 /**

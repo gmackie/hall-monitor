@@ -205,6 +205,9 @@ importers:
       '@gmacko/hall-monitor-telemetry-sink':
         specifier: workspace:*
         version: link:../../packages/telemetry-sink
+      '@gmacko/hall-monitor-temporal-analytics':
+        specifier: workspace:*
+        version: link:../../packages/temporal-analytics
     devDependencies:
       '@cloudflare/vitest-pool-workers':
         specifier: 'catalog:'

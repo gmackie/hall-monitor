@@ -9,7 +9,8 @@
   },
   "dependencies": {
     "@gmacko/hall-monitor-telemetry-contracts": "workspace:*",
-    "@gmacko/hall-monitor-telemetry-sink": "workspace:*"
+    "@gmacko/hall-monitor-telemetry-sink": "workspace:*",
+    "@gmacko/hall-monitor-temporal-analytics": "workspace:*"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "catalog:",

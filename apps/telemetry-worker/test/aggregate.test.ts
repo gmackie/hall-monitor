@@ -6,8 +6,13 @@ import {
 import { sendDeliveryV2, signedDeliveryRequestV2, signedTelemetryRequest, type TelemetryBinding } from "@gmacko/hall-monitor-telemetry-sink";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleTelemetry, type TelemetryEnv } from "../src/index.ts";
-import { DEDUPE_RETENTION_AFTER_OCCURRENCE_MS, type TelemetryAggregateStore } from "../src/store.ts";
+import { DEDUPE_RETENTION_AFTER_OCCURRENCE_MS } from "../src/retention.ts";
+import type { TelemetryAggregateStore } from "../src/store.ts";
+import { BUCKET_MS, deriveTrustedDimensions, resolveInterval } from "../src/time.ts";
+import { resolveTenantConfigsV2 } from "../src/tenant-config.ts";
+import { parseTelemetryReceiverTenantsV2 } from "@gmacko/hall-monitor-telemetry-contracts";
 import { controls } from "./controls.ts";
+import { configJson, parsedPolicy } from "./fixtures.ts";
 
 const KEY = "synthetic-receiver-educateos-key-0123456789-abc";
 const OTHER_KEY = "synthetic-receiver-playtrek-key-0123456789-abcd";
@@ -40,7 +45,11 @@ async function delivery(over: { id?: string; revision?: string; occurredAt?: str
 }
 
 function receiverEnv(extra: Partial<TelemetryEnv> = {}): TelemetryEnv {
-  return { ...env, HM_TELEMETRY_V2_ACCEPT: "aggregate", HM_TELEMETRY_V2_TENANTS: GRANTS, ...extra } as TelemetryEnv;
+  return {
+    ...env, HM_TELEMETRY_V2_ACCEPT: "aggregate", HM_TELEMETRY_V2_TENANTS: GRANTS,
+    // W8a: the route also needs trusted time/retention configuration for each tenant.
+    HM_TELEMETRY_V2_CONFIG: configJson(), ...extra,
+  } as TelemetryEnv;
 }
 const binding = (e: TelemetryEnv = receiverEnv()): TelemetryBinding => ({ fetch: (request) => handleTelemetry(request, e) });
 
@@ -101,7 +110,11 @@ describe("W7 route posture", () => {
       // A v1-shaped grant has no approved revisions, so it cannot enable v2.
       receiverEnv({ HM_TELEMETRY_V2_TENANTS: V1_GRANTS }),
       { ...receiverEnv(), AGGREGATES: undefined } as unknown as TelemetryEnv,
+      // W8a: no trusted time/retention configuration means no aggregate writes for anyone.
+      receiverEnv({ HM_TELEMETRY_V2_CONFIG: undefined } as never),
+      receiverEnv({ HM_TELEMETRY_V2_CONFIG: "{" }),
     ]) expect((await post(b, TENANT, KEY, e)).status).toBe(503);
+    expect(await totals()).toEqual({ evaluated: 0, candidate: 0, rows: 0 });
   });
 
   it("keeps v1 validate-and-discard exactly as it was: persisted:false, nothing stored, independent of v2 settings", async () => {
@@ -268,8 +281,13 @@ describe("W7 exact, idempotent counting", () => {
     await runInDurableObject(stub(), async (store: TelemetryAggregateStore) => {
       controls.failIngest = true;
       // Dedupe row, bucket counters and health were all written before the injected failure.
+      const first = Date.parse(b.delivery.events[0]!.occurredAt);
+      const interval = resolveInterval(
+        resolveTenantConfigsV2(configJson(), parseTelemetryReceiverTenantsV2(GRANTS)!)!.get(TENANT)!.intervals, first)!;
       await expect(store.ingest({
         deliveryKey: "k".repeat(64), digest: b.digest, producerRevision: "rev-a", events: b.delivery.events, maxDedupeRows: 100,
+        time: deriveTrustedDimensions("cfg-edu-1", interval, Math.floor(first / BUCKET_MS) * BUCKET_MS),
+        retention: parsedPolicy(),
       })).rejects.toThrow("injected commit failure");
     });
     expect(await sql("SELECT * FROM deliveries")).toHaveLength(0);
@@ -352,10 +370,11 @@ describe("W7 occurrence window and dedupe expiry", () => {
     expect(await sql("SELECT * FROM deliveries")).toHaveLength(0);
     expect((await post(b)).status).toBe(422);
     expect((await sendDeliveryV2(binding(), TENANT, KEY, b.payload, b.digest)).kind).toBe("retry");
-    expect(await stub().rollups()).toEqual(before);
+    // Same counters and dimensions; only the bucket's provisional flag may have moved with the clock.
+    expect((await stub().rollups()).map((r) => ({ ...r, provisional: null }))).toEqual(before.map((r) => ({ ...r, provisional: null })));
     expect(await totals()).toEqual({ evaluated: 1, candidate: 1, rows: 1 });
-    // Nothing left to wake for: the object went idle rather than re-arming forever.
-    await runInDurableObject(stub(), async (_i, state) => { expect(await state.storage.getAlarm()).toBeNull(); });
+    // The dedupe state is gone, but the rollup and health still have their own (later) expiries.
+    await runInDurableObject(stub(), async (_i, state) => { expect(await state.storage.getAlarm()).not.toBeNull(); });
   });
 
   it("re-arms the purge alarm after a restart that finds dedupe state", async () => {
@@ -423,6 +442,7 @@ describe("W7 stored shape", () => {
     const id = b.delivery.deliveryId;
     const dump = JSON.stringify([
       await sql("SELECT * FROM deliveries"), await sql("SELECT * FROM rollups"), await sql("SELECT * FROM ingest_health"),
+      await sql("SELECT * FROM retention_state"),
       await sql("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name"),
     ]);
     // Nothing finer than the bucket: neither the occurrence's epoch milliseconds nor that plus any
@@ -432,9 +452,18 @@ describe("W7 stored shape", () => {
     for (const secret of [id, id.slice(4), TENANT, KEY, "456Z", "18:07:31", String(occurredMs), String(occurredMs + retention), String(occurredMs + retention + 15 * 60_000)]) {
       expect(dump, secret).not.toContain(secret);
     }
-    // The only tables are dedupe digests, bucket counters and health; there is no event table.
+    // The only tables are dedupe digests, bucket counters, health and the applied policy's
+    // durations (plus the pre-W8a holding table, empty here); there is no event table.
     expect((await sql<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name")).map((r) => r.name))
-      .toEqual(["deliveries", "ingest_health", "rollups"]);
+      .toEqual(["deliveries", "ingest_health", "retention_state", "rollups", "rollups_legacy"]);
+    // Every stored deletion time sits on the 15-minute bucket grid: none reveals a finer instant.
+    const expiries = [
+      ...(await sql<{ e: number }>("SELECT expires_at AS e FROM deliveries")),
+      ...(await sql<{ e: number }>("SELECT expires_at AS e FROM rollups")),
+      ...(await sql<{ e: number }>("SELECT expires_at AS e FROM ingest_health WHERE expires_at IS NOT NULL")),
+    ];
+    expect(expiries.length).toBeGreaterThanOrEqual(3);
+    for (const { e } of expiries) expect(e % BUCKET_MS, String(e)).toBe(0);
     expect([logs, warns, errors].flatMap((s) => s.mock.calls)).toEqual([]);
   });
 

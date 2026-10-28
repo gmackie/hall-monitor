@@ -3,9 +3,9 @@
 // the outcome; `pnpm test` runs it with everything else. Synthetic data only.
 import { env, runInDurableObject } from "cloudflare:test";
 import { type EvaluationRequest, EvaluationResult } from "@gmacko/hall-monitor-contracts";
-import { BUILTIN_CASES, diffDecisions, overlayVariant, selectCases } from "@gmacko/hall-monitor-shadow-report";
+import { BUILTIN_CASES, type DecisionDiffReport, diffDecisions, overlayVariant, selectCases } from "@gmacko/hall-monitor-shadow-report";
 import { type FixtureCase, fixtureRequest } from "@gmacko/hall-monitor-test-fixtures";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "../src/env.ts";
 import type { IdempotencyStore } from "../src/store.ts";
 import { fakeAi } from "./fake-ai.ts";
@@ -42,17 +42,6 @@ async function evaluateUnder(overlays: unknown, request: EvaluationRequest, opti
   return direct("/v1/evaluations", call("POST", token, request), deployed);
 }
 
-async function decisionsUnder(overlays: unknown, revision: string): Promise<Map<string, string>> {
-  phase++;
-  const decisions = new Map<string, string>();
-  for (const fixture of DRILL_CASES.cases) {
-    const response = await evaluateUnder(overlays, drillRequest(fixture, revision));
-    expect(response.status, fixture.id).toBe(200);
-    decisions.set(fixture.id, EvaluationResult.parse(await response.json()).decision);
-  }
-  return decisions;
-}
-
 beforeEach(() => {
   fakeAi.reset();
   vi.spyOn(console, "log").mockImplementation(() => {});
@@ -62,10 +51,15 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// Drill 2 evaluates the corpus twice, one request at a time; it takes about 1.5 s alone but can
-// pass vitest's 5 s default when the full suite (including multi-megabyte image bodies) shares the
-// machine, so the drill gets an explicit budget.
+// Each corpus case runs both live revisions in its own isolated test. Giving all 163 requests
+// one budget timed out on CI, then left work running during storage teardown.
+// Keep every case and the existing per-test budget, without sharing live results between tests.
 describe("rollback drill", { timeout: 30_000 }, () => {
+  let predicted: DecisionDiffReport;
+  beforeAll(async () => {
+    predicted = await diffDecisions(DRILL_CASES, overlayVariant("drill:1", REVISION_1[TENANT]), overlayVariant("drill:2", REVISION_2[TENANT]));
+  });
+
   it("drill 1: an unavailable classifier holds student traffic (fail closed), even for a shadow tenant", async () => {
     const fixture = DRILL_CASES.cases.find((candidate) => candidate.id === "benign-02")!;
     phase++;
@@ -90,28 +84,39 @@ describe("rollback drill", { timeout: 30_000 }, () => {
     expect(recovered).toMatchObject({ decision: "allow", uncertain: false });
   });
 
-  it("drill 2: pinning and rolling back a policy revision produces exactly the predicted decision diff", async () => {
-    // The offline prediction: the shadow-report diff between the two revisions over the same corpus.
-    const predicted = await diffDecisions(DRILL_CASES, overlayVariant("drill:1", REVISION_1[TENANT]), overlayVariant("drill:2", REVISION_2[TENANT]));
+  it("drill 2: the full offline corpus predicts exactly two decision changes", () => {
+    expect(predicted.corpus.cases).toBe(DRILL_CASES.cases.length);
     expect(predicted.changes.map((change) => `${change.id}:${change.from}->${change.to}`)).toEqual(["integrity-02:allow->coach", "integrity-13:allow->coach"]);
     expect(predicted.errors).toEqual([]);
+  });
 
+  it("drill 2: only the live policy revision can be pinned, including after rollback", async () => {
     // Revision 2 is live: only its revision can be pinned.
     const fixture = DRILL_CASES.cases[0]!;
     phase++;
     expect((await evaluateUnder(REVISION_2, drillRequest(fixture, "drill:1"))).status).toBe(404);
     expect((await evaluateUnder(REVISION_2, drillRequest(fixture, "builtin-1"))).status).toBe(404);
-    const underRevision2 = await decisionsUnder(REVISION_2, "drill:2");
 
     // Roll back to revision 1: revision 2 can no longer be pinned, and revision 1 decides again.
     phase++;
     expect((await evaluateUnder(REVISION_1, drillRequest(fixture, "drill:2"))).status).toBe(404);
-    const underRevision1 = await decisionsUnder(REVISION_1, "drill:1");
+  });
 
-    const observed = [...underRevision1]
-      .filter(([id, decision]) => underRevision2.get(id) !== decision)
-      .map(([id, decision]) => ({ id, from: decision, to: underRevision2.get(id) }));
-    expect(observed).toEqual(predicted.changes.map(({ id, from, to }) => ({ id, from, to })));
+  it.each(DRILL_CASES.cases)("drill 2: $id produces the predicted decision diff after rollback", async (fixture) => {
+    phase++;
+    const underRevision2 = await evaluateUnder(REVISION_2, drillRequest(fixture, "drill:2"));
+    expect(underRevision2.status).toBe(200);
+    const candidate = EvaluationResult.parse(await underRevision2.json()).decision;
+
+    // Roll the same tenant back before evaluating this case again.
+    phase++;
+    const underRevision1 = await evaluateUnder(REVISION_1, drillRequest(fixture, "drill:1"));
+    expect(underRevision1.status).toBe(200);
+    const baseline = EvaluationResult.parse(await underRevision1.json()).decision;
+
+    const observed = baseline === candidate ? [] : [{ id: fixture.id, from: baseline, to: candidate }];
+    const expected = predicted.changes.filter(({ id }) => id === fixture.id).map(({ id, from, to }) => ({ id, from, to }));
+    expect(observed).toEqual(expected);
   });
 
   it("drill 3: an idempotent replay survives a Durable Object restart without re-evaluating or re-billing", async () => {

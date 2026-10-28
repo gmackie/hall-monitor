@@ -144,7 +144,9 @@ export function isEvaluationPair(events: readonly TemporalMetricEvent[]): boolea
 // v2 is a separate protocol, not an extension of v1: its own path, its own HMAC domains and its
 // own strict schemas, so a v1 signature or a v1 `202 persisted:false` can never stand in for it.
 // The delivery ID and producer revision exist ONLY in this protected transport envelope; they are
-// never part of a TemporalMetricEvent and never become an analytics dimension.
+// never part of a TemporalMetricEvent. The opaque delivery ID is never an analytics dimension; the
+// producer revision is, deliberately, but only as a server-approved, bounded value (W8a pins it
+// per tenant and effective interval, so a caller can never introduce a new one).
 // ---------------------------------------------------------------------------------------------
 
 export const TELEMETRY_V2_PATH = "/internal/v2/telemetry";
@@ -301,6 +303,117 @@ export function parseTelemetryReceiverTenantsV2(input: string | undefined): Tele
     if (!Array.isArray(extra) || extra.length < 1 || extra.length > 16 ||
         !extra.every(isProducerRevision) || new Set(extra).size !== extra.length) return null;
     map.set(tenant, { ...grant, producerRevisions: extra as string[] });
+  }
+  return map;
+}
+
+// ---------------------------------------------------------------------------------------------
+// v2 retention policy (HM-21 / W8a).
+//
+// A retention policy is SERVER-OWNED configuration naming how long each kind of stored telemetry
+// state lives. It is supplied by an authorized operator, together with an opaque reference to the
+// approval it implements; this code never invents a duration and never defaults one. A tenant with
+// no valid, currently effective policy collects nothing and stores nothing. A synthetic value in a
+// test is not an approval.
+// ---------------------------------------------------------------------------------------------
+
+/** Dedupe state must outlive the entire accepted occurrence window plus the clock-skew margin. */
+export const TELEMETRY_V2_MIN_DEDUPE_SECONDS = Math.ceil(
+  (TELEMETRY_V2_MAX_OCCURRENCE_AGE_MS + TELEMETRY_V2_MAX_FUTURE_SKEW_MS) / 1000,
+);
+export const TELEMETRY_V2_MIN_HEALTH_SECONDS = 60 * 60;
+export const TELEMETRY_V2_MAX_RETENTION_SECONDS = 10 * 365 * 24 * 60 * 60;
+
+export interface TelemetryRetentionPolicy {
+  /** Opaque revision of the approved policy. */
+  readonly policyRevision: string;
+  /** Opaque reference supplied by the authorizing operator. Never interpreted, never stored with data. */
+  readonly approvalRef: string;
+  /** The policy is in force from this instant (inclusive, UTC epoch ms) ... */
+  readonly effectiveFromMs: number;
+  /** ... until this one (exclusive). Past it, the tenant fails closed for telemetry. */
+  readonly approvedUntilMs: number;
+  /** Protected dedupe digests, measured from the END of the occurrence's 15-minute bucket. */
+  readonly dedupeSeconds: number;
+  /** Rollup counters, measured from the end of their bucket. */
+  readonly rollupSeconds: number;
+  /** Operational ingest health, measured from the last ingest. */
+  readonly healthSeconds: number;
+  /** Producer coverage-gap markers, measured from the end of their UTC occurrence hour. */
+  readonly gapSeconds: number;
+}
+
+const POLICY_KEYS = [
+  "policyRevision", "approvalRef", "effectiveFrom", "approvedUntil",
+  "dedupeSeconds", "rollupSeconds", "healthSeconds", "gapSeconds",
+];
+const APPROVAL_REF = /^[A-Za-z0-9][A-Za-z0-9._:/# -]{0,127}$/;
+const ISO_INSTANT = /^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
+
+/** A strict explicit-UTC ISO instant as epoch ms, or null. Impossible dates (Feb 30) are rejected. */
+export function parseUtcInstant(value: unknown): number | null {
+  if (typeof value !== "string") return null;
+  const match = ISO_INSTANT.exec(value);
+  if (match === null) return null;
+  const ms = Date.parse(value);
+  if (!Number.isFinite(ms) || new Date(ms).toISOString().slice(0, 10) !== match[1]) return null;
+  return ms;
+}
+
+function retentionSeconds(value: unknown, min: number): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value >= min && value <= TELEMETRY_V2_MAX_RETENTION_SECONDS
+    ? value : null;
+}
+
+/**
+ * Strict retention policy, or null. Beyond field validity it enforces that the policy is internally
+ * consistent and covers the whole accepted horizon: dedupe state outlives the occurrence window (so
+ * an expired rollup can never be recreated by a re-signed replay), rollups outlive dedupe state, and
+ * coverage-gap evidence outlives the rollups it qualifies. Anything else is not a usable policy.
+ */
+export function parseTelemetryRetentionPolicy(value: unknown): TelemetryRetentionPolicy | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record);
+  if (keys.length !== POLICY_KEYS.length || !POLICY_KEYS.every((k) => keys.includes(k))) return null;
+  if (!isProducerRevision(record.policyRevision)) return null;
+  if (typeof record.approvalRef !== "string" || !APPROVAL_REF.test(record.approvalRef)) return null;
+  const effectiveFromMs = parseUtcInstant(record.effectiveFrom);
+  const approvedUntilMs = parseUtcInstant(record.approvedUntil);
+  const dedupeSeconds = retentionSeconds(record.dedupeSeconds, TELEMETRY_V2_MIN_DEDUPE_SECONDS);
+  const rollupSeconds = retentionSeconds(record.rollupSeconds, TELEMETRY_V2_MIN_DEDUPE_SECONDS);
+  const healthSeconds = retentionSeconds(record.healthSeconds, TELEMETRY_V2_MIN_HEALTH_SECONDS);
+  const gapSeconds = retentionSeconds(record.gapSeconds, TELEMETRY_V2_MIN_DEDUPE_SECONDS);
+  if (effectiveFromMs === null || approvedUntilMs === null || dedupeSeconds === null || rollupSeconds === null ||
+      healthSeconds === null || gapSeconds === null) return null;
+  if (approvedUntilMs <= effectiveFromMs || approvedUntilMs - effectiveFromMs > TELEMETRY_V2_MAX_RETENTION_SECONDS * 1000) return null;
+  if (rollupSeconds < dedupeSeconds || gapSeconds < rollupSeconds) return null;
+  return {
+    policyRevision: record.policyRevision, approvalRef: record.approvalRef,
+    effectiveFromMs, approvedUntilMs, dedupeSeconds, rollupSeconds, healthSeconds, gapSeconds,
+  };
+}
+
+/** Whether the policy is in force at `nowMs`. An expired or not-yet-effective policy admits nothing. */
+export function retentionPolicyActive(policy: TelemetryRetentionPolicy, nowMs: number): boolean {
+  return policy.effectiveFromMs <= nowMs && nowMs < policy.approvedUntilMs;
+}
+
+/** Producer-side policies, one per tenant. Any invalid entry invalidates the whole setting. */
+export type TelemetryProducerRetentionV2 = ReadonlyMap<string, TelemetryRetentionPolicy>;
+
+export function parseTelemetryProducerRetentionV2(input: string | undefined): TelemetryProducerRetentionV2 | null {
+  if (input === undefined || input.length === 0 || input.length > 64 * 1024) return null;
+  let decoded: unknown;
+  try { decoded = JSON.parse(input); } catch { return null; }
+  if (decoded === null || typeof decoded !== "object" || Array.isArray(decoded)) return null;
+  const entries = Object.entries(decoded);
+  if (entries.length === 0 || entries.length > 500) return null;
+  const map = new Map<string, TelemetryRetentionPolicy>();
+  for (const [tenant, raw] of entries) {
+    const policy = TENANT_ID.test(tenant) ? parseTelemetryRetentionPolicy(raw) : null;
+    if (policy === null) return null;
+    map.set(tenant, policy);
   }
   return map;
 }

@@ -3,7 +3,10 @@ import type { EvaluationResult, ReceiptRecord } from "@gmacko/hall-monitor-contr
 import {
   grantAllowsBatch,
   parseTelemetryDeliveryV2,
+  parseTelemetryProducerRetentionV2,
   parseTelemetryProducerTenantsV2,
+  retentionPolicyActive,
+  type TelemetryProducerRetentionV2,
   type TelemetryProducerTenantsV2,
   type TemporalMetricEvent,
 } from "@gmacko/hall-monitor-telemetry-contracts";
@@ -24,13 +27,20 @@ export const PENDING_HOLD_MS = 2 * 60 * 1000;
 export const OUTBOX_BACKOFF_BASE_MS = 30 * 1000;
 export const OUTBOX_BACKOFF_MAX_MS = 15 * 60 * 1000;
 export const OUTBOX_BATCH_PER_ALARM = 10;
-export const DELIVERY_TIMEOUT_MS = 5000;
 /**
- * How long coarse coverage-gap evidence is kept. A default pending the separately approved TTLs
- * of W8; it bounds the gap table to (hours retained x reasons) rows.
+ * Rows finalized per alarm when the policy approval has ended. Finalizing is local SQLite work with
+ * no network attempt, so a batch can be larger than a delivery batch; it is still bounded, and the
+ * object re-arms at once while rows remain.
  */
-export const GAP_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+export const OUTBOX_WITHDRAW_BATCH_PER_ALARM = 100;
+export const DELIVERY_TIMEOUT_MS = 5000;
 const HOUR_MS = 60 * 60 * 1000;
+/**
+ * Gap evidence for a row queued BEFORE retention policies existed (pre-W8a). Such a row cannot be
+ * delivered (no policy admitted it), so it is dropped as a counted gap and kept this long. New
+ * enrolment never reaches this: without a policy in force nothing is queued at all.
+ */
+export const LEGACY_GAP_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 /** Why telemetry for an evaluation will never reach the receiver. */
 export type GapReason = "capacity" | "expired" | "revoked" | "error" | "conflict";
@@ -47,11 +57,24 @@ export type TelemetryInput =
       /** The exact signed bytes: protected envelope with the frozen occurrence time. */
       readonly payload: string;
       readonly occurredAtMs: number;
+      /** The retention the tenant's approved policy puts on the evidence this row may leave behind. */
+      readonly retention: ProducerRetention;
       readonly retryHorizonMs: number;
       readonly maxRows: number;
       readonly maxBytes: number;
     }
-  | { readonly kind: "gap"; readonly occurredAtMs: number; readonly reason: "error" };
+  | { readonly kind: "gap"; readonly occurredAtMs: number; readonly reason: "error"; readonly retention: ProducerRetention };
+
+/**
+ * What the approved policy lets the producer keep. There is no default: a tenant with no policy in
+ * force never reaches the store with telemetry (see prepareTelemetryDelivery).
+ */
+export interface ProducerRetention {
+  /** How long coarse coverage-gap evidence is kept, measured from the end of its UTC occurrence hour. */
+  readonly gapMs: number;
+  /** When the approval ends. Past it nothing more is queued, and queued rows are dropped as gaps. */
+  readonly approvedUntilMs: number;
+}
 
 /** Operator-visible telemetry state: what is queued and where analytics are known to be incomplete. */
 export interface TelemetryState {
@@ -136,6 +159,12 @@ export class IdempotencyStore extends DurableObject<Env> {
         lost INTEGER NOT NULL,
         expires_at INTEGER NOT NULL,
         PRIMARY KEY (hour_start, reason)
+      );
+      CREATE TABLE IF NOT EXISTS telemetry_policy (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        tenant TEXT NOT NULL,
+        gap_ms INTEGER NOT NULL,
+        approved_until INTEGER NOT NULL
       );
     `);
     // A restart may find committed outbox rows whose alarm was never set (or was lost): make sure
@@ -246,15 +275,27 @@ export class IdempotencyStore extends DurableObject<Env> {
     const now = Date.now();
     this.#sql.exec("DELETE FROM idempotency WHERE expires_at <= ?", now);
     this.#sql.exec("DELETE FROM receipts WHERE expires_at <= ?", now);
-    this.#sql.exec("DELETE FROM telemetry_gaps WHERE expires_at <= ?", now);
+    let failed = false;
+    let withdrawing = false;
     try {
+      // First, so a shortened policy trims gap evidence before anything is read or recorded.
+      const retentionOk = this.#refreshPolicy(now);
+      this.#sql.exec("DELETE FROM telemetry_gaps WHERE expires_at <= ?", now);
       this.#expireOutbox(now);
-      await this.#deliverDue(now);
+      // Without an approved policy NOTHING queued may be sent, due or not: every row is finalized
+      // as a counted gap. Otherwise a not-yet-due row would keep the elapsed approval end as the
+      // earliest wake and re-arm the alarm in the past forever.
+      if (retentionOk) await this.#deliverDue(now);
+      else withdrawing = this.#withdrawQueued();
     } catch (error) {
+      failed = true;
+      this.#sql.exec("DELETE FROM telemetry_gaps WHERE expires_at <= ?", now);
       log("error", "internal.error", { route: "telemetry.alarm", errorName: error instanceof Error ? error.name.slice(0, 64) : typeof error });
     }
-    const next = this.#nextWake();
-    if (next !== null) await this.ctx.storage.setAlarm(next);
+    // Rows left over from a bounded withdrawal batch continue straight away: each pass removes some,
+    // so this ends. Otherwise the earliest need; a failed pass backs off rather than spin on a past time.
+    const next = withdrawing ? Date.now() : this.#nextWake();
+    if (next !== null) await this.ctx.storage.setAlarm(failed ? Math.max(next, now + OUTBOX_BACKOFF_BASE_MS) : next);
   }
 
   /**
@@ -264,6 +305,15 @@ export class IdempotencyStore extends DurableObject<Env> {
    */
   protected async producerGrants(): Promise<TelemetryProducerTenantsV2 | null> {
     return this.env.HM_TELEMETRY_V2_ENABLED === "true" ? parseTelemetryProducerTenantsV2(this.env.HM_TELEMETRY_V2_TENANTS) : null;
+  }
+
+  /**
+   * The approved retention policies, or null when the setting is absent or invalid. Read whenever a
+   * policy is needed, so shortening, expiring or removing one takes effect on the next contact. (A
+   * protected seam, so a test can change policy without rebuilding the object.)
+   */
+  protected retentionPolicies(): TelemetryProducerRetentionV2 | null {
+    return parseTelemetryProducerRetentionV2(this.env.HM_TELEMETRY_V2_RETENTION);
   }
 
   /** The service binding deliveries go to. A seam so a test can substitute a collector. */
@@ -285,8 +335,10 @@ export class IdempotencyStore extends DurableObject<Env> {
   protected afterCompletionWrites(): void {}
 
   #queueTelemetry(tenant: string, telemetry: TelemetryInput): void {
+    // The policy just admitted is the one in force: apply it to the evidence already held too.
+    this.#admitPolicy(tenant, telemetry.retention, Date.now());
     if (telemetry.kind === "gap") {
-      this.#recordGap(telemetry.occurredAtMs, telemetry.reason);
+      this.#recordGap(telemetry.occurredAtMs, telemetry.reason, telemetry.retention.gapMs);
       return;
     }
     const { n, bytes } = this.#sql
@@ -294,7 +346,7 @@ export class IdempotencyStore extends DurableObject<Env> {
       .one();
     const size = new TextEncoder().encode(telemetry.payload).byteLength;
     if (n >= telemetry.maxRows || bytes + size > telemetry.maxBytes) {
-      this.#recordGap(telemetry.occurredAtMs, "capacity");
+      this.#recordGap(telemetry.occurredAtMs, "capacity", telemetry.retention.gapMs);
       return;
     }
     try {
@@ -311,32 +363,86 @@ export class IdempotencyStore extends DurableObject<Env> {
     } catch {
       // A rejected telemetry row (e.g. a duplicate delivery ID) must not fail the moderation
       // result committing alongside it; the statement left no row, so count it as lost coverage.
-      this.#recordGap(telemetry.occurredAtMs, "error");
+      this.#recordGap(telemetry.occurredAtMs, "error", telemetry.retention.gapMs);
     }
   }
 
-  /** Counts one lost delivery against the occurrence's UTC hour. Bounded: hours x reasons rows. */
-  #recordGap(occurredAtMs: number, reason: GapReason): void {
+  /**
+   * Counts one lost delivery against the occurrence's UTC hour. Bounded: hours x reasons rows. The
+   * expiry is the end of that hour plus the approved gap retention, rounded up to a whole hour, so
+   * it reveals nothing finer than the hour the row already names.
+   */
+  #recordGap(occurredAtMs: number, reason: GapReason, gapMs: number): void {
     const hourStart = Math.floor(occurredAtMs / HOUR_MS) * HOUR_MS;
     this.#sql.exec(
       `INSERT INTO telemetry_gaps (hour_start, reason, lost, expires_at) VALUES (?, ?, 1, ?)
-       ON CONFLICT (hour_start, reason) DO UPDATE SET lost = lost + 1, expires_at = MAX(expires_at, excluded.expires_at)`,
+       ON CONFLICT (hour_start, reason) DO UPDATE SET lost = lost + 1, expires_at = MIN(expires_at, excluded.expires_at)`,
       hourStart,
       reason,
-      Date.now() + GAP_RETENTION_MS,
+      Math.ceil((hourStart + HOUR_MS + gapMs) / HOUR_MS) * HOUR_MS,
     );
     log("warn", "telemetry.coverage_gap", { reason, count: 1 });
+  }
+
+  /**
+   * Records the policy now in force. A change takes effect at once and only ever tightens what is
+   * already stored (a lengthened policy applies to future gaps, never revives or prolongs old ones).
+   */
+  #admitPolicy(tenant: string, retention: ProducerRetention, now: number): void {
+    this.#sql.exec(
+      `INSERT INTO telemetry_policy (id, tenant, gap_ms, approved_until) VALUES (1, ?, ?, ?)
+       ON CONFLICT (id) DO UPDATE SET tenant = excluded.tenant, gap_ms = excluded.gap_ms, approved_until = excluded.approved_until`,
+      tenant, retention.gapMs, retention.approvedUntilMs,
+    );
+    this.#sql.exec("UPDATE telemetry_gaps SET expires_at = MIN(expires_at, ((hour_start + ? + ? + ?) / ?) * ?)", HOUR_MS, retention.gapMs, HOUR_MS - 1, HOUR_MS, HOUR_MS);
+    this.#sql.exec("DELETE FROM telemetry_gaps WHERE expires_at <= ?", now);
+  }
+
+  /** The last admitted policy, or null for a database that never admitted one (pre-W8a rows only). */
+  #policy(): { tenant: string; gapMs: number; approvedUntil: number } | null {
+    const row = this.#sql
+      .exec<{ tenant: string; gap_ms: number; approved_until: number }>("SELECT tenant, gap_ms, approved_until FROM telemetry_policy WHERE id = 1")
+      .toArray()[0];
+    return row === undefined ? null : { tenant: row.tenant, gapMs: row.gap_ms, approvedUntil: row.approved_until };
+  }
+
+  /**
+   * Re-reads the tenant's policy from server settings. True when collection is still approved: the
+   * policy is valid and in force now (it is then re-admitted, so a shortened gap retention applies
+   * at once). False when it expired, was removed or became invalid, or when the row predates
+   * policies: queued rows are then dropped as counted gaps instead of being delivered.
+   */
+  #refreshPolicy(now: number): boolean {
+    const stored = this.#policy();
+    if (stored === null) return false;
+    const live = this.retentionPolicies()?.get(stored.tenant);
+    if (live === undefined || !retentionPolicyActive(live, now)) return false;
+    this.#admitPolicy(stored.tenant, { gapMs: live.gapSeconds * 1000, approvedUntilMs: live.approvedUntilMs }, now);
+    return true;
   }
 
   /** Rows whose retry horizon has passed become gaps, in one transaction. */
   #expireOutbox(now: number): void {
     this.ctx.storage.transactionSync(() => {
       const expired = this.#sql.exec<OutboxRow>("SELECT * FROM telemetry_outbox WHERE deadline_at <= ?", now).toArray();
-      for (const row of expired) {
-        this.#recordGap(row.occurred_at, "expired");
-        this.#sql.exec("DELETE FROM telemetry_outbox WHERE delivery_id = ?", row.delivery_id);
-      }
+      for (const row of expired) this.#dropRowInTransaction(row, "expired");
     });
+  }
+
+  /**
+   * The approval has ended (or never existed): finalize up to a bounded batch of queued rows as
+   * counted gaps, due or not, with no network attempt. Each batch is one transaction, so a row's
+   * gap and its removal are atomic and counted once. True while rows remain, so the caller continues
+   * at once; every pass removes at least one row and an empty outbox is not "remaining", so it ends.
+   */
+  #withdrawQueued(): boolean {
+    this.ctx.storage.transactionSync(() => {
+      const batch = this.#sql
+        .exec<OutboxRow>("SELECT * FROM telemetry_outbox ORDER BY next_attempt_at LIMIT ?", OUTBOX_WITHDRAW_BATCH_PER_ALARM)
+        .toArray();
+      for (const row of batch) this.#dropRowInTransaction(row, "revoked");
+    });
+    return this.#sql.exec<{ n: number }>("SELECT COUNT(*) AS n FROM telemetry_outbox").one().n > 0;
   }
 
   async #deliverDue(now: number): Promise<void> {
@@ -393,25 +499,35 @@ export class IdempotencyStore extends DurableObject<Env> {
 
   /** Stops delivering a row and counts it as lost coverage, atomically. */
   #dropRow(row: OutboxRow, reason: GapReason): void {
-    this.ctx.storage.transactionSync(() => {
-      this.#recordGap(row.occurred_at, reason);
-      this.#sql.exec("DELETE FROM telemetry_outbox WHERE delivery_id = ?", row.delivery_id);
-    });
+    this.ctx.storage.transactionSync(() => this.#dropRowInTransaction(row, reason));
   }
 
-  /** The earliest time anything in this object needs attention, or null when idle. */
+  /**
+   * The lost delivery becomes a coarse gap, kept as long as the LAST ADMITTED policy allowed, never
+   * longer. Dropping a row because its policy ended therefore still leaves visible, bounded evidence
+   * that the hour is incomplete, rather than a silent hole that could read as zero.
+   */
+  #dropRowInTransaction(row: OutboxRow, reason: GapReason): void {
+    this.#recordGap(row.occurred_at, reason, this.#policy()?.gapMs ?? LEGACY_GAP_RETENTION_MS);
+    this.#sql.exec("DELETE FROM telemetry_outbox WHERE delivery_id = ?", row.delivery_id);
+  }
+
+  /**
+   * The earliest time anything in this object needs attention, or null when idle: record expiry,
+   * gap expiry, a delivery attempt or retry deadline, and the end of the policy approval while rows
+   * wait on it. (Separate queries: the Durable Object SQL engine caps compound SELECT terms.)
+   */
   #nextWake(): number | null {
-    return this.#sql
-      .exec<{ next: number | null }>(
-        `SELECT MIN(at) AS next FROM (
-           SELECT MIN(expires_at) AS at FROM idempotency
-           UNION ALL SELECT MIN(expires_at) FROM receipts
-           UNION ALL SELECT MIN(expires_at) FROM telemetry_gaps
-           UNION ALL SELECT MIN(next_attempt_at) FROM telemetry_outbox
-           UNION ALL SELECT MIN(deadline_at) FROM telemetry_outbox
-         )`,
-      )
-      .one().next;
+    const next = (query: string) => this.#sql.exec<{ next: number | null }>(query).toArray()[0]?.next ?? null;
+    const times = [
+      next("SELECT MIN(expires_at) AS next FROM idempotency"),
+      next("SELECT MIN(expires_at) AS next FROM receipts"),
+      next("SELECT MIN(expires_at) AS next FROM telemetry_gaps"),
+      next("SELECT MIN(next_attempt_at) AS next FROM telemetry_outbox"),
+      next("SELECT MIN(deadline_at) AS next FROM telemetry_outbox"),
+      next("SELECT approved_until AS next FROM telemetry_policy WHERE EXISTS (SELECT 1 FROM telemetry_outbox)"),
+    ].filter((time): time is number => time !== null);
+    return times.length === 0 ? null : Math.min(...times);
   }
 
   /** Arms the alarm for the earliest pending work, never postponing one that is already earlier. */

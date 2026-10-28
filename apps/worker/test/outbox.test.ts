@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EvaluationResult } from "@gmacko/hall-monitor-contracts";
 import { handle } from "../src/app.ts";
 import { prepareTelemetryDelivery } from "../src/metrics.ts";
-import type { IdempotencyStore } from "../src/store.ts";
+import { OUTBOX_WITHDRAW_BATCH_PER_ALARM, type IdempotencyStore } from "../src/store.ts";
 import type { Env } from "../src/env.ts";
 import { IdempotencyStore as TestStore } from "./entry.ts";
 import { ack, binding, probe, type Attempt } from "./collector.ts";
@@ -18,12 +18,26 @@ const TENANT = "tenant_educateos";
 const GRANTS = JSON.stringify({
   [TENANT]: { source: "educateos", gradeBands: ["g9_12"], signingKey: KEY, producerRevision: "rev-2026-10-a" },
 });
+// FICTIONAL retention policy: the reference is not an approval and the durations are not approved.
+const DAY = 24 * 60 * 60 * 1000;
+const iso = (ms: number) => new Date(ms).toISOString();
+const policy = (over: Record<string, unknown> = {}) => ({
+  policyRevision: "synthetic-policy-1",
+  approvalRef: "SYNTHETIC-TEST-ONLY-NOT-AN-APPROVAL",
+  effectiveFrom: iso(Date.now() - 30 * DAY),
+  approvedUntil: iso(Date.now() + 400 * DAY),
+  dedupeSeconds: 87_300, rollupSeconds: 87_300, healthSeconds: 3_600, gapSeconds: 30 * 86_400,
+  ...over,
+});
+const retentionFor = (over: Record<string, unknown> = {}) => JSON.stringify({ [TENANT]: policy(over) });
+const RETENTION = retentionFor();
 
 function bindings(extra: Partial<Env> = {}): Env {
   return {
     ...env, AI: fakeAi,
     HM_TELEMETRY_V2_ENABLED: "true",
     HM_TELEMETRY_V2_TENANTS: GRANTS,
+    HM_TELEMETRY_V2_RETENTION: RETENTION,
     METRICS_COLLECTOR: binding,
     ...extra,
   } as Env;
@@ -54,6 +68,7 @@ beforeEach(() => {
   fakeAi.reset();
   probe.reset();
   probe.grants = GRANTS;
+  probe.retention = RETENTION;
   vi.restoreAllMocks();
 });
 afterEach(() => probe.reset());
@@ -83,20 +98,35 @@ describe("W6 transactional telemetry outbox", () => {
     expect(await state()).toMatchObject({ pending: 1, retrying: 0, gaps: [] });
   });
 
-  it("is off by default: no outbox row without the separate v2 opt-in, and v1 settings do not enable it", async () => {
-    for (const extra of [
-      { HM_TELEMETRY_V2_ENABLED: undefined },
-      { HM_TELEMETRY_V2_TENANTS: undefined },
-      { METRICS_COLLECTOR: undefined },
-      { HM_TELEMETRY_V2_TENANTS: JSON.stringify({ tenant_other: { source: "educateos", gradeBands: ["g9_12"], signingKey: KEY, producerRevision: "r1" } }) },
-      { HM_TELEMETRY_V2_TENANTS: JSON.stringify({ [TENANT]: { source: "playtrek", gradeBands: ["g9_12"], signingKey: KEY, producerRevision: "r1" } }) },
-      // v1 enrolment alone (even complete) never creates v2 state.
-      { HM_TELEMETRY_V2_ENABLED: undefined, HM_TELEMETRY_ENABLED: "true", HM_TELEMETRY_TENANTS: JSON.stringify({ [TENANT]: { source: "educateos", gradeBands: ["g9_12"], signingKey: KEY } }) },
-    ] as Partial<Env>[]) {
-      const b = bindings();
-      Object.assign(b, extra);
-      expect((await evaluate(b)).status).toBe(200);
-    }
+  // One test per case, not one loop: each evaluation is a full Worker + Durable Object round trip, so
+  // a single test running them all in sequence had a duration proportional to the case count and hit
+  // the 5 s limit on a slow runner (canonical CI run 28: 14 evaluations, summed latency 3.5 s). Every
+  // case keeps its own isolated storage and asserts the same two things the loop asserted at its end.
+  const OFF_BY_DEFAULT: readonly (readonly [string, Record<string, string | undefined>])[] = [
+    ["v2 not enabled", { HM_TELEMETRY_V2_ENABLED: undefined }],
+    ["no v2 grants", { HM_TELEMETRY_V2_TENANTS: undefined }],
+    ["no collector binding", { METRICS_COLLECTOR: undefined }],
+    // No valid retention policy in force: nothing is collected, and no gap is invented either.
+    ["no retention setting", { HM_TELEMETRY_V2_RETENTION: undefined }],
+    ["unparseable retention", { HM_TELEMETRY_V2_RETENTION: "{" }],
+    ["empty retention", { HM_TELEMETRY_V2_RETENTION: "{}" }],
+    ["retention for another tenant", { HM_TELEMETRY_V2_RETENTION: JSON.stringify({ tenant_other: policy() }) }],
+    ["retention approval expired", { HM_TELEMETRY_V2_RETENTION: retentionFor({ effectiveFrom: iso(Date.now() - 3 * DAY), approvedUntil: iso(Date.now() - 1000) }) }],
+    ["retention approval not yet effective", { HM_TELEMETRY_V2_RETENTION: retentionFor({ effectiveFrom: iso(Date.now() + DAY), approvedUntil: iso(Date.now() + 2 * DAY) }) }],
+    ["gap retention below the accepted horizon", { HM_TELEMETRY_V2_RETENTION: retentionFor({ gapSeconds: 60 }) }],
+    ["retention with an unknown field", { HM_TELEMETRY_V2_RETENTION: retentionFor({ extra: true }) }],
+    // The v1 enablement and grants are not a retention policy.
+    ["v1 enrolment without a retention setting", { HM_TELEMETRY_V2_RETENTION: undefined, HM_TELEMETRY_ENABLED: "true", HM_TELEMETRY_TENANTS: JSON.stringify({ [TENANT]: { source: "educateos", gradeBands: ["g9_12"], signingKey: KEY } }) }],
+    ["grants for another tenant", { HM_TELEMETRY_V2_TENANTS: JSON.stringify({ tenant_other: { source: "educateos", gradeBands: ["g9_12"], signingKey: KEY, producerRevision: "r1" } }) }],
+    ["grant for another source", { HM_TELEMETRY_V2_TENANTS: JSON.stringify({ [TENANT]: { source: "playtrek", gradeBands: ["g9_12"], signingKey: KEY, producerRevision: "r1" } }) }],
+    // v1 enrolment alone (even complete) never creates v2 state.
+    ["v1 enrolment alone", { HM_TELEMETRY_V2_ENABLED: undefined, HM_TELEMETRY_ENABLED: "true", HM_TELEMETRY_TENANTS: JSON.stringify({ [TENANT]: { source: "educateos", gradeBands: ["g9_12"], signingKey: KEY } }) }],
+  ];
+
+  it.each(OFF_BY_DEFAULT)("is off by default: no outbox row and no gap with %s", async (_name, extra) => {
+    const b = bindings();
+    Object.assign(b, extra);
+    expect((await evaluate(b)).status).toBe(200);
     expect(await outboxRows()).toHaveLength(0);
     expect(await state()).toMatchObject({ pending: 0, gaps: [] });
   });
@@ -154,6 +184,9 @@ describe("W6 transactional telemetry outbox", () => {
     const disabled = bindings();
     delete (disabled as { HM_TELEMETRY_V2_ENABLED?: string }).HM_TELEMETRY_V2_ENABLED;
     const off = await decide(disabled);
+    // An invalid or missing retention policy disables collection only; moderation is unchanged.
+    expect(await decide(bindings({ HM_TELEMETRY_V2_RETENTION: "{" }))).toEqual(off);
+    expect(await decide(bindings({ HM_TELEMETRY_V2_RETENTION: undefined } as never))).toEqual(off);
     probe.handler = async (a) => ack(a, KEY);
     expect(await decide(bindings())).toEqual(off);
     probe.handler = undefined;
@@ -341,6 +374,7 @@ describe("W6 transactional telemetry outbox", () => {
     for (const grants of revocations) {
       probe.reset();
       probe.grants = GRANTS;
+      probe.retention = RETENTION;
       probe.handler = async () => new Response(null, { status: 503 });
       await runInDurableObject(stub(), (_i, state) => { state.storage.sql.exec("DELETE FROM telemetry_gaps"); });
       await evaluate(bindings());
@@ -413,5 +447,235 @@ describe("W6 transactional telemetry outbox", () => {
     for (const id of [request.requestId, request.idempotencyKey, SENTINEL, request.context.costCenterId]) {
       expect(stored).not.toContain(id);
     }
+  });
+});
+
+describe("W8a producer retention policy", () => {
+  const stored = () => rows<{ hour_start: number; reason: string; lost: number; expires_at: number }>("SELECT * FROM telemetry_gaps ORDER BY hour_start, reason");
+  const HOUR = 60 * 60 * 1000;
+
+  it("keeps gap evidence for exactly the approved period, rounded up to the hour it names", async () => {
+    probe.handler = async () => new Response(null, { status: 503 });
+    const b = bindings({ HM_TELEMETRY_OUTBOX_MAX_ROWS: "1", HM_TELEMETRY_V2_RETENTION: retentionFor({ gapSeconds: 3 * 86_400 }) });
+    const before = Date.now();
+    await evaluate(b);
+    await evaluate(b); // outbox full: capacity gap
+    const [gap] = await stored();
+    expect(gap).toMatchObject({ reason: "capacity", lost: 1 });
+    // Expiry = end of the occurrence's UTC hour + 3 days; nothing finer than the hour it already names.
+    const hourEnd = Math.floor(before / HOUR) * HOUR + HOUR;
+    expect([hourEnd + 3 * 86_400_000, hourEnd + 3 * 86_400_000 + HOUR]).toContain(gap!.expires_at);
+    expect(gap!.expires_at % HOUR).toBe(0);
+    expect(await state()).toMatchObject({ pending: 1, gaps: [{ reason: "capacity", lost: 1 }] });
+  });
+
+  it("applies a shortened policy to evidence already held, and never lengthens it when a policy is extended", async () => {
+    probe.handler = async () => new Response(null, { status: 503 });
+    const limited = (gapSeconds: number) => bindings({ HM_TELEMETRY_OUTBOX_MAX_ROWS: "1", HM_TELEMETRY_V2_RETENTION: retentionFor({ gapSeconds }) });
+    await evaluate(limited(30 * 86_400));
+    await evaluate(limited(30 * 86_400)); // one capacity gap for the current hour
+    const old = Date.now() - 20 * 86_400_000;
+    const oldHour = Math.floor(old / HOUR) * HOUR;
+    await runInDurableObject(stub(), (_i, st) => {
+      // Older evidence written under the earlier, longer policy: expires 30 days after its hour.
+      st.storage.sql.exec("INSERT INTO telemetry_gaps (hour_start, reason, lost, expires_at) VALUES (?, 'expired', 3, ?)", oldHour, oldHour + HOUR + 30 * 86_400_000);
+    });
+    expect(await stored()).toHaveLength(2);
+    // The shorter policy (about 24 h) takes effect on the next contact and removes what it no longer permits.
+    await evaluate(limited(87_300));
+    expect((await stored()).map((g) => g.reason)).toEqual(["capacity"]);
+    // Extending the policy later does not bring anything back, nor lengthen what remains.
+    const remaining = (await stored())[0]!.expires_at;
+    probe.retention = retentionFor({ gapSeconds: 90 * 86_400 });
+    await evaluate(bindings({ HM_TELEMETRY_OUTBOX_MAX_ROWS: "1", HM_TELEMETRY_V2_RETENTION: retentionFor({ gapSeconds: 90 * 86_400 }) }));
+    const [gap] = await stored();
+    expect(gap!.reason).toBe("capacity");
+    expect(gap!.expires_at).toBe(remaining);
+  });
+
+  it("drops queued rows without a network attempt once the policy expires or is revoked, leaving bounded gap evidence", async () => {
+    const lapsed = retentionFor({ effectiveFrom: iso(Date.now() - 3 * DAY), approvedUntil: iso(Date.now() - 1000) });
+    for (const later of [null, "{", lapsed, JSON.stringify({ tenant_other: policy() }), retentionFor({ gapSeconds: 1 })]) {
+      probe.reset();
+      probe.grants = GRANTS;
+      probe.retention = RETENTION;
+      probe.handler = async (a) => ack(a, KEY);
+      await runInDurableObject(stub(), (_i, st) => { st.storage.sql.exec("DELETE FROM telemetry_gaps; DELETE FROM telemetry_outbox"); });
+      await evaluate(bindings());
+      expect(await outboxRows()).toHaveLength(1);
+      probe.retention = later;
+      await makeDue();
+      await alarmNow();
+      // Nothing was sent: delivery needs a policy in force, not merely a grant.
+      expect(probe.attempts, String(later).slice(0, 30)).toHaveLength(0);
+      expect(await outboxRows()).toHaveLength(0);
+      // The loss is still visible (coverage unavailable, not complete), kept no longer than the last
+      // admitted policy allowed.
+      expect(await state()).toMatchObject({ pending: 0, gaps: [{ reason: "revoked", lost: 1 }] });
+      const [gap] = await stored();
+      expect(gap!.expires_at).toBeLessThanOrEqual(Math.ceil((gap!.hour_start + HOUR + 30 * 86_400_000) / HOUR) * HOUR);
+    }
+  });
+
+  it("expires gap evidence at its stored time: excluded from reads first, deleted by the alarm, and the alarm goes idle", async () => {
+    probe.handler = async () => new Response(null, { status: 503 });
+    await evaluate(bindings({ HM_TELEMETRY_OUTBOX_MAX_ROWS: "1" }));
+    await evaluate(bindings({ HM_TELEMETRY_OUTBOX_MAX_ROWS: "1" })); // capacity gap
+    expect((await state()).gaps).toHaveLength(1);
+    await runInDurableObject(stub(), (_i, st) => {
+      // Drain the queue and let the gap's approved retention run out.
+      const past = Date.now() - 1;
+      st.storage.sql.exec("DELETE FROM telemetry_outbox");
+      for (const table of ["telemetry_gaps", "idempotency", "receipts"]) st.storage.sql.exec(`UPDATE ${table} SET expires_at = ?`, past);
+    });
+    expect((await state()).gaps).toEqual([]); // read-time exclusion, before any alarm
+    expect(await stored()).toHaveLength(1);
+    await alarmNow();
+    expect(await stored()).toHaveLength(0);
+    await runInDurableObject(stub(), async (_i, st) => { expect(await st.storage.getAlarm()).toBeNull(); });
+  });
+
+  describe("when the approval has ended with rows still queued", () => {
+    const COUNT = "SELECT COUNT(*) AS n FROM telemetry_outbox";
+
+    /**
+     * Runs the object's real alarm with the stored approval already elapsed. The only seam used is a
+     * spy on setAlarm that records the time asked for; it passes nothing through (an alarm armed for
+     * the past would fire by itself and race the runner's storage teardown) and is always restored.
+     */
+    async function alarmAfterApprovalEnded(prepare: (sql: SqlStorage) => void) {
+      return runInDurableObject(stub(), async (instance, st) => {
+        await st.storage.deleteAlarm();
+        st.storage.sql.exec("UPDATE telemetry_policy SET approved_until = ?", Date.now() - 1000);
+        prepare(st.storage.sql);
+        const planned: number[] = [];
+        const spy = vi.spyOn(st.storage, "setAlarm").mockImplementation(async (at) => { planned.push(Number(at)); });
+        try {
+          await instance.alarm();
+          return {
+            queued: st.storage.sql.exec<{ n: number }>(COUNT).one().n,
+            gapsLost: st.storage.sql.exec<{ n: number }>("SELECT COALESCE(SUM(lost), 0) AS n FROM telemetry_gaps").one().n,
+            planned,
+            now: Date.now(),
+          };
+        } finally {
+          spy.mockRestore();
+        }
+      });
+    }
+
+    it("finalizes a queued row that is not yet due, with no send and no alarm in the past", async () => {
+      probe.handler = async (a) => ack(a, KEY);
+      await evaluate(bindings({ HM_TELEMETRY_V2_RETENTION: retentionFor({ approvedUntil: iso(Date.now() + 60_000) }) }));
+      probe.retention = retentionFor({ approvedUntil: iso(Date.now() - 1000), effectiveFrom: iso(Date.now() - 3 * DAY) });
+      const result = await alarmAfterApprovalEnded((sql) => sql.exec("UPDATE telemetry_outbox SET next_attempt_at = ?", Date.now() + 60_000));
+      expect(result.queued).toBe(0);
+      expect(result.gapsLost).toBe(1);
+      expect(result.planned.every((at) => at > result.now)).toBe(true);
+      expect(probe.attempts).toHaveLength(0);
+      expect(await state()).toMatchObject({ pending: 0, gaps: [{ reason: "revoked", lost: 1 }] });
+    });
+
+    it("drains a queue larger than one batch in bounded steps, once each, never re-arming for an elapsed end", async () => {
+      probe.handler = async (a) => ack(a, KEY);
+      await evaluate(bindings());
+      probe.retention = retentionFor({ approvedUntil: iso(Date.now() - 1000), effectiveFrom: iso(Date.now() - 3 * DAY) });
+      const total = OUTBOX_WITHDRAW_BATCH_PER_ALARM * 2 + 7;
+      // Not due, and in two different UTC hours so each gap is counted against its own hour.
+      const seeded = (sql: SqlStorage) => {
+        const [first] = sql.exec<{ payload: string; digest: string; occurred_at: number }>("SELECT payload, digest, occurred_at FROM telemetry_outbox").toArray();
+        for (let i = 1; i < total; i++) {
+          sql.exec(
+            "INSERT INTO telemetry_outbox (delivery_id, tenant, digest, payload, occurred_at, attempts, next_attempt_at, deadline_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?)",
+            `dlv_seeded_${i}`, TENANT, first!.digest, first!.payload, first!.occurred_at - (i % 2) * 2 * 60 * 60 * 1000,
+            Date.now() + 60_000 + i, Date.now() + 6 * 60 * 60 * 1000,
+          );
+        }
+        sql.exec("UPDATE telemetry_outbox SET next_attempt_at = ? WHERE delivery_id NOT LIKE 'dlv_seeded_%'", Date.now() + 60_000);
+      };
+      const remaining: number[] = [];
+      let lost = 0;
+      let last = await alarmAfterApprovalEnded(seeded);
+      for (let step = 0; step < 10; step++) {
+        remaining.push(last.queued);
+        lost = last.gapsLost;
+        if (last.queued === 0) break;
+        // More is queued, so the object asks to run again at once: that is the forward progress, and
+        // it is never a time that stays in the past once the queue is empty.
+        expect(last.planned).toHaveLength(1);
+        last = await alarmAfterApprovalEnded(() => {});
+      }
+      expect(remaining).toEqual([total - OUTBOX_WITHDRAW_BATCH_PER_ALARM, total - 2 * OUTBOX_WITHDRAW_BATCH_PER_ALARM, 0]);
+      expect(lost).toBe(total); // every row counted exactly once
+      expect(probe.attempts).toHaveLength(0);
+      expect(last.planned.every((at) => at > last.now)).toBe(true);
+      const hours = await stored();
+      expect(hours).toHaveLength(2);
+      expect(hours.reduce((n, g) => n + g.lost, 0)).toBe(total);
+    });
+
+    it("after a restart, wakes at once for the ended approval, finalizes the row and then goes idle", async () => {
+      probe.handler = async (a) => ack(a, KEY);
+      await evaluate(bindings());
+      probe.retention = retentionFor({ approvedUntil: iso(Date.now() - 1000), effectiveFrom: iso(Date.now() - 3 * DAY) });
+      const outcome = await runInDurableObject(stub(), async (_i, st) => {
+        st.storage.sql.exec("UPDATE telemetry_policy SET approved_until = ?", Date.now() - 1000);
+        st.storage.sql.exec("UPDATE telemetry_outbox SET next_attempt_at = ?", Date.now() + 3_600_000);
+        await st.storage.deleteAlarm();
+        const planned: number[] = [];
+        const spy = vi.spyOn(st.storage, "setAlarm").mockImplementation(async (at) => { planned.push(Number(at)); });
+        try {
+          // A restart is a new object over the same storage; its constructor decides the first wake.
+          const restarted = new TestStore(st, env);
+          await st.blockConcurrencyWhile(async () => {});
+          const atRestart = [...planned];
+          planned.length = 0;
+          // The alarm the restart asked for is run by hand (the spy means it did not fire by itself).
+          await restarted.alarm();
+          return { atRestart, afterAlarm: planned, now: Date.now() };
+        } finally {
+          spy.mockRestore();
+        }
+      });
+      // The retry time is an hour away, but the ended approval makes the queued row ineligible now.
+      expect(outcome.atRestart).toHaveLength(1);
+      expect(outcome.atRestart[0]!).toBeLessThanOrEqual(outcome.now);
+      expect(await outboxRows()).toHaveLength(0);
+      expect(await state()).toMatchObject({ pending: 0, gaps: [{ reason: "revoked", lost: 1 }] });
+      expect(probe.attempts).toHaveLength(0);
+      // Nothing queued and no elapsed end left to wake for: whatever is armed is future idle cleanup.
+      expect(outcome.afterAlarm.every((at) => at > outcome.now)).toBe(true);
+    });
+  });
+
+  it("wakes for the approval ending when rows are queued, not only for retries and cleanup", async () => {
+    probe.handler = async () => new Response(null, { status: 503 });
+    const soon = Date.now() + 60_000; // well before the 2-minute pending hold and the 6 h retry horizon
+    await evaluate(bindings({ HM_TELEMETRY_V2_RETENTION: retentionFor({ approvedUntil: iso(soon) }) }));
+    expect(await outboxRows()).toHaveLength(1);
+    await runInDurableObject(stub(), async (_i, st) => {
+      const armed = await st.storage.getAlarm();
+      expect(armed).not.toBeNull();
+      expect(armed!).toBeLessThanOrEqual(soon);
+    });
+  });
+
+  it("treats a row queued before policies existed as unauthorized: no delivery, a counted gap with the legacy ceiling", async () => {
+    probe.handler = async (a) => ack(a, KEY);
+    await evaluate(bindings());
+    await runInDurableObject(stub(), (_i, st) => { st.storage.sql.exec("DELETE FROM telemetry_policy"); });
+    await makeDue();
+    await alarmNow();
+    expect(probe.attempts).toHaveLength(0);
+    expect(await state()).toMatchObject({ pending: 0, gaps: [{ reason: "revoked", lost: 1 }] });
+  });
+
+  it("stores no tenant policy text or approval reference, and the policy table holds only a tenant, a duration and an end", async () => {
+    await evaluate(bindings());
+    const text = await dump(["telemetry_policy", "telemetry_gaps", "telemetry_outbox", "idempotency", "receipts"]);
+    expect(text).not.toContain("SYNTHETIC-TEST-ONLY");
+    expect(text).not.toContain("synthetic-policy");
+    const [policyRow] = await rows<Record<string, unknown>>("SELECT * FROM telemetry_policy");
+    expect(Object.keys(policyRow!).sort()).toEqual(["approved_until", "gap_ms", "id", "tenant"]);
   });
 });
