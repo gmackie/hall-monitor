@@ -1,6 +1,6 @@
 # T2 — durable telemetry: outbox (W6) and exact receiver (W7)
 
-**Status:** W6 (HM-20) implemented here; W7 (HM-21) follows in its own PR. Everything is **disabled by default**. Nothing in this change enrols a tenant, adds a `METRICS_COLLECTOR` binding, deploys a receiver or creates a dashboard. W8 (trusted local calendar, coverage, retention TTLs, queries) is **not** done: no usable historical chart exists, and missing coverage must never be shown as zero.
+**Status:** W6 (HM-20, PR #10) and W7 (HM-21) are implemented in separate stacked PRs. Everything is **disabled by default**. Nothing here enrols a tenant, adds a `METRICS_COLLECTOR` binding, deploys the receiver or creates a dashboard. W8 (trusted local calendar, coverage, retention TTLs, queries) is **not** done: no usable historical chart exists, and missing coverage must never be shown as zero.
 
 Related: [T1 runbook](t1-trusted-telemetry.md), [temporal analytics design](../design/temporal-analytics.md), [FERPA/COPPA](../privacy/ferpa-coppa.md).
 
@@ -65,8 +65,52 @@ Producer, as Worker secrets (never in `wrangler.jsonc`, never defaulted):
 
 Test seams: `IdempotencyStore` exposes protected `producerGrants`, `collector`, `firstAttemptDelayMs`, `deliveryTimeoutMs` and `afterCompletionWrites` so `apps/worker/test/entry.ts` can inject a controllable collector and a commit failure. Production leaves them at their defaults.
 
+## W7 — exact aggregate receiver (HM-21)
+
+| Path | Role |
+|---|---|
+| `apps/telemetry-worker/src/index.ts` | protocol router: v1 validate-and-discard (unchanged) and the opt-in v2 route |
+| `apps/telemetry-worker/src/store.ts` | `TelemetryAggregateStore`: one SQLite Durable Object per tenant |
+| `apps/telemetry-worker/wrangler.jsonc` | the `AGGREGATES` DO binding and migration; still no route, no `workers.dev` |
+| `scripts/deploy-telemetry-worker.mjs` | **dry-run only** bundle and posture gate (also in both CI workflows) |
+
+### Route and enablement
+
+`POST /internal/v2/telemetry` is a distinct route beside the unchanged `/internal/v1/telemetry`. It is off unless the secret `HM_TELEMETRY_V2_ACCEPT` is exactly `aggregate`, and it has its own grants in `HM_TELEMETRY_V2_TENANTS`: `{ "<tenant>": { "source", "gradeBands", "signingKey", "producerRevisions": [...] } }` (1–16 approved revisions). v1 and v2 settings never enable each other. Default mode is disabled, the Worker has `workers_dev: false`, no routes and no other binding.
+
+Per request: authenticate under the v2 domain (streaming 16 KiB bound, ±300 s timestamp) → strict envelope that must be exactly an evaluation pair (so no incident, report, review, urgent or sensitive-category kind can pass, even if correctly signed) → tenant grant (source, grade band, approved producer revision) → one object call. Failures return fixed content-free codes; `401` is indistinguishable for bad signatures and bad shapes.
+
+### Exactly-once counting
+
+`TelemetryAggregateStore.ingest` runs one `transactionSync`: look up the protected dedupe key → same key + same digest returns `deduplicated`, same key + different digest returns `conflict` (HTTP 409, nothing changes) → otherwise insert the dedupe row and increment the bucket counters **once for the entire pair** (`evaluated` +1, `candidate` +1 only if the same delivery carried its candidate). A failure anywhere rolls back all of it. Only after that commit (or finding it already committed) does the Worker return the signed ack (`committed` / `deduplicated`); the object being unavailable yields `503` and no ack, so the producer keeps its outbox row. The Durable Object is single-threaded, so duplicate, reordered and concurrent deliveries converge on the same totals (tested).
+
+### What is stored
+
+* `deliveries`: SHA-256 of `tenant + delivery ID` (never the raw ID), the body digest (for conflict detection) and an expiry measured from the end of the occurrence's bucket. Short-lived.
+* `rollups`: counters per **exact 15-minute UTC occurrence bucket** × source × grade band × modality × producer revision. 15 minutes is the finest unit shared by every real UTC offset (including `:30`/`:45`), so W8 can derive local hours exactly. This is **not** the prototype's date-free 168-tile grouping: different weeks and both fall-back hours stay distinct rows.
+* `ingest_health`: trusted ingress time and committed/deduplicated/conflict counts, kept apart from occurrence buckets.
+
+There is no per-message or per-event row, no raw delivery ID, no tenant or student identifier in a row, and the Worker has no logging path (`observability` is off and nothing calls `console`).
+
+### Time windows (the dedupe-expiry rule)
+
+An occurrence is accepted only if it is no more than **24 h** old (`TELEMETRY_V2_MAX_OCCURRENCE_AGE_MS`) and no more than **5 min** in the receiver's future. The producer's retry horizon is capped at 12 h, well inside the 24 h. Dedupe state lives until the bucket end + 24 h + 5 min, i.e. at least the entire accepted horizon. The age check runs **before** the dedupe lookup, so after the state expires a re-signed old delivery is refused (`422 stale_occurrence`) rather than counted again. The alarm purges expired dedupe rows and goes idle when none remain.
+
+### Limits and gates (not done here)
+
+* **No retention for `rollups` yet.** Approved TTLs, DST/trusted-calendar derivation, producer enrolment/coverage/heartbeat, late-correction revisions and the "missing is not zero" semantics are **W8**. Do not enrol a real tenant before W8 sets and exercises retention.
+* **No read path.** There is no query endpoint or dashboard (W9). `rollups()`/`health()` are internal object methods for tests and W8.
+* **Throughput is unmeasured.** One object per tenant is the first design. If measured per-tenant volume approaches a single object's budget, shard by bucket with unchanged idempotency semantics (do not add queues/WAE by default).
+* **15-minute buckets are fine-grained** for small cohorts. Suppression, complementary suppression and differencing limits are W9's job, and are required before any read exposure.
+* `HM_TELEMETRY_MAX_DEDUPE_ROWS` (default 50 000 per tenant) bounds dedupe state; at capacity new deliveries get `503 capacity` and no ack, so producers hold them and eventually record a gap.
+* Nothing is deployed or enrolled by this work. `scripts/deploy-telemetry-worker.mjs` refuses anything but `--dry-run`.
+
+### Tests
+
+`apps/telemetry-worker/test/aggregate.test.ts` runs in the Workers pool against the real object: default-off and v1 independence, authentication and domain separation, per-tenant source/grade/revision restriction, refusal of non-pair kinds when correctly signed, streaming bound, whole-pair counting, stable duplicate ack, duplicate/reordered/concurrent convergence, same-ID/different-digest conflict (including concurrent), atomic rollback of the dedupe row and the whole pair, no ack when the object fails, dedupe capacity, occurrence window, full-horizon dedupe, re-signed replay after expiry (state present, expired, purged), alarm re-arm after restart, exact bucketing (week apart, 15-minute edges, DST fold, release identity) and storage/log leakage. The existing v1 tests run unchanged in the same pool.
+
 ## Limits and follow-ups
 
-* Delivery needs a receiver that implements the v2 ack (W7). Until one is deployed and enrolled, an enabled tenant's rows retry until their horizon and become `expired` gaps — which is why nothing is enabled here.
+* Delivery needs the W7 receiver deployed and enrolled. Until then an enabled producer tenant's rows retry until their horizon and become `expired` gaps — which is why nothing is enabled here.
 * Backoff is deterministic (no jitter); acceptable at per-tenant volumes, revisit if a thundering herd appears.
 * Gap retention and outbox TTLs are defaults, not approved retention. W8 owns the approved parameters.

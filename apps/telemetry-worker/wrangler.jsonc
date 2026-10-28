@@ -1,14 +1,25 @@
-// T1 only: validate signed, scoped telemetry and DROP it. T2 provides exact
-// dedupe/aggregates and retention-reviewed storage. No public routes or workers.dev.
+// Internal telemetry receiver. v1 (/internal/v1/telemetry) validates and DISCARDS (T1). v2
+// (/internal/v2/telemetry, HM-21) is an opt-in exact-aggregate route backed by one SQLite Durable
+// Object per tenant; it stays OFF until HM_TELEMETRY_V2_ACCEPT=aggregate is set as a secret.
+// No public routes and no workers.dev: the only way in is an internal service binding.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "hall-monitor-telemetry",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
   "workers_dev": false,
-  "observability": { "enabled": false }
-  // No HM_TELEMETRY_ACCEPT or HM_TELEMETRY_TENANTS defaults.
-  // Deploy a secret HM_TELEMETRY_ACCEPT=validate_only and strict per-tenant
-  // HM_TELEMETRY_TENANTS JSON to test the internal service-binding path.
-  // No WAE, D1, R2, Queue or Logpush binding is present.
+  "observability": { "enabled": false },
+  "durable_objects": {
+    "bindings": [
+      { "name": "AGGREGATES", "class_name": "TelemetryAggregateStore" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["TelemetryAggregateStore"] }
+  ]
+  // No HM_TELEMETRY_ACCEPT, HM_TELEMETRY_TENANTS, HM_TELEMETRY_V2_ACCEPT or
+  // HM_TELEMETRY_V2_TENANTS defaults: all are secrets, set only after independent approval.
+  // v2 tenant grants name the approved producer revisions and the source/grade bands.
+  // No WAE, D1, R2, Queue, service or Logpush binding is present, and none may be added here.
+  // Rollup retention is W8's job: do not enrol a real tenant until its TTLs are configured.
 }

@@ -17,3 +17,5 @@ jobs:
       - run: pnpm lint
       - run: pnpm test
       - run: pnpm rollback-drill --out rollback-drill.json
+      # Dry run only: bundles the stateful internal receiver and checks it has no route or extra bindings.
+      - run: node scripts/deploy-telemetry-worker.mjs --dry-run
