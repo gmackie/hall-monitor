@@ -36,6 +36,14 @@ export interface Env {
    * each outbox row when it is written.
    */
   readonly HM_TELEMETRY_V2_TENANTS?: string;
+  /**
+   * Strict JSON per-tenant retention policy for v2 collection (W8a): `{ [tenant]: { policyRevision,
+   * approvalRef, effectiveFrom, approvedUntil, dedupeSeconds, rollupSeconds, healthSeconds,
+   * gapSeconds } }`, supplied by an authorized operator; stored as a secret. Without a valid policy
+   * in force for the tenant, v2 collects nothing for it (moderation is unaffected; v1 is not
+   * enabled). The producer uses `gapSeconds` for coverage-gap evidence and checks the whole policy.
+   */
+  readonly HM_TELEMETRY_V2_RETENTION?: string;
   /** Optional v2 bounds; invalid values fall back to the defaults (500 rows, 1 MiB, 6 hours). */
   readonly HM_TELEMETRY_OUTBOX_MAX_ROWS?: string;
   readonly HM_TELEMETRY_OUTBOX_MAX_BYTES?: string;

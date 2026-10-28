@@ -5,8 +5,10 @@ import {
   buildTelemetryDeliveryV2,
   grantAllowsBatch,
   newDeliveryId,
+  parseTelemetryProducerRetentionV2,
   parseTelemetryProducerTenantsV2,
   parseTelemetryTenants,
+  retentionPolicyActive,
   type GradeBand,
   type Source,
   type TelemetryBatch,
@@ -109,6 +111,15 @@ export async function prepareTelemetryDelivery(
     if (grant === undefined) return null;
     const batch = evaluationMetrics(request, result, new Date(occurredAtMs).toISOString());
     if (batch === null || !grantAllowsBatch(grant, batch)) return null;
+    // Explicit server policy admission: an enrolled tenant with no valid, currently effective
+    // retention policy collects nothing. There is no default duration, and nothing here falls back
+    // to v1, authorizes anyone or implies coverage (the lost evaluation is simply not collected).
+    const policy = parseTelemetryProducerRetentionV2(env.HM_TELEMETRY_V2_RETENTION)?.get(tenant);
+    if (policy === undefined || !retentionPolicyActive(policy, occurredAtMs)) {
+      log("warn", "telemetry.retention_inactive", { tenant });
+      return null;
+    }
+    const retention = { gapMs: policy.gapSeconds * 1000, approvedUntilMs: policy.approvedUntilMs };
     try {
       const built = await buildTelemetryDeliveryV2({
         deliveryId: newDeliveryId(),
@@ -121,6 +132,7 @@ export async function prepareTelemetryDelivery(
         digest: built.digest,
         payload: built.payload,
         occurredAtMs,
+        retention,
         retryHorizonMs:
           boundedSetting(env.HM_TELEMETRY_RETRY_HORIZON_SECONDS, TELEMETRY_V2_DEFAULT_RETRY_HORIZON_MS / 1000, TELEMETRY_V2_MAX_RETRY_HORIZON_MS / 1000) * 1000,
         maxRows: boundedSetting(env.HM_TELEMETRY_OUTBOX_MAX_ROWS, DEFAULT_OUTBOX_MAX_ROWS, 5000),
@@ -128,7 +140,7 @@ export async function prepareTelemetryDelivery(
       };
     } catch {
       log("warn", "telemetry.delivery_failed", { tenant, reason: "error" });
-      return { kind: "gap", occurredAtMs, reason: "error" };
+      return { kind: "gap", occurredAtMs, reason: "error", retention };
     }
   } catch {
     log("warn", "telemetry.delivery_failed", { tenant, reason: "error" });

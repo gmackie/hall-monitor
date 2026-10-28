@@ -3,7 +3,10 @@
 // The store runs inside a Durable Object, so a test cannot hand it a fake binding the way it can
 // hand one to `handle()`. test/entry.ts instead exports a store subclass that reads these module-
 // level controls; the test and the object run in the same isolate, so they share this state.
-import { parseTelemetryProducerTenantsV2, type TelemetryProducerTenantsV2 } from "@gmacko/hall-monitor-telemetry-contracts";
+import {
+  parseTelemetryProducerRetentionV2, parseTelemetryProducerTenantsV2,
+  type TelemetryProducerRetentionV2, type TelemetryProducerTenantsV2,
+} from "@gmacko/hall-monitor-telemetry-contracts";
 import { sha256Hex } from "@gmacko/hall-monitor-telemetry-contracts";
 import { signTelemetryAckV2, type TelemetryBinding } from "@gmacko/hall-monitor-telemetry-sink";
 
@@ -34,6 +37,8 @@ export const probe = {
   failCompletion: false,
   /** The v2 producer enrolment the store re-reads on each attempt; null models "v2 disabled". */
   grants: null as string | null,
+  /** The v2 retention setting the store re-reads when it needs a policy; null models "absent". */
+  retention: null as string | null,
   reset(): void {
     this.attempts = [];
     this.handler = undefined;
@@ -41,6 +46,7 @@ export const probe = {
     this.firstAttemptDelayMs = 60 * 60 * 1000;
     this.failCompletion = false;
     this.grants = null;
+    this.retention = null;
   },
 };
 
@@ -68,6 +74,11 @@ export const binding: TelemetryBinding = {
 /** The enrolment the store should currently see, parsed as production does. */
 export function currentGrants(): TelemetryProducerTenantsV2 | null {
   return probe.grants === null ? null : parseTelemetryProducerTenantsV2(probe.grants);
+}
+
+/** The retention policies the store should currently see, parsed as production does. */
+export function currentRetention(): TelemetryProducerRetentionV2 | null {
+  return probe.retention === null ? null : parseTelemetryProducerRetentionV2(probe.retention);
 }
 
 /** A well-formed durable acknowledgment for `attempt`, MAC'd with `key`. */
