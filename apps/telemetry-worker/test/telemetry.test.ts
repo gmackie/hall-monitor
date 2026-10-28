@@ -37,6 +37,22 @@ describe("internal-only validate-and-discard collector", () => {
     expect((await handleTelemetry(await sign({ schemaVersion: 1, events: [{ ...event, source: "playtrek" }] }), active)).status).toBe(403);
     expect((await handleTelemetry(await sign({ schemaVersion: 1, events: [{ ...event, gradeBand: "g6_8" }] }), active)).status).toBe(403);
   });
+  it("rejects case/report spoofing and sensitive event categories, even when signed by an approved tenant", async () => {
+    const forged = [
+      { ...event, kind: "incident_opened" },
+      { ...event, kind: "report_received" },
+      { ...event, priority: "urgent" },
+      { ...event, calendarKind: "instructional" },
+      { ...event, category: "self_harm" },
+    ];
+    for (const bad of forged) {
+      const request = await sign({ schemaVersion: 1, events: [bad] });
+      expect((await handleTelemetry(request, active)).status).toBe(403);
+    }
+    const outOfSequence = await sign({ schemaVersion: 1, events: [{ ...event, kind: "candidate_flagged", category: "other" }] });
+    expect((await handleTelemetry(outOfSequence, active)).status).toBe(403);
+  });
+
   it("rejects unexpected message fields even when signed", async () => {
     await expect(sign({ schemaVersion: 1, events: [{ ...event, studentId: "student_123" }] })).rejects.toThrow();
   });

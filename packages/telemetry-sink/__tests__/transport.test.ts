@@ -53,6 +53,18 @@ describe("tenant-signed private telemetry requests", () => {
     expect(called).toBe(false);
   });
 
+  it("rejects oversized request bodies even without a trustworthy Content-Length", async () => {
+    const signed = await signedTelemetryRequest(TENANT, KEY, batch);
+    const headers = new Headers(signed.headers);
+    headers.delete("content-length");
+    const oversized = new Request(signed.url, {
+      method: "POST",
+      headers,
+      body: "X".repeat(16 * 1024 + 1),
+    });
+    await expect(verifyTelemetryRequest(oversized, KEY)).rejects.toThrow();
+  });
+
   it("recognizes non-202 as no accepted telemetry and never retries", async () => {
     let called = 0;
     const binding = { async fetch(_req: Request) { called++; return new Response(null, { status: 503 }); } };

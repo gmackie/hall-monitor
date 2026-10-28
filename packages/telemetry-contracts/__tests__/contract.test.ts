@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  parseTelemetryBatch, parseTelemetryTenants, grantAllowsBatch,
+  parseTelemetryBatch, parseTelemetryTenants, grantAllowsBatch, isT1EvaluationBatch,
   type TemporalMetricEvent,
 } from "../src/index.ts";
 
@@ -23,6 +23,23 @@ describe("telemetry strict input boundary", () => {
       { schemaVersion: 1, events: [{ ...sample, studentId: "student_123" }] },
       { schemaVersion: 1, events: [{ ...sample, category: "student-alex" }] },
     ]) expect(() => parseTelemetryBatch(payload)).toThrow();
+  });
+
+  it("accepts only coarse T1 evaluation counts, never case/review or urgency claims", () => {
+    const v1 = { schemaVersion: 1 as const, events: [sample] };
+    expect(isT1EvaluationBatch(v1)).toBe(true);
+    expect(isT1EvaluationBatch({ ...v1, events: [sample, { ...sample, kind: "candidate_flagged", category: "other" }] })).toBe(true);
+    for (const events of [
+      [{ ...sample, kind: "report_received" }],
+      [{ ...sample, priority: "urgent" }],
+      [{ ...sample, category: "harassment" }],
+      [{ ...sample, calendarKind: "instructional" }],
+      [{ ...sample, kind: "candidate_flagged", category: "other" }],
+      [sample, { ...sample, kind: "candidate_flagged", category: "self_harm" }],
+      [sample, { ...sample, kind: "candidate_flagged", category: "other", gradeBand: "g6_8" }],
+    ] as unknown[][]) {
+      expect(isT1EvaluationBatch(parseTelemetryBatch({ schemaVersion: 1, events }))).toBe(false);
+    }
   });
 
   it("requires explicit, strictly typed per-tenant scope and key", () => {
