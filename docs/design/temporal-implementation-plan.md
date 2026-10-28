@@ -1,6 +1,6 @@
 # Temporal Safety Intelligence — implementation blueprint and PR breakdown
 
-**2026-10-28.** This is the deliverable that converts the research/design package into executable work. The offline `packages/temporal-analytics` reference module and its synthetic tests are implemented in the current branch; all live ingestion, incident correlation, case review, dashboards and on-call operations remain **future work**, with separate legal/privacy/human gates. Avoid treating this roadmap as permission to turn on student monitoring.
+**2026-10-28.** This is the deliverable that converts the research/design package into executable work. The offline `packages/temporal-analytics` reference module, synthetic tests and priority staffing-queue simulator are implemented in the current branch; all live ingestion, incident correlation, case review, dashboards and on-call operations remain **future work**, with separate legal/privacy/human gates. Avoid treating this roadmap as permission to turn on student monitoring.
 
 ## Definition of done (long-term)
 
@@ -26,7 +26,7 @@ The new system should be additive and opt-in. Avoid broadening existing public s
 
 | PR | Deliverables / suggested paths | Test and approval boundary |
 |---|---|---|
-| T0 — Complete in current draft | `packages/temporal-analytics/{src,__tests__}`, temporal design docs, synthetic DST/bucket/cost primitives | CI passes, no live student collection. |
+| T0 — Complete in current draft | `packages/temporal-analytics/{src,__tests__}`, temporal design docs, synthetic DST/bucket/cost and staffing queue primitives | CI passes, no live student collection. |
 | T1 — Trusted metrics adapter | `packages/telemetry-contracts`, `packages/telemetry-sink`, opt-in `apps/worker/src/metrics.ts` with binding + tenant allowlist, deployment preflight | Payload rejection, no cross-tenant data, zero hidden logs, no streaming student IDs |
 | T2 — Exact time rollups | `apps/telemetry-worker` plus district-level ingestion health, expected coverage, late-event correction, duplicate source outbox | Late/reordered/replayed event drills; exact rollup separate from sampled WAE |
 | T3 — Flightdeck integration | Service bindings to read-only reporting API, typed fixed queries, 168-cell UX, source/filter/version legend, privacy suppression | Small cohort and differencing attack tests, missing-v-zero tests, DST |

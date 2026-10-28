@@ -134,4 +134,4 @@ The protected incident engine may group repeated signals for review, but a count
 
 ## 8. Implementation boundary and gates
 
-As of this PR: the new pure `packages/temporal-analytics` package provides runtime fixed-field validation, institution-local bucketing, offline 168-cell aggregation, sampled-count weighting, suppression illustration, and scenario cost/base-rate math; it does **not** connect to Worker, WAE, Queues, Flightdeck or a human queue. See [implementation breakdown](temporal-implementation-plan.md) for concrete production work requiring test evidence and district approval.
+As of this PR: the new pure `packages/temporal-analytics` package provides runtime fixed-field validation, institution-local bucketing, offline 168-cell aggregation, sampled-count weighting, suppression illustration, scenario cost/base-rate math, and a synthetic priority review queue simulator; it does **not** connect to Worker, WAE, Queues, Flightdeck or a human queue. See [implementation breakdown](temporal-implementation-plan.md) for concrete production work requiring test evidence and district approval.

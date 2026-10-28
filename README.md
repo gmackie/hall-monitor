@@ -20,8 +20,8 @@ cross-conversation monitoring, OSINT collector, teacher case viewer, or student 
 The proposed case evidence service would be separate from the current content-free receipts and
 would require district-specific legal, safeguarding, security, provider and model calibration
 approvals before any learner deployment. The separate `packages/temporal-analytics` module has
-strict content-free validation, U.S. time-zone/DST aggregation, privacy display gates and
-scenario planning tests; it does **not** instrument real student data. See the
+strict content-free validation, U.S. time-zone/DST aggregation, privacy display gates,
+scenario planning and an offline priority/shift staffing queue simulator, all with synthetic tests; it does **not** instrument real student data. See the
 [temporal system design](docs/design/temporal-analytics.md) and
 [U.S. time-of-day/day-of-week research](docs/design/us-moderation-timing.md). Do not interpret the new documents as a launch approval.
 
@@ -38,7 +38,7 @@ scenario planning tests; it does **not** instrument real student data. See the
 | `packages/client` | TypeScript client used by products |
 | `packages/test-fixtures` | Synthetic fixtures only; never real student data |
 | `packages/shadow-report` | Shadow-run reports and policy decision diffs over synthetic corpora (private) |
-| `packages/temporal-analytics` | Strict synthetic/offline time-bucket, DST, aggregate, suppression and capacity reference implementation (not wired to live Worker) |
+| `packages/temporal-analytics` | Strict synthetic/offline time-bucket, DST, aggregate, suppression, cost and staffing-queue reference implementation (not wired to live Worker) |
 | `apps/worker` | Cloudflare Worker HTTP API |
 
 ## Rules

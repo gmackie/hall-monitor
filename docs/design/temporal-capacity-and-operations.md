@@ -44,7 +44,9 @@ Required variables per approved district:
 
 For a rough check, Little's Law `L = λ W` describes average jobs in system given long-run arrival rate `λ` and time `W`, subject to steady-state assumptions. It is not a worst-case SLA or staffing schedule.
 
-A multi-server M/M/c/Erlang-C calculation can estimate waiting for a homogeneous stationary Poisson arrival process and exponential review times. It is often too optimistic for synchronized school releases, coordinated pile-ons, exams, report bursts and severe escalations. A realistic production planner should also simulate:
+A multi-server M/M/c/Erlang-C calculation can estimate waiting for a homogeneous stationary Poisson arrival process and exponential review times. It is often too optimistic for synchronized school releases, coordinated pile-ons, exams, report bursts and severe escalations. A synthetic-only reference queue in `packages/temporal-analytics/src/queue.ts` is now implemented and tested. It uses integer-minute arrivals, reviewer shifts, urgency-first FIFO and nonpreemptive service. It exposes wait time, pending/right-censored jobs and coverage gaps; it is **not** a deployed case queue, staffed response or SLA.
+
+A realistic production planner must additionally simulate:
 
 - Non-stationary hourly arrivals with overdispersion (e.g. negative binomial, fit and validate).
 - Separate urgent/routine priority queues; urgent tasks should have dedicated on-call capacity.

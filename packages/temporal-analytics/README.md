@@ -1,6 +1,6 @@
 # Temporal analytics primitives (experimental)
 
-**Offline / synthetic-only prototype.** This package does **not** instrument the production Worker, ingest student data, call an AI provider, store incidents or publish analytics. It is not a FERPA/COPPA privacy attestation. It provides strict content-free input checks, institution-local hour-of-week bucketing with DST fold awareness, event-type aggregation, defensive low-count display suppression, WAE sample-weight handling and scenario-cost math.
+**Offline / synthetic-only prototype.** This package does **not** instrument the production Worker, ingest student data, call an AI provider, store incidents or publish analytics. It is not a FERPA/COPPA privacy attestation. It provides strict content-free input checks, institution-local hour-of-week bucketing with DST fold awareness, event-type aggregation, defensive low-count display suppression, WAE sample-weight handling and scenario-cost math and synthetic, shift-aware nonpreemptive human-review queue simulation.
 
 ## Scope
 
@@ -16,7 +16,7 @@ suppressRareCell is NOT a privacy/anonymity guarantee. Cross-query differencing,
 
 ## Tests
 
-Part of workspace test suite; synthetic test cases cover schema rejection, DST spring/fall, local dates, time aggregations, suppression and cost arithmetic.
+Part of workspace test suite; synthetic test cases cover schema rejection, DST spring/fall, local dates, time aggregation, suppression, cost arithmetic, urgency-first dispatch, after-hours staffing gaps and censored queue jobs.
 
 ## Design
 
