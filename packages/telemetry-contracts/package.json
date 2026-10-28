@@ -1,0 +1,12 @@
+{
+  "name": "@gmacko/hall-monitor-telemetry-contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": {
+    "@gmacko/hall-monitor-temporal-analytics": "workspace:*"
+  },
+  "devDependencies": { "vitest": "catalog:" },
+  "scripts": { "test": "vitest run" }
+}
