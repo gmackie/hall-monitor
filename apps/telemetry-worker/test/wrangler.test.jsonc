@@ -1,0 +1,11 @@
+// Test-only: the receiver's Durable Object binding and migration, plus the runner's nodejs_compat.
+{
+  "name": "hall-monitor-telemetry-test",
+  "main": "./entry.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [{ "name": "AGGREGATES", "class_name": "TelemetryAggregateStore" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TelemetryAggregateStore"] }]
+}

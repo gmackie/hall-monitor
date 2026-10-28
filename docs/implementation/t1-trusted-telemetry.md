@@ -81,4 +81,6 @@ The default source `apps/worker/wrangler.jsonc` does **not** include this bindin
 
 ## Intended T2 handoff
 
+> Implemented as an opt-in v2 protocol: see [T2 durable telemetry](t2-durable-telemetry.md) (outbox W6, exact receiver W7). The T1 route described above is unchanged and still answers `persisted:false`.
+
 Before claiming a usable chart, implement an exact per-tenant/source event ledger, unique event ID carried **only in a separately protected transport envelope**, idempotency across retries and replays, validated district local time/calendar and event-time/ingestion-time distinction, late-event correction, receipt and operational coverage, aggregation with k/disclosure protection, explicit data TTL (WAE's published three-month retention may be unsuitable), and safe T3 read-only Flightdeck queries. Avoid storing per-message analytics rows or sensitive low-cohort event timestamps. Any T2 migration of the T1 collector must preserve the strict auth and deny-by-default posture.
