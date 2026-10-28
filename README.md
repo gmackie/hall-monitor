@@ -9,7 +9,7 @@ cost receipt. It never authorizes access to student data, impersonates a teacher
 
 ## Proposed safety intelligence research (not shipped)
 
-A reviewed **proposal** for privacy-preserving cyberbullying prevention, social-action moderation,
+A detailed **design package and synthetic-only temporal analytics foundation** for privacy-preserving cyberbullying prevention, social-action moderation,
 pseudonymous incident correlation, student nudges, provider-independent Nouls, FERPA/COPPA,
 Zero Data Retention, and limited external-evidence workflows lives at
 [docs/design/README.md](docs/design/README.md). See the [research/source register](docs/references.md)
@@ -19,7 +19,11 @@ The existing Worker remains a request-scoped evaluator: **no incident graph, ide
 cross-conversation monitoring, OSINT collector, teacher case viewer, or student nudge UI is shipped**.
 The proposed case evidence service would be separate from the current content-free receipts and
 would require district-specific legal, safeguarding, security, provider and model calibration
-approvals before any learner deployment. Do not interpret the new documents as a launch approval.
+approvals before any learner deployment. The separate `packages/temporal-analytics` module has
+strict content-free validation, U.S. time-zone/DST aggregation, privacy display gates and
+scenario planning tests; it does **not** instrument real student data. See the
+[temporal system design](docs/design/temporal-analytics.md) and
+[U.S. time-of-day/day-of-week research](docs/design/us-moderation-timing.md). Do not interpret the new documents as a launch approval.
 
 ## Layout
 
@@ -34,6 +38,7 @@ approvals before any learner deployment. Do not interpret the new documents as a
 | `packages/client` | TypeScript client used by products |
 | `packages/test-fixtures` | Synthetic fixtures only; never real student data |
 | `packages/shadow-report` | Shadow-run reports and policy decision diffs over synthetic corpora (private) |
+| `packages/temporal-analytics` | Strict synthetic/offline time-bucket, DST, aggregate, suppression and capacity reference implementation (not wired to live Worker) |
 | `apps/worker` | Cloudflare Worker HTTP API |
 
 ## Rules

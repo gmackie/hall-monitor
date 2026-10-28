@@ -19,6 +19,15 @@ Do **not** quietly extend the existing request/receipt API to accept identifiers
 7. [External evidence / limited OSINT](../privacy/external-evidence.md): high-school threat and harassment evidence with strict collection and identity-linkage limits.
 8. [Validation, milestones and launch gates](../validation-and-rollout.md): acceptance criteria, evaluation methodology, operational sign-offs.
 9. [Primary sources and research](../references.md): source links and claims that require revalidation.
+10. [Temporal safety analytics LLD](temporal-analytics.md): dual-plane architecture, Cloudflare primitives, local clocks and sampling.
+11. [Temporal metric catalog](temporal-metrics.md): exact denominators, timestamps, bias, availability and privacy.
+12. [Safety and analytics API contracts](temporal-events-and-api.md): future endpoints, exact D1 case ledger, role scopes and event transport.
+13. [Flightdeck operations UI](flightdeck-operations.md): dashboard specs, safe aggregation queries, permissions and analytics failure states.
+14. [Staffing, queue and capacity model](temporal-capacity-and-operations.md): urgent 24/7 coverage, forecasting, human workflow and cost.
+15. [U.S. time-of-day/week research](us-moderation-timing.md): Gaggle, North Carolina tipline, Reddit and trolling research with evidence boundaries.
+16. [Temporal implementation blueprint](temporal-implementation-plan.md): concrete package paths, staged PRs, security matrix and human sign-off.
+
+A synthetic/offline reference implementation lives in [packages/temporal-analytics](../../packages/temporal-analytics/README.md). No live collection, dashboard or identity graph is enabled.
 
 Current operational materials remain [the launch checklist](../launch/launch-checklist.md), [incident runbook](../launch/incident-runbook.md), and [rollback drill](../launch/rollback-drill.md).
 

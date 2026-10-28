@@ -72,6 +72,10 @@ Sources: [Gateway logging](https://developers.cloudflare.com/ai-gateway/observab
 - Current code packages/clef/src/transport.ts defaults to the **payload** header false when using Gateway. This is not equivalent to disabling all logs, Logpush, or response caching. Current launch gate P3 checks payload logging only and is **insufficient** for the proposed strict privacy profile.
 - Configure Worker console/logpush/error-tracing/Sentry-like tooling separately; content-free app logger design does not prove the infrastructure cannot emit bodies by other paths.
 
+## Analytics Engine is not a zero-retention inference path
+
+Cloudflare [Analytics Engine limits](https://developers.cloudflare.com/analytics/analytics-engine/limits/) currently say data are stored **for three months**. This is a separate analytic storage product, not covered by the inference-only Workers AI stateless ZDR claim. Hall Monitor temporal analytics must never send raw student text, images or personal/case identifiers there; even content-free small-cohort metrics can be identifying. If the approved school retention schedule requires a shorter time, do not use Analytics Engine for that stream. Use a district-owned TTL-governed alternative and verify expiry, exports and backup behavior.
+
 ## Assurance hierarchy and verification plan
 
 1. **Signed commitments:** DPA, subprocessor list, age/region eligibility, customer content definition, data-use limits, training bans, deletion/retention schedule, special exceptions, notice of changes, audit rights.

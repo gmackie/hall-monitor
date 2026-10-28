@@ -116,6 +116,18 @@ Policy revisions pinned: `__________`  Resolver: `__________`  Evaluator bundle:
 | G8 | Any student-facing nudge UX has age, accessibility, cultural/language, help-seeking and chilling-effect review | | | open | human only |
 | G9 | External provider routing has signed allowlist, live retention/config evidence and safe fail-closed path; no implicit third-party fallback | | | open | human only |
 
+## 7. Temporal operations and analytics (optional; required before enabling M9)
+
+| ID | Item | Evidence | Owner | Status | Who |
+|---|---|---|---|---|---|
+| T1 | No student content, principal IDs, conversation/case IDs, free text or sparse sensitive labels in operational analytics; test strict metric schema and every Logpush/export path | | | open | agent (prepare), human (verify) |
+| T2 | District IANA timezone and instructional calendar pinned; fall-back repeated and spring-forward missing local hour cases tested against actual event timestamps | | | open | agent |
+| T3 | Distinguish event occurrence, report, queue, review and action clocks; validate matched denominators, coverage/missing bins, version changes and WAE sampling estimates | | | open | human only |
+| T4 | WAE fixed three-month retention explicitly assessed; any stricter district TTL uses alternative store; no sampled WAE value used as exact incident or billing ledger | | | open | human only |
+| T5 | Explicit trained urgent safeguarding coverage, after-hours escalation and live acknowledgment drill completed; Worker uptime is not a 24/7 human response guarantee | | | open | human only |
+| T6 | Flightdeck role scopes, small cohorts, overlap/differencing, complementary suppression, export and teacher-facing restricted counts reviewed | | | open | human only |
+| T7 | Any U.S. hourly benchmark cites source geography, date, metric event clock and denominator; no externally derived individual risk multiplier | | | open | human only |
+
 ## Unresolved risks
 
 | Risk | Impact | Mitigation | Owner | Review date |

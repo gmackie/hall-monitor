@@ -1,10 +1,10 @@
 # Validation plan, implementation milestones and go/no-go gates
 
-**Proposal, 2026-10-27.** This document adds planned milestones to the existing Hall Monitor project. **No student deployment, new APIs, graph storage, nudges, legal compliance certification or provider integrations are implemented by these documents.**
+**Proposal, 2026-10-27.** This document adds planned milestones to the existing Hall Monitor project. **No student deployment, new APIs, graph storage, nudges, legal compliance certification or provider integrations are implemented by these documents. A separate offline temporal-analytics helper package and synthetic regression suite now exist, but do not collect any learner data.**
 
 ## Current baseline (verify against main when implementation starts)
 
-Implemented: versioned evaluation schemas; student/educator policy profiles; deterministic plugins; Clef text/image requests; content-free receipts and idempotency in Durable Objects; synthetic shadow corpus, policy comparison and rollback drill; tenant JWT/role-like scopes. Student images are currently held pending calibration. Clef classification thresholds are placeholders. There is no graph, disclosure vault, event bus, cross-provider governance gate, parent records-access workflow, OSINT adapter, or messaging UI here.
+Implemented: versioned evaluation schemas; student/educator policy profiles; deterministic plugins; Clef text/image requests; content-free receipts and idempotency in Durable Objects; synthetic shadow corpus, policy comparison and rollback drill; tenant JWT/role-like scopes. Student images are currently held pending calibration. Clef classification thresholds are placeholders. There is no graph, disclosure vault, event bus, cross-provider governance gate, parent records-access workflow, OSINT adapter, or messaging UI here. The added `packages/temporal-analytics` package provides only offline, strictly content-free time aggregation/capacity primitives.
 
 Existing launch docs: [checklist](launch/launch-checklist.md) and [incident runbook](launch/incident-runbook.md). Existing test scripts: pnpm lint, pnpm test, pnpm shadow-report, pnpm rollback-drill.
 
@@ -21,8 +21,11 @@ Existing launch docs: [checklist](launch/launch-checklist.md) and [incident runb
 | M6 | Restricted safeguarding cases | Purpose-limited approval/unmask, case state machine, appeal/correction, parent/eligible-student access and multi-student review, deletion/holds | Records officer + district counsel |
 | M7 | Live pilot and effectiveness study | Synthetic/staff gates passed, opt-in authorized limited-scope pilot, independent monitoring of accuracy, equity, privacy, efficacy and appeal reversals | Formal district sign-off |
 | M8 | Optional high-school external evidence | Submitted-evidence intake and tightly approved case-scoped public-source review; off-campus speech, consent, source authenticity checks | Separate source-specific approval |
+| M9 | Temporal safety analytics / Flightdeck | Authenticated aggregate-only telemetry, district-local timestamps, WAE weighting/retention decision, exact urgent ledger, forecast/capacity and read-only dashboard with privacy controls | District privacy/security + safeguarding + actual human coverage |
 
 **Don't treat any milestone as permission for production traffic.** Sensitive features ship disabled by default, behind non-bypassable policy and deployment gates. Each student scope needs renewed approval. Never enable live shadow traffic through the unsafe student-profile override.
+
+The [temporal implementation blueprint](design/temporal-implementation-plan.md) defines smaller staged PRs, concrete contracts, role mapping, U.S. source limitations and cross-repo Flightdeck integration.
 
 ## Recommended first PRs after documentation
 

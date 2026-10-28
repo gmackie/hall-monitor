@@ -38,6 +38,17 @@ Last checked **2026-10-27**. This register distinguishes **primary vendor/regula
 - [TGBully reference implementation](https://github.com/gesy17/TGBully) — example temporal interaction model, not a drop-in student safety system.
 - [W3C PROV-O](https://www.w3.org/TR/prov-o/) — provenance vocabulary applicable to evidence and inferred claims.
 
+## Temporal moderation and infrastructure research (checked 2026-10-28)
+
+- [Gaggle 2021–22 Student Safety Report, PDF p.11](https://images.g2crowd.com/uploads/attachment/file/1288126/Through-the-Gaggle-Lens---The-State-of-Student-Safety---2021-22---REPORT.pdf) — vendor incident weekday shares and 65% school-day / 35% after-hours. Not U.S.-representative harm prevalence.
+- [Thulin et al., Injury Prevention 2026 / PMC](https://pmc.ncbi.nlm.nih.gov/articles/PMC13430530/) — 44,998 NC youth safety tips by time/day, category and urgency. Reporting timestamps are not incident-occurrence timestamps.
+- [Gaggle 2024–25 annual report](https://news.gaggle.net/student-safety-report-2025) — nearly 6.9B content items and >8.7M human-reviewed, 482,203 district alerts, 26,855 emergency calls; rounded vendor funnel.
+- [Gaggle 2025–26 report](https://news.gaggle.net/2026-ssr) — more recent findings and commissioned Friday Institute evaluation; 3 of 355 safe items falsely flagged in two earlier evaluation runs; final run did not include safe items.
+- [Reddit July–December 2025 transparency report](https://redditinc.com/policies/transparency-report-july-to-december-2025-reddit) — global removal and moderator automation share, not hourly U.S. student moderation.
+- [Cheng et al. 2017, Anyone Can Become a Troll](https://pmc.ncbi.nlm.nih.gov/articles/PMC5791909/) — context, mood and time effects; historical CNN discussion sample, not a modern national clock curve.
+- [Cloudflare Workers Analytics Engine SQL](https://developers.cloudflare.com/analytics/analytics-engine/sql-api/) and [sampling](https://developers.cloudflare.com/analytics/analytics-engine/sampling/) — sample-weighted aggregate estimation, not exact case counts.
+- [Cloudflare Workers Analytics Engine limits](https://developers.cloudflare.com/analytics/analytics-engine/limits/) — three-month retention and write limits; district policy may require shorter-lived alternative.
+
 ## Revalidation checklist
 
 Review: live API/model availability; provider eligibility and age terms; actual model input modalities and unsupported categories; data-control and caching exceptions; price/limit changes; rule revisions and school privacy interpretation; external platform data access; latest research/evaluation evidence. Save source, verification date and responsible human in the rollout evidence pack. Avoid treating academic benchmark scores as school pilot results.

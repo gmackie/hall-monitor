@@ -116,7 +116,7 @@ WAE writes are non-blocking and are designed for aggregate queries. Its `timesta
 - `double1`: event count 1 or a validated pre-aggregated count.
 - `double2`: permitted stage duration milliseconds (if applicable).
 - `double3`: approved non-content inference cost in integer-like units where precision permits; the exact cost ledger remains in Hall Monitor.
-- **Never** use arbitrary context labels for WAE dimensions. Keep data subject to configurable TTL and district access scope.
+- **Never** use arbitrary context labels for WAE dimensions. WAE currently retains rows for **three months** (per its published [limits](https://developers.cloudflare.com/analytics/analytics-engine/limits/)); there is no asserted per-row short TTL. If a district mandates shorter retention, choose a different district-controlled store/rollup with tested deletion, or do not write the sensitive cohort there.
 
 Because a sampled analytic row may represent many source events, weighted totals are approximate for statistical purposes; ordinary WAE should not serve evidence export, billing adjudication, emergency dispatch or legal records.
 
