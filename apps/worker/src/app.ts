@@ -23,7 +23,7 @@ import { requestDigest } from "./digest.ts";
 import type { Env } from "./env.ts";
 import { errorResponse, HttpError, json, readJson } from "./http.ts";
 import { log } from "./log.ts";
-import { scheduleEvaluationMetrics } from "./metrics.ts";
+import { prepareTelemetryDelivery, scheduleEvaluationMetrics } from "./metrics.ts";
 import { openApiJson } from "./openapi.ts";
 import { replayGuardName } from "./replay.ts";
 
@@ -296,6 +296,9 @@ async function runEvaluation(request: EvaluationRequest, identity: ServiceIdenti
     return fail(new HttpError("unavailable", "evaluation failed", { retryable: true }));
   }
 
+  // The v2 delivery is projected before completion so the store commits it with the result and
+  // receipt in one transaction. Disabled (the default), it is null and nothing changes.
+  const telemetry = await prepareTelemetryDelivery(env, tenant, request, result);
   await store.complete(request.idempotencyKey, digest, result, {
     schemaVersion: SCHEMA_VERSION,
     evaluationId: result.evaluationId,
@@ -303,7 +306,7 @@ async function runEvaluation(request: EvaluationRequest, identity: ServiceIdenti
     tenantId: tenant,
     receipt: result.receipt,
     recordedAt: new Date().toISOString(),
-  });
+  }, telemetry ?? undefined);
   log("info", "evaluation.completed", {
     tenant,
     evaluationId: result.evaluationId,

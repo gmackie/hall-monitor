@@ -1,5 +1,11 @@
 import type { EvaluationRequest, EvaluationResult } from "@gmacko/hall-monitor-contracts";
 import {
+  TELEMETRY_V2_DEFAULT_RETRY_HORIZON_MS,
+  TELEMETRY_V2_MAX_RETRY_HORIZON_MS,
+  buildTelemetryDeliveryV2,
+  grantAllowsBatch,
+  newDeliveryId,
+  parseTelemetryProducerTenantsV2,
   parseTelemetryTenants,
   type GradeBand,
   type Source,
@@ -9,6 +15,7 @@ import {
 import { sendTelemetry } from "@gmacko/hall-monitor-telemetry-sink";
 import type { Env } from "./env.ts";
 import { log } from "./log.ts";
+import type { TelemetryInput } from "./store.ts";
 
 /** Student grade is derived from a pinned, approved policy—not a caller-supplied label. */
 function profileGradeBand(profileId: string): GradeBand {
@@ -69,6 +76,64 @@ export function evaluationMetrics(
     category: "other",
   });
   return { schemaVersion: 1, events };
+}
+
+export const DEFAULT_OUTBOX_MAX_ROWS = 500;
+export const DEFAULT_OUTBOX_MAX_BYTES = 1024 * 1024;
+
+/** A positive integer from an optional setting, clamped to `max`; anything else is the default. */
+function boundedSetting(value: string | undefined, fallback: number, max: number): number {
+  const parsed = Number(value);
+  return value !== undefined && Number.isInteger(parsed) && parsed > 0 ? Math.min(parsed, max) : fallback;
+}
+
+/**
+ * Projects the v2 delivery to persist with a completing evaluation (HM-20), BEFORE the result is
+ * committed, so the store can write it in the same transaction. Null when v2 is not enabled for
+ * this tenant or nothing is projectable: not enrolled is not a gap. Once a tenant is enrolled,
+ * an unexpected failure returns a gap marker instead, so the lost coverage is still counted.
+ *
+ * The occurrence time, delivery ID and producer revision are fixed here, once; retries re-send
+ * these same bytes. This never touches the v1 settings or emission, and never throws.
+ */
+export async function prepareTelemetryDelivery(
+  env: Env,
+  tenant: string,
+  request: EvaluationRequest,
+  result: EvaluationResult,
+): Promise<TelemetryInput | null> {
+  if (env.HM_TELEMETRY_V2_ENABLED !== "true" || env.METRICS_COLLECTOR === undefined) return null;
+  const occurredAtMs = Date.now();
+  try {
+    const grant = parseTelemetryProducerTenantsV2(env.HM_TELEMETRY_V2_TENANTS)?.get(tenant);
+    if (grant === undefined) return null;
+    const batch = evaluationMetrics(request, result, new Date(occurredAtMs).toISOString());
+    if (batch === null || !grantAllowsBatch(grant, batch)) return null;
+    try {
+      const built = await buildTelemetryDeliveryV2({
+        deliveryId: newDeliveryId(),
+        producerRevision: grant.producerRevision,
+        events: batch.events,
+      });
+      return {
+        kind: "delivery",
+        deliveryId: built.delivery.deliveryId,
+        digest: built.digest,
+        payload: built.payload,
+        occurredAtMs,
+        retryHorizonMs:
+          boundedSetting(env.HM_TELEMETRY_RETRY_HORIZON_SECONDS, TELEMETRY_V2_DEFAULT_RETRY_HORIZON_MS / 1000, TELEMETRY_V2_MAX_RETRY_HORIZON_MS / 1000) * 1000,
+        maxRows: boundedSetting(env.HM_TELEMETRY_OUTBOX_MAX_ROWS, DEFAULT_OUTBOX_MAX_ROWS, 5000),
+        maxBytes: boundedSetting(env.HM_TELEMETRY_OUTBOX_MAX_BYTES, DEFAULT_OUTBOX_MAX_BYTES, 8 * 1024 * 1024),
+      };
+    } catch {
+      log("warn", "telemetry.delivery_failed", { tenant, reason: "error" });
+      return { kind: "gap", occurredAtMs, reason: "error" };
+    }
+  } catch {
+    log("warn", "telemetry.delivery_failed", { tenant, reason: "error" });
+    return null;
+  }
 }
 
 /**
