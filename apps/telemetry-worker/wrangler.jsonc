@@ -1,0 +1,14 @@
+// T1 only: validate signed, scoped telemetry and DROP it. T2 provides exact
+// dedupe/aggregates and retention-reviewed storage. No public routes or workers.dev.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hall-monitor-telemetry",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": false,
+  "observability": { "enabled": false }
+  // No HM_TELEMETRY_ACCEPT or HM_TELEMETRY_TENANTS defaults.
+  // Deploy a secret HM_TELEMETRY_ACCEPT=validate_only and strict per-tenant
+  // HM_TELEMETRY_TENANTS JSON to test the internal service-binding path.
+  // No WAE, D1, R2, Queue or Logpush binding is present.
+}

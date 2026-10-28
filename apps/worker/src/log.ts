@@ -15,7 +15,8 @@ export type LogEvent =
   | "config.invalid"
   | "ratelimit.unavailable"
   | "replay_guard.unavailable"
-  | "internal.error";
+  | "internal.error"
+  | "telemetry.delivery_failed";
 
 /**
  * The only fields a log line may carry. All are identifiers, codes or counters; there is

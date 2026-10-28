@@ -7,7 +7,7 @@ export type { Env } from "./env.ts";
 
 /** The Hall Monitor Worker. */
 export default {
-  fetch(request: Request, env: Env): Promise<Response> {
-    return handle(request, env);
+  fetch(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
+    return handle(request, env, ctx);
   },
 } satisfies ExportedHandler<Env>;
