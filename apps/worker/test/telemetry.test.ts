@@ -58,9 +58,11 @@ describe("T1 opt-in, content-free metrics after evaluation", () => {
   });
 
   it("is disabled by default, even with a reachable collector", async () => {
-    const f = fixture({ HM_TELEMETRY_ENABLED: undefined });
+    const f = fixture();
+    const disabled = { ...f.bindings };
+    delete disabled.HM_TELEMETRY_ENABLED;
     const context = captureContext();
-    expect((await evaluated(f.bindings, context.ctx)).status).toBe(200);
+    expect((await evaluated(disabled, context.ctx)).status).toBe(200);
     await context.drain();
     expect(f.requests).toHaveLength(0);
   });

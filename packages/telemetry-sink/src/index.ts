@@ -109,7 +109,7 @@ export async function verifyTelemetryRequest(
   if (bytes.byteLength === 0 || bytes.byteLength > MAX_TELEMETRY_BODY_BYTES) {
     throw new TypeError("telemetry body size exceeded");
   }
-  const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(bytes);
   const key = await hmacKey(secret);
   const verified = await crypto.subtle.verify("HMAC", key, bytesOfHex(signature), signedInput(tenant, timestamp, text));
   if (!verified) throw new TypeError("telemetry authentication failed");
