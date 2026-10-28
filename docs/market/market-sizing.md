@@ -36,25 +36,23 @@ These are *simple multiplication scenarios*. They should **not** be repeated as 
 - [Gaggle](https://www.gaggle.net/) and [Lightspeed Alert](https://www.lightspeedsystems.com/products/lightspeed-alert/) include human safety escalation; their pricing is not directly equivalent to raw inference classification.
 - Actual buyer willingness to pay for **privacy-preserving contextual intervention** must be established in interviews. Some buyers may pay $0 for software but sponsor a pilot or implementation/assurance service.
 
-## 3. Serviceable available market (SAM): explicit eligibility funnel
+## 3. SAM versus SOM: eligibility is not adoption
 
-Let:
-- P = 54.37M mixed-year ceiling seats.
-- E = fraction of seats with relevant, instrumentable, **legally authorized school-managed conversations**.
-- D = fraction whose operators can and will adopt the code/service within planning window.
-- V = effective annual equivalent value to the adopter (may be support rather than license).
+Define **SAM** as the fraction of the gross student-seat ceiling with a relevant, technically instrumentable, legally authorized **school-managed communication surface**. Define **SOM** as the fraction of that SAM Hall Monitor could actually capture within a stated period, given product readiness, school procurement, opt-in permission, integrations, competition and support capacity. This avoids conflating addressable seats with likely customers.
 
-### Illustrative cohort scenarios
+Let P = 54.37M mixed-year ceiling seats; E = eligible fraction (SAM = P × E); D = illustrative capturable share of that SAM (SOM = SAM × D); V = assumed annual equivalent seat-value. For an open-source product, a license may generate $0 and support contracts need a separate buyer-level conversion model.
 
-| Scenario | E, eligible/instrumentable | D, could adopt among eligible | Effective seats | Value at assumed $3/seat |
-|---|---:|---:|---:|---:|
-| Conservative | 10% | 15% | ~815,500 | ~$2.45M/yr |
-| Base planning case | 25% | 25% | ~3.40M | ~$10.19M/yr |
-| Optimistic | 40% | 35% | ~7.61M | ~$22.83M/yr |
+### Purely hypothetical illustrative funnel at $3/seat equivalent
 
-**Important:** E, D and V have **no external empirical validation**. The table is a funnel thought experiment to sharpen what customer interviews must learn, **not a current SAM determination**. In an open-source-first strategy, V should be replaced by a realistic **supported deployment contract conversion**, so seat-value results may overstate actual revenue by a large amount.
+| Scenario | E: eligible share | SAM eligible seats | SAM equivalent annual value | D: assumed capturable share | SOM scenario seats | SOM equivalent annual value |
+|---|---:|---:|---:|---:|---:|---:|
+| Conservative | 10% | ~5.44M | ~$16.31M | 15% | ~815,500 | ~$2.45M |
+| Base planning case | 25% | ~13.59M | ~$40.77M | 25% | ~3.40M | ~$10.19M |
+| Optimistic | 40% | ~21.75M | ~$65.24M | 35% | ~7.61M | ~$22.83M |
 
-A separate rough **addressable relevant footprint** (before adoption) at 20–35% of seats yields ~10.9–19.0M students. At a hypothetically equivalent $2–$5/seat this corresponds to $21.7M–$95.1M/year of capacity. It is not a certified market estimate.
+**E, D and V have NO empirical validation.** “SOM scenario” here is a model of a hypothetical obtainable share, not a time-bound forecast, sales pipeline or claim of feasible revenue. It likely overstates realistic startup adoption, particularly while the current service lacks school chat integrations and a live pilot. The three-year sales-conversion model below is narrower and should be favored for decision-making.
+
+As another sensitivity, E = 20–35% gives a hypothetical relevant footprint of ~10.9–19.0M students. At $2–$5/seat-equivalent that yields ~$21.7M–$95.1M annual **SAM value** before adoption. None of these amounts is a certified market estimate.
 
 ## 4. Serviceable obtainable market (SOM): 3-year planning illustration
 
