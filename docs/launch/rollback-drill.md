@@ -6,6 +6,13 @@ The same test (`apps/worker/test/rollback-drill.test.ts`) runs in `pnpm test`, a
 script on every push. Pass `--out drill.json` to keep a content-free record (steps, outcomes,
 durations, commit, time) as evidence for launch checklist item R1.
 
+Step 2 records the full offline prediction, the revision-pin checks and a separate test for
+every synthetic 9-12 case. Each case evaluates both live revisions with the same tenant before
+and after rollback, then compares its decision difference with the prediction. This keeps the
+complete corpus in both gates while bounding the requests in each test; a slow CI runner no
+longer has to finish all 163 sequential requests within a single test's timeout. The drill
+record includes each of these checks, and every check must pass.
+
 | Step | What it proves |
 |---|---|
 | 1. Classifier unavailable | With Workers AI failing, or no AI binding at all, a student-profile request is held (`hall_monitor.unavailable`, degraded `classifier_unavailable`, unknown cost receipted). A shadow-mode tenant without `allowStudentShadow` is still held. Recovery allows the same content again. |
