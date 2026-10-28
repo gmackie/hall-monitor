@@ -217,6 +217,12 @@ importers:
       '@gmacko/hall-monitor-policy':
         specifier: workspace:*
         version: link:../../packages/policy
+      '@gmacko/hall-monitor-telemetry-contracts':
+        specifier: workspace:*
+        version: link:../../packages/telemetry-contracts
+      '@gmacko/hall-monitor-telemetry-sink':
+        specifier: workspace:*
+        version: link:../../packages/telemetry-sink
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -245,6 +251,25 @@ importers:
       wrangler:
         specifier: 'catalog:'
         version: 4.151.2(@cloudflare/workers-types@5.20261018.1)(@types/node@24.19.2)
+
+  apps/telemetry-worker:
+    dependencies:
+      '@gmacko/hall-monitor-telemetry-contracts':
+        specifier: workspace:*
+        version: link:../../packages/telemetry-contracts
+      '@gmacko/hall-monitor-telemetry-sink':
+        specifier: workspace:*
+        version: link:../../packages/telemetry-sink
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: 'catalog:'
+        version: 5.20261018.1
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 3.2.7(@types/node@24.19.2)(supports-color@10.2.2)
 
   packages/clef:
     dependencies:
@@ -381,6 +406,26 @@ importers:
       zod:
         specifier: 'catalog:'
         version: 4.6.7
+    devDependencies:
+      vitest:
+        specifier: 'catalog:'
+        version: 3.2.7(@types/node@24.19.2)(supports-color@10.2.2)
+
+  packages/telemetry-contracts:
+    dependencies:
+      '@gmacko/hall-monitor-temporal-analytics':
+        specifier: workspace:*
+        version: link:../temporal-analytics
+    devDependencies:
+      vitest:
+        specifier: 'catalog:'
+        version: 3.2.7(@types/node@24.19.2)(supports-color@10.2.2)
+
+  packages/telemetry-sink:
+    dependencies:
+      '@gmacko/hall-monitor-telemetry-contracts':
+        specifier: workspace:*
+        version: link:../telemetry-contracts
     devDependencies:
       vitest:
         specifier: 'catalog:'
