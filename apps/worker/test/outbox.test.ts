@@ -102,7 +102,7 @@ describe("W6 transactional telemetry outbox", () => {
   // a single test running them all in sequence had a duration proportional to the case count and hit
   // the 5 s limit on a slow runner (canonical CI run 28: 14 evaluations, summed latency 3.5 s). Every
   // case keeps its own isolated storage and asserts the same two things the loop asserted at its end.
-  const OFF_BY_DEFAULT: readonly (readonly [string, Partial<Env>])[] = [
+  const OFF_BY_DEFAULT: readonly (readonly [string, Record<string, string | undefined>])[] = [
     ["v2 not enabled", { HM_TELEMETRY_V2_ENABLED: undefined }],
     ["no v2 grants", { HM_TELEMETRY_V2_TENANTS: undefined }],
     ["no collector binding", { METRICS_COLLECTOR: undefined }],
