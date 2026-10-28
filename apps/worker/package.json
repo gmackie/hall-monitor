@@ -16,7 +16,9 @@
     "@gmacko/hall-monitor-costing": "workspace:*",
     "@gmacko/hall-monitor-evaluators": "workspace:*",
     "@gmacko/hall-monitor-policy": "workspace:*",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@gmacko/hall-monitor-telemetry-contracts": "workspace:*",
+    "@gmacko/hall-monitor-telemetry-sink": "workspace:*"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "catalog:",

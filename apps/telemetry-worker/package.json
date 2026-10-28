@@ -1,0 +1,19 @@
+{
+  "name": "@gmacko/hall-monitor-telemetry-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@gmacko/hall-monitor-telemetry-contracts": "workspace:*",
+    "@gmacko/hall-monitor-telemetry-sink": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

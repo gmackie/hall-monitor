@@ -127,6 +127,9 @@ Policy revisions pinned: `__________`  Resolver: `__________`  Evaluator bundle:
 | T5 | Explicit trained urgent safeguarding coverage, after-hours escalation and live acknowledgment drill completed; Worker uptime is not a 24/7 human response guarantee | | | open | human only |
 | T6 | Flightdeck role scopes, small cohorts, overlap/differencing, complementary suppression, export and teacher-facing restricted counts reviewed | | | open | human only |
 | T7 | Any U.S. hourly benchmark cites source geography, date, metric event clock and denominator; no externally derived individual risk multiplier | | | open | human only |
+| T8 | Before any T1 pilot, configure **independent** source/collector strict tenant+source+grade grants, distinct 32+ character per-tenant keys, opt-in switch, internal-only service binding and collector validate-only mode; confirm no public route | | | open | human only |
+| T9 | Prove collector response is `persisted:false`, no case/metric storage binding exists, and outages or invalid config cannot affect moderation; replayed evaluations never emit duplicate telemetry | | | open | agent (tests), human (deployment) |
+| T10 | Explicit district approval of student data processing and *no actual historical dashboard* claim; assess 5-minute HMAC replay risk and T2 dedupe/retention requirements | | | open | human only |
 
 ## Unresolved risks
 

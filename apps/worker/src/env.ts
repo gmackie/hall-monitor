@@ -1,4 +1,5 @@
 import type { WorkersAiBinding } from "@gmacko/hall-monitor-clef";
+import type { TelemetryBinding } from "@gmacko/hall-monitor-telemetry-sink";
 import type { TokenReplayGuard } from "./replay.ts";
 import type { IdempotencyStore } from "./store.ts";
 
@@ -18,6 +19,12 @@ export interface Env {
   readonly TOKEN_REPLAY_GUARD?: DurableObjectNamespace<TokenReplayGuard>;
   /** Workers AI, for the Clef classifier. Without it the classifier is unavailable. */
   readonly AI?: WorkersAiBinding;
+  /** Optional internal service binding; absent by default, no external metric transport. */
+  readonly METRICS_COLLECTOR?: TelemetryBinding;
+  /** Explicit opt-in switch: only the exact string "true" enables emission. */
+  readonly HM_TELEMETRY_ENABLED?: string;
+  /** Strict JSON per-tenant source, allowed grade bands and HMAC keys; stored as secret. */
+  readonly HM_TELEMETRY_TENANTS?: string;
   /** Per-tenant request limiter. Without it, no rate limit is applied. */
   readonly TENANT_RATE_LIMITER?: RateLimiter;
   /** JSON list of trusted issuers: `[{ iss, jwks: { keys }, audiences? }]`. */
