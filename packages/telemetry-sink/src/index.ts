@@ -17,7 +17,7 @@ const encoder = new TextEncoder();
 const TENANT_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const SIGNATURE = /^[0-9a-f]{64}$/;
 
-async function hmacKey(secret: string): Promise<CryptoKey> {
+async function hmacKey(secret: string) {
   if (secret.length < 32 || secret.length > 512 || /[^\x21-\x7E]/.test(secret)) {
     throw new TypeError("invalid telemetry signing key");
   }
