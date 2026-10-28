@@ -98,31 +98,35 @@ describe("W6 transactional telemetry outbox", () => {
     expect(await state()).toMatchObject({ pending: 1, retrying: 0, gaps: [] });
   });
 
-  it("is off by default: no outbox row without the separate v2 opt-in, and v1 settings do not enable it", async () => {
-    for (const extra of [
-      { HM_TELEMETRY_V2_ENABLED: undefined },
-      { HM_TELEMETRY_V2_TENANTS: undefined },
-      { METRICS_COLLECTOR: undefined },
-      // No valid retention policy in force: nothing is collected, and no gap is invented either.
-      { HM_TELEMETRY_V2_RETENTION: undefined },
-      { HM_TELEMETRY_V2_RETENTION: "{" },
-      { HM_TELEMETRY_V2_RETENTION: "{}" },
-      { HM_TELEMETRY_V2_RETENTION: JSON.stringify({ tenant_other: policy() }) },
-      { HM_TELEMETRY_V2_RETENTION: retentionFor({ effectiveFrom: iso(Date.now() - 3 * DAY), approvedUntil: iso(Date.now() - 1000) }) },
-      { HM_TELEMETRY_V2_RETENTION: retentionFor({ effectiveFrom: iso(Date.now() + DAY), approvedUntil: iso(Date.now() + 2 * DAY) }) },
-      { HM_TELEMETRY_V2_RETENTION: retentionFor({ gapSeconds: 60 }) },
-      { HM_TELEMETRY_V2_RETENTION: retentionFor({ extra: true }) },
-      // The v1 enablement and grants are not a retention policy.
-      { HM_TELEMETRY_V2_RETENTION: undefined, HM_TELEMETRY_ENABLED: "true", HM_TELEMETRY_TENANTS: JSON.stringify({ [TENANT]: { source: "educateos", gradeBands: ["g9_12"], signingKey: KEY } }) },
-      { HM_TELEMETRY_V2_TENANTS: JSON.stringify({ tenant_other: { source: "educateos", gradeBands: ["g9_12"], signingKey: KEY, producerRevision: "r1" } }) },
-      { HM_TELEMETRY_V2_TENANTS: JSON.stringify({ [TENANT]: { source: "playtrek", gradeBands: ["g9_12"], signingKey: KEY, producerRevision: "r1" } }) },
-      // v1 enrolment alone (even complete) never creates v2 state.
-      { HM_TELEMETRY_V2_ENABLED: undefined, HM_TELEMETRY_ENABLED: "true", HM_TELEMETRY_TENANTS: JSON.stringify({ [TENANT]: { source: "educateos", gradeBands: ["g9_12"], signingKey: KEY } }) },
-    ] as Partial<Env>[]) {
-      const b = bindings();
-      Object.assign(b, extra);
-      expect((await evaluate(b)).status).toBe(200);
-    }
+  // One test per case, not one loop: each evaluation is a full Worker + Durable Object round trip, so
+  // a single test running them all in sequence had a duration proportional to the case count and hit
+  // the 5 s limit on a slow runner (canonical CI run 28: 14 evaluations, summed latency 3.5 s). Every
+  // case keeps its own isolated storage and asserts the same two things the loop asserted at its end.
+  const OFF_BY_DEFAULT: readonly (readonly [string, Partial<Env>])[] = [
+    ["v2 not enabled", { HM_TELEMETRY_V2_ENABLED: undefined }],
+    ["no v2 grants", { HM_TELEMETRY_V2_TENANTS: undefined }],
+    ["no collector binding", { METRICS_COLLECTOR: undefined }],
+    // No valid retention policy in force: nothing is collected, and no gap is invented either.
+    ["no retention setting", { HM_TELEMETRY_V2_RETENTION: undefined }],
+    ["unparseable retention", { HM_TELEMETRY_V2_RETENTION: "{" }],
+    ["empty retention", { HM_TELEMETRY_V2_RETENTION: "{}" }],
+    ["retention for another tenant", { HM_TELEMETRY_V2_RETENTION: JSON.stringify({ tenant_other: policy() }) }],
+    ["retention approval expired", { HM_TELEMETRY_V2_RETENTION: retentionFor({ effectiveFrom: iso(Date.now() - 3 * DAY), approvedUntil: iso(Date.now() - 1000) }) }],
+    ["retention approval not yet effective", { HM_TELEMETRY_V2_RETENTION: retentionFor({ effectiveFrom: iso(Date.now() + DAY), approvedUntil: iso(Date.now() + 2 * DAY) }) }],
+    ["gap retention below the accepted horizon", { HM_TELEMETRY_V2_RETENTION: retentionFor({ gapSeconds: 60 }) }],
+    ["retention with an unknown field", { HM_TELEMETRY_V2_RETENTION: retentionFor({ extra: true }) }],
+    // The v1 enablement and grants are not a retention policy.
+    ["v1 enrolment without a retention setting", { HM_TELEMETRY_V2_RETENTION: undefined, HM_TELEMETRY_ENABLED: "true", HM_TELEMETRY_TENANTS: JSON.stringify({ [TENANT]: { source: "educateos", gradeBands: ["g9_12"], signingKey: KEY } }) }],
+    ["grants for another tenant", { HM_TELEMETRY_V2_TENANTS: JSON.stringify({ tenant_other: { source: "educateos", gradeBands: ["g9_12"], signingKey: KEY, producerRevision: "r1" } }) }],
+    ["grant for another source", { HM_TELEMETRY_V2_TENANTS: JSON.stringify({ [TENANT]: { source: "playtrek", gradeBands: ["g9_12"], signingKey: KEY, producerRevision: "r1" } }) }],
+    // v1 enrolment alone (even complete) never creates v2 state.
+    ["v1 enrolment alone", { HM_TELEMETRY_V2_ENABLED: undefined, HM_TELEMETRY_ENABLED: "true", HM_TELEMETRY_TENANTS: JSON.stringify({ [TENANT]: { source: "educateos", gradeBands: ["g9_12"], signingKey: KEY } }) }],
+  ];
+
+  it.each(OFF_BY_DEFAULT)("is off by default: no outbox row and no gap with %s", async (_name, extra) => {
+    const b = bindings();
+    Object.assign(b, extra);
+    expect((await evaluate(b)).status).toBe(200);
     expect(await outboxRows()).toHaveLength(0);
     expect(await state()).toMatchObject({ pending: 0, gaps: [] });
   });

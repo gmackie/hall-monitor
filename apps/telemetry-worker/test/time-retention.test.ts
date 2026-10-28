@@ -20,35 +20,39 @@ beforeEach(() => { controls.reset(); vi.restoreAllMocks(); });
 afterEach(() => controls.reset());
 
 describe("W8a admission: the server owns time, calendar, revisions and retention", () => {
-  it("stores nothing for missing, invalid, expired, not-yet-effective, wrong-tenant, unapproved or conflicting configuration", async () => {
+  // One test per configuration, not one loop over all of them: each request is a full Worker +
+  // Durable Object round trip, and a single test running ten of them in sequence took time
+  // proportional to the case count (it reached the 5 s limit under CPU contention). Each case keeps
+  // its own isolated storage, so "nothing stored" is checked against an object that started empty.
+  const lapsed = policyDoc(0, { effectiveFrom: "2026-01-01T00:00:00Z", approvedUntil: "2026-10-28T12:00:00Z" });
+  const future = policyDoc(0, { effectiveFrom: "2026-11-01T00:00:00Z", approvedUntil: "2027-11-01T00:00:00Z" });
+  const REFUSED: readonly (readonly [string, () => string | undefined, number, string])[] = [
+    ["no configuration", () => undefined, 503, "invalid_configuration"],
+    ["unparseable configuration", () => "{", 503, "invalid_configuration"],
+    ["tenant absent from configuration", () => fixedConfig({}, {}).replace(`"${TENANT}"`, '"tenant_other"'), 503, "invalid_configuration"],
+    ["conflicting source", () => fixedConfig({ source: "playtrek" }), 503, "invalid_configuration"],
+    ["interval approves a revision the grant does not", () => fixedConfig({ intervals: [fixedInterval({ producerRevisions: ["rev-a", "rev-z"] })] }), 503, "invalid_configuration"],
+    ["retention approval expired", () => fixedConfig({ retention: lapsed }), 403, "retention_unapproved"],
+    ["retention approval not yet effective", () => fixedConfig({ retention: future }), 403, "retention_unapproved"],
+    ["occurrence outside every configured interval", () => fixedConfig({ intervals: [fixedInterval({ from: "2026-01-01T00:00:00Z", to: "2026-10-01T00:00:00Z" })] }), 422, "unconfigured_occurrence"],
+    ["revision not approved for the interval", () => fixedConfig({ intervals: [fixedInterval({ producerRevisions: ["rev-b"] })] }), 403, "forbidden"],
+    // A tenant with grants but no configuration of its own is forbidden, and the others are unaffected.
+    ["configuration only for an unknown tenant", () => fixedConfig({}, {}).replace(`"${TENANT}"`, '"tenant_zzz"'), 503, "invalid_configuration"],
+    ["no configuration for this tenant (another tenant's only)", () => JSON.stringify({ [OTHER]: JSON.parse(fixedConfig())[OTHER] }), 403, "forbidden"],
+  ];
+
+  it.each(REFUSED)("stores nothing for %s", async (name, config, status, code) => {
     at("2026-10-28T18:10:00Z");
     const b = await delivery("2026-10-28T18:05:00.000Z");
-    const lapsed = policyDoc(0, { effectiveFrom: "2026-01-01T00:00:00Z", approvedUntil: "2026-10-28T12:00:00Z" });
-    const future = policyDoc(0, { effectiveFrom: "2026-11-01T00:00:00Z", approvedUntil: "2027-11-01T00:00:00Z" });
-    const cases: [string, string | undefined, number, string][] = [
-      ["no configuration", undefined, 503, "invalid_configuration"],
-      ["unparseable configuration", "{", 503, "invalid_configuration"],
-      ["tenant absent from configuration", fixedConfig({}, {}).replace(`"${TENANT}"`, '"tenant_other"'), 503, "invalid_configuration"],
-      ["conflicting source", fixedConfig({ source: "playtrek" }), 503, "invalid_configuration"],
-      ["interval approves a revision the grant does not", fixedConfig({ intervals: [fixedInterval({ producerRevisions: ["rev-a", "rev-z"] })] }), 503, "invalid_configuration"],
-      ["retention approval expired", fixedConfig({ retention: lapsed }), 403, "retention_unapproved"],
-      ["retention approval not yet effective", fixedConfig({ retention: future }), 403, "retention_unapproved"],
-      ["occurrence outside every configured interval", fixedConfig({ intervals: [fixedInterval({ from: "2026-01-01T00:00:00Z", to: "2026-10-01T00:00:00Z" })] }), 422, "unconfigured_occurrence"],
-      ["revision not approved for the interval", fixedConfig({ intervals: [fixedInterval({ producerRevisions: ["rev-b"] })] }), 403, "forbidden"],
-    ];
-    for (const [name, config, status, code] of cases) {
-      const response = await post(b, receiverEnv(config as string));
-      expect([response.status, await response.json()], name).toEqual([status, { code }]);
-      await expectNothingStored();
-      await expectNothingStored(OTHER);
-    }
-    // A tenant with grants but no configuration of its own is forbidden, and the others are unaffected.
-    const configOnlyOther = fixedConfig({}, {}).replace(`"${TENANT}"`, '"tenant_zzz"');
-    expect((await post(b, receiverEnv(configOnlyOther))).status).toBe(503);
-    const noEdu = JSON.stringify({ [OTHER]: JSON.parse(fixedConfig())[OTHER] });
-    expect((await post(b, receiverEnv(noEdu))).status).toBe(403);
+    const response = await post(b, receiverEnv(config() as string));
+    expect([response.status, await response.json()], name).toEqual([status, { code }]);
     await expectNothingStored();
-    // The same delivery under valid configuration is accepted: only configuration was missing.
+    await expectNothingStored(OTHER);
+  });
+
+  it("accepts the same delivery under valid configuration: only configuration was missing", async () => {
+    at("2026-10-28T18:10:00Z");
+    const b = await delivery("2026-10-28T18:05:00.000Z");
     expect(await send(b, receiverEnv(fixedConfig()))).toEqual({ kind: "acked", status: "committed" });
   });
 
