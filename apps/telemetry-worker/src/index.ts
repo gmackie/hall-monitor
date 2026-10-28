@@ -1,6 +1,6 @@
 import {
   TELEMETRY_PATH, TENANT_HEADER,
-  grantAllowsBatch, parseTelemetryTenants,
+  grantAllowsBatch, isT1EvaluationBatch, parseTelemetryTenants,
 } from "@gmacko/hall-monitor-telemetry-contracts";
 import { verifyTelemetryRequest } from "@gmacko/hall-monitor-telemetry-sink";
 
@@ -39,7 +39,9 @@ export async function handleTelemetry(request: Request, env: TelemetryEnv): Prom
   if (grant === undefined) return reply(403, "forbidden");
   try {
     const verified = await verifyTelemetryRequest(request, grant.signingKey);
-    if (verified.tenant !== tenant || !grantAllowsBatch(grant, verified.batch)) return reply(403, "forbidden");
+    if (verified.tenant !== tenant ||
+        !grantAllowsBatch(grant, verified.batch) ||
+        !isT1EvaluationBatch(verified.batch)) return reply(403, "forbidden");
     return reply(202, "validated_not_persisted", verified.batch.events.length);
   } catch {
     // Intentionally indistinguishable for bad signature, malformed content and

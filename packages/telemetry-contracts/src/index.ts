@@ -88,3 +88,27 @@ export function grantAllowsBatch(grant: TenantTelemetryGrant, batch: TelemetryBa
   return batch.events.every((event) =>
     event.source === grant.source && grant.gradeBands.includes(event.gradeBand));
 }
+
+/**
+ * T1 does not accept user reports, case transitions, detailed category labels or
+ * supposed urgent events. Those require a distinct authorized T2+ source protocol.
+ * Only a fresh evaluation, optionally followed by one coarse candidate flag, may
+ * reach this validate-and-discard receiver.
+ */
+export function isT1EvaluationBatch(batch: TelemetryBatch): boolean {
+  if (batch.events.length < 1 || batch.events.length > 2) return false;
+  const first = batch.events[0]!;
+  if (first.kind !== "content_evaluated" || first.category !== "none" ||
+      first.priority !== "routine" || first.calendarKind !== "unknown" ||
+      first.reviewLatencyMs !== undefined) return false;
+  if (batch.events.length === 1) return true;
+  const next = batch.events[1]!;
+  return next.kind === "candidate_flagged" &&
+    next.category === "other" && next.priority === "routine" &&
+    next.calendarKind === "unknown" &&
+    next.reviewLatencyMs === undefined &&
+    next.occurredAt === first.occurredAt &&
+    next.source === first.source &&
+    next.modality === first.modality &&
+    next.gradeBand === first.gradeBand;
+}

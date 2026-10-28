@@ -69,6 +69,40 @@ export async function signedTelemetryRequest(
   });
 }
 
+/**
+ * Stream with a hard byte ceiling rather than allocating the entire body first.
+ * An internal, compromised or accidentally public producer cannot force
+ * unbounded request buffering even when Content-Length is absent.
+ */
+async function boundedRequestBytes(request: Request, maxBytes: number): Promise<Uint8Array> {
+  if (request.body === null) throw new TypeError("missing telemetry body");
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const part = await reader.read();
+      if (part.done) break;
+      total += part.value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        throw new TypeError("telemetry body size exceeded");
+      }
+      chunks.push(part.value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  if (total === 0) throw new TypeError("missing telemetry body");
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
+}
+
 /** A verified batch. Note that replay deduplication belongs to T2's exact ingress ledger. */
 export interface VerifiedTelemetry {
   readonly tenant: string;
@@ -105,11 +139,8 @@ export async function verifyTelemetryRequest(
   if (declared !== null && (!/^\d+$/.test(declared) || Number(declared) > MAX_TELEMETRY_BODY_BYTES)) {
     throw new TypeError("telemetry body size exceeded");
   }
-  const bytes = await request.arrayBuffer();
-  if (bytes.byteLength === 0 || bytes.byteLength > MAX_TELEMETRY_BODY_BYTES) {
-    throw new TypeError("telemetry body size exceeded");
-  }
-  const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(bytes);
+  const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: false })
+    .decode(await boundedRequestBytes(request, MAX_TELEMETRY_BODY_BYTES));
   const key = await hmacKey(secret);
   const verified = await crypto.subtle.verify("HMAC", key, bytesOfHex(signature), signedInput(tenant, timestamp, text));
   if (!verified) throw new TypeError("telemetry authentication failed");
