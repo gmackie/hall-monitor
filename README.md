@@ -7,6 +7,24 @@ product, role, curriculum context and institutional policy, and what should happ
 returns findings and a decision (`allow`, `coach`, `hold`, `block`, `support`) plus a content-free
 cost receipt. It never authorizes access to student data, impersonates a teacher, or awards grades.
 
+## Proposed safety intelligence research (not shipped)
+
+A detailed **design package and synthetic-only temporal analytics foundation** for privacy-preserving cyberbullying prevention, social-action moderation,
+pseudonymous incident correlation, student nudges, provider-independent Nouls, FERPA/COPPA,
+Zero Data Retention, and limited external-evidence workflows lives at
+[docs/design/README.md](docs/design/README.md). See the [research/source register](docs/references.md)
+and [validation milestones](docs/validation-and-rollout.md).
+
+The existing Worker remains a request-scoped evaluator: **no incident graph, identity vault,
+cross-conversation monitoring, OSINT collector, teacher case viewer, or student nudge UI is shipped**.
+The proposed case evidence service would be separate from the current content-free receipts and
+would require district-specific legal, safeguarding, security, provider and model calibration
+approvals before any learner deployment. The separate `packages/temporal-analytics` module has
+strict content-free validation, U.S. time-zone/DST aggregation, privacy display gates,
+scenario planning and an offline priority/shift staffing queue simulator, all with synthetic tests; it does **not** instrument real student data. See the
+[temporal system design](docs/design/temporal-analytics.md) and
+[U.S. time-of-day/day-of-week research](docs/design/us-moderation-timing.md). Do not interpret the new documents as a launch approval.
+
 ## Layout
 
 | Package | Purpose |
@@ -20,6 +38,7 @@ cost receipt. It never authorizes access to student data, impersonates a teacher
 | `packages/client` | TypeScript client used by products |
 | `packages/test-fixtures` | Synthetic fixtures only; never real student data |
 | `packages/shadow-report` | Shadow-run reports and policy decision diffs over synthetic corpora (private) |
+| `packages/temporal-analytics` | Strict synthetic/offline time-bucket, DST, aggregate, suppression, cost and staffing-queue reference implementation (not wired to live Worker) |
 | `apps/worker` | Cloudflare Worker HTTP API |
 
 ## Rules

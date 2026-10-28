@@ -1,0 +1,9 @@
+{
+  "name": "@gmacko/hall-monitor-temporal-analytics",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Synthetic/offline temporal moderation analytics primitives; no live student collection.",
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "test": "vitest run" }
+}
