@@ -1,6 +1,6 @@
 # Temporal Safety Intelligence — implementation blueprint and PR breakdown
 
-**2026-10-28.** This is the deliverable that converts the research/design package into executable work. The offline `packages/temporal-analytics` reference module, synthetic tests and priority staffing-queue simulator are implemented in the current branch; all live ingestion, incident correlation, case review, dashboards and on-call operations remain **future work**, with separate legal/privacy/human gates. Avoid treating this roadmap as permission to turn on student monitoring.
+**2026-10-28.** This is the deliverable that converts the research/design package into executable work. The offline `packages/temporal-analytics` reference module, synthetic tests and priority staffing-queue simulator exist in PR #11. **T1 is implemented as a separate, stacked draft PR #13**: opt-in signed service-binding transport and a validate-and-discard receiver with NO storage. Durable/production collection, incident correlation, case review, dashboards and on-call operations remain **future work**, with separate legal/privacy/human gates. Avoid treating this roadmap as permission to turn on student monitoring.
 
 ## Definition of done (long-term)
 
@@ -27,8 +27,8 @@ The new system should be additive and opt-in. Avoid broadening existing public s
 | PR | Deliverables / suggested paths | Test and approval boundary |
 |---|---|---|
 | T0 — Complete in current draft | `packages/temporal-analytics/{src,__tests__}`, temporal design docs, synthetic DST/bucket/cost and staffing queue primitives | CI passes, no live student collection. |
-| T1 — Trusted metrics adapter | `packages/telemetry-contracts`, `packages/telemetry-sink`, opt-in `apps/worker/src/metrics.ts` with binding + tenant allowlist, deployment preflight | Payload rejection, no cross-tenant data, zero hidden logs, no streaming student IDs |
-| T2 — Exact time rollups | `apps/telemetry-worker` plus district-level ingestion health, expected coverage, late-event correction, duplicate source outbox | Late/reordered/replayed event drills; exact rollup separate from sampled WAE |
+| T1 — Implemented in draft PR #13, approval still required | `packages/telemetry-contracts`, `packages/telemetry-sink`, opt-in `apps/worker/src/metrics.ts`, `apps/telemetry-worker` (validate only) | No content, default deny, per-tenant signatures, no replay emission; **no persistence**; [deployment guide](../implementation/t1-trusted-telemetry.md) |
+| T2 — Exact time rollups | Extend the existing validate-only `apps/telemetry-worker` with source outbox, durable dedupe, district-specific aggregate-only storage, ingestion health, event-time correction | Late/reordered/replayed event drills; exact rollup separate from sampled WAE |
 | T3 — Flightdeck integration | Service bindings to read-only reporting API, typed fixed queries, 168-cell UX, source/filter/version legend, privacy suppression | Small cohort and differencing attack tests, missing-v-zero tests, DST |
 | T4 — Provider registry and privacy gate | Multi-provider compatible Nouls + data classification/age rules and ZDR config verifier with Cloudflare Gateway Logpush/cache checks | Block unapproved routes, preserve model uncertainty, calibration and FERPA/COPPA legal sign-off |
 | T5 — Safety platform action contracts | `packages/safety-events`, source adapters in EducateOS/PlayTrek, trusted evidence references and outbox, action state machine | Signed authoritative facts, private mute excluded, malicious group mute/reports tested |
