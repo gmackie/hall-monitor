@@ -1,6 +1,11 @@
 # ForgeGraph delivery for Hall Monitor (HM-12). A merge to main deploys the production target from
-# a ForgeGraph node once CI is green: `buildCommand` and then `deployCommand` run in apps/worker
-# (the directory of `configPath`), with Cloudflare credentials from the workspace integration.
+# a ForgeGraph node once CI is green: `buildCommand` and then `deployCommand` run in `appDir`
+# (apps/worker), with Cloudflare credentials from the workspace integration.
+#
+# `appDir` is explicit on purpose (HM-18). Without it the agent takes the first shallow, sorted
+# apps/* directory holding a wrangler config; once apps/telemetry-worker existed that sorted ahead
+# of apps/worker, and the deploy failed with "Command wrangler not found" because the telemetry
+# package has no Wrangler dependency. `configPath` alone does not pin the build directory.
 #
 # The Worker's per-deployment configuration lives in ForgeGraph stage secrets
 # (`forge secret set <KEY> --stage production --stdin`): HM_DIGEST_KEY, HM_TRUSTED_ISSUERS and,
@@ -21,6 +26,7 @@ stages:
         nodeId: bf11e7b1-b9de-45be-a89d-ae08049c7598  # hetzner-fg runs the deploy
         config:
           workerName: hall-monitor
+          appDir: apps/worker
           configPath: apps/worker/wrangler.jsonc
           buildCommand: pnpm install --frozen-lockfile
           deployCommand: pnpm exec wrangler deploy --domain hall-monitor.gmac.io
