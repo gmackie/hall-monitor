@@ -32,7 +32,7 @@ describe("tenant-signed private telemetry requests", () => {
 
   it("fails on changed tenant, tampered body, wrong key and stale timestamp", async () => {
     const base = await signedTelemetryRequest(TENANT, KEY, batch);
-    expect(() => signedTelemetryRequest("other tenant", KEY, batch)).not.toBeUndefined();
+    await expect(signedTelemetryRequest("other tenant", KEY, batch)).rejects.toThrow();
     await expect(verifyTelemetryRequest(base.clone(), OTHER_KEY)).rejects.toThrow();
     const changed = new Request(base.clone(), { headers: new Headers(base.headers) });
     changed.headers.set("x-hm-telemetry-tenant", "tenant_other");
