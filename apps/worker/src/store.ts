@@ -27,6 +27,12 @@ export const PENDING_HOLD_MS = 2 * 60 * 1000;
 export const OUTBOX_BACKOFF_BASE_MS = 30 * 1000;
 export const OUTBOX_BACKOFF_MAX_MS = 15 * 60 * 1000;
 export const OUTBOX_BATCH_PER_ALARM = 10;
+/**
+ * Rows finalized per alarm when the policy approval has ended. Finalizing is local SQLite work with
+ * no network attempt, so a batch can be larger than a delivery batch; it is still bounded, and the
+ * object re-arms at once while rows remain.
+ */
+export const OUTBOX_WITHDRAW_BATCH_PER_ALARM = 100;
 export const DELIVERY_TIMEOUT_MS = 5000;
 const HOUR_MS = 60 * 60 * 1000;
 /**
@@ -269,19 +275,27 @@ export class IdempotencyStore extends DurableObject<Env> {
     const now = Date.now();
     this.#sql.exec("DELETE FROM idempotency WHERE expires_at <= ?", now);
     this.#sql.exec("DELETE FROM receipts WHERE expires_at <= ?", now);
-    let retentionOk = false;
+    let failed = false;
+    let withdrawing = false;
     try {
       // First, so a shortened policy trims gap evidence before anything is read or recorded.
-      retentionOk = this.#refreshPolicy(now);
+      const retentionOk = this.#refreshPolicy(now);
       this.#sql.exec("DELETE FROM telemetry_gaps WHERE expires_at <= ?", now);
       this.#expireOutbox(now);
-      await this.#deliverDue(now, retentionOk);
+      // Without an approved policy NOTHING queued may be sent, due or not: every row is finalized
+      // as a counted gap. Otherwise a not-yet-due row would keep the elapsed approval end as the
+      // earliest wake and re-arm the alarm in the past forever.
+      if (retentionOk) await this.#deliverDue(now);
+      else withdrawing = this.#withdrawQueued();
     } catch (error) {
+      failed = true;
       this.#sql.exec("DELETE FROM telemetry_gaps WHERE expires_at <= ?", now);
       log("error", "internal.error", { route: "telemetry.alarm", errorName: error instanceof Error ? error.name.slice(0, 64) : typeof error });
     }
-    const next = this.#nextWake();
-    if (next !== null) await this.ctx.storage.setAlarm(next);
+    // Rows left over from a bounded withdrawal batch continue straight away: each pass removes some,
+    // so this ends. Otherwise the earliest need; a failed pass backs off rather than spin on a past time.
+    const next = withdrawing ? Date.now() : this.#nextWake();
+    if (next !== null) await this.ctx.storage.setAlarm(failed ? Math.max(next, now + OUTBOX_BACKOFF_BASE_MS) : next);
   }
 
   /**
@@ -415,7 +429,23 @@ export class IdempotencyStore extends DurableObject<Env> {
     });
   }
 
-  async #deliverDue(now: number, retentionOk: boolean): Promise<void> {
+  /**
+   * The approval has ended (or never existed): finalize up to a bounded batch of queued rows as
+   * counted gaps, due or not, with no network attempt. Each batch is one transaction, so a row's
+   * gap and its removal are atomic and counted once. True while rows remain, so the caller continues
+   * at once; every pass removes at least one row and an empty outbox is not "remaining", so it ends.
+   */
+  #withdrawQueued(): boolean {
+    this.ctx.storage.transactionSync(() => {
+      const batch = this.#sql
+        .exec<OutboxRow>("SELECT * FROM telemetry_outbox ORDER BY next_attempt_at LIMIT ?", OUTBOX_WITHDRAW_BATCH_PER_ALARM)
+        .toArray();
+      for (const row of batch) this.#dropRowInTransaction(row, "revoked");
+    });
+    return this.#sql.exec<{ n: number }>("SELECT COUNT(*) AS n FROM telemetry_outbox").one().n > 0;
+  }
+
+  async #deliverDue(now: number): Promise<void> {
     const due = this.#sql
       .exec<OutboxRow>(
         "SELECT * FROM telemetry_outbox WHERE next_attempt_at <= ? AND deadline_at > ? ORDER BY next_attempt_at LIMIT ?",
@@ -437,7 +467,7 @@ export class IdempotencyStore extends DurableObject<Env> {
         this.#dropRow(row, "error");
         continue;
       }
-      if (!retentionOk || grant === undefined || !grantAllowsBatch(grant, { schemaVersion: 1, events })) {
+      if (grant === undefined || !grantAllowsBatch(grant, { schemaVersion: 1, events })) {
         this.#dropRow(row, "revoked");
         continue;
       }

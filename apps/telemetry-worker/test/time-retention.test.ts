@@ -316,6 +316,100 @@ describe("W8a retention: expiry, replay safety and read-time exclusion", () => {
     expect(await count("rollups")).toBe(1);
   });
 
+  describe("a shortened policy stays shortened when a longer one is applied before the short deadline", () => {
+    // Fictional: 87 300 s is 24 h 15 min, already on the 15-minute grid.
+    const SHORT_SECONDS = policyDoc(0, { policyRevision: "synthetic-policy-2", effectiveFrom: "2026-01-01T00:00:00Z", approvedUntil: "2030-01-01T00:00:00Z", dedupeSeconds: 87_300, rollupSeconds: 87_300, gapSeconds: 87_300 });
+    const longEnv = () => receiverEnv(fixedConfig());
+    const shortEnv87 = () => receiverEnv(fixedConfig({ retention: SHORT_SECONDS }));
+    const OLD_BUCKET = "2026-10-28T17:00:00.000Z";
+    // 17:00 bucket ends 17:15; the short rollup TTL puts its deadline at 2026-10-29 17:30.
+    const SHORT_DEADLINE = "2026-10-29T17:30:00.000Z";
+    const expiryOf = (table: "rollups" | "rollups_legacy", bucketStart: string) =>
+      sql<{ expires_at: number }>(`SELECT expires_at FROM ${table} WHERE bucket_start = ${Date.parse(bucketStart)}`).then((r) => r.map((x) => new Date(x.expires_at).toISOString()));
+
+    /** long -> short -> long, all before the short deadline. */
+    async function longShortLong() {
+      at("2026-10-28T18:10:00Z");
+      expect(await send(await delivery("2026-10-28T17:00:00.000Z"), longEnv())).toMatchObject({ status: "committed" });
+      at("2026-10-28T19:00:00Z");
+      expect(await send(await delivery("2026-10-28T18:55:00.000Z"), shortEnv87())).toMatchObject({ status: "committed" });
+      at("2026-10-28T20:00:00Z");
+      expect(await send(await delivery("2026-10-28T19:55:00.000Z"), longEnv())).toMatchObject({ status: "committed" });
+    }
+
+    it("clamps the stored deadline of a current rollup, so reads and the alarm both honour the shorter policy", async () => {
+      await longShortLong();
+      expect(await expiryOf("rollups", OLD_BUCKET)).toEqual([SHORT_DEADLINE]);
+      // The long policy is back in force, but the row only ever has the smaller deadline.
+      expect(await stub().retention()).toMatchObject({ state: "active", policyRevision: "synthetic-policy-1" });
+      at("2026-10-29T17:29:00Z");
+      expect((await stub().rollups()).map((r) => r.bucketStart)).toContain(OLD_BUCKET);
+
+      at("2026-10-29T17:31:00Z");
+      // Read-time exclusion first, with the row still stored ...
+      expect((await stub().rollups()).map((r) => r.bucketStart)).not.toContain(OLD_BUCKET);
+      expect(await count("rollups")).toBe(3);
+      // ... then the alarm really deletes it. The two later buckets are untouched.
+      expect(await alarm()).toBe(true);
+      expect(await count("rollups")).toBe(2);
+      expect((await stub().rollups()).map((r) => r.bucketStart)).toEqual(["2026-10-28T18:45:00.000Z", "2026-10-28T19:45:00.000Z"]);
+      // And a re-signed replay cannot bring the bucket back.
+      expect((await post(await delivery("2026-10-28T17:05:00.000Z"), longEnv())).status).toBe(422);
+      expect(await count("rollups")).toBe(2);
+    });
+
+    it("a restart (which reads the lengthened policy) does not prolong it either", async () => {
+      await longShortLong();
+      at("2026-10-29T17:31:00Z");
+      await runInDurableObject(stub(), async (_i, state) => {
+        class Aged extends Store { protected override now() { return Date.parse("2026-10-29T17:31:00Z"); } }
+        new Aged(state, env);
+        await state.blockConcurrencyWhile(async () => {});
+      });
+      expect(await expiryOf("rollups", OLD_BUCKET)).toEqual([]);
+      expect(await count("rollups")).toBe(2);
+    });
+
+    it("clamps a rollup written before W8a (legacy table) the same way, and the alarm deletes it", async () => {
+      // A pre-W8a row as the migration leaves it: a ten-year ceiling and no dimensions.
+      const bucket = Date.parse(OLD_BUCKET);
+      await sql("SELECT 1"); // creates the object, and so its tables
+      await runInDurableObject(stub(), (_i, state) => {
+        state.storage.sql.exec("INSERT INTO rollups_legacy VALUES (?, 'educateos', 'g9_12', 'text', 'rev-a', 4, 1, ?)", bucket, bucket + 900_000 + 10 * 365 * 86_400_000);
+      });
+      at("2026-10-28T18:10:00Z");
+      expect((await stub().rollups()).map((r) => r.bucketStart)).toEqual([OLD_BUCKET]);
+      at("2026-10-28T19:00:00Z");
+      await send(await delivery("2026-10-28T18:55:00.000Z"), shortEnv87());
+      at("2026-10-28T20:00:00Z");
+      await send(await delivery("2026-10-28T19:55:00.000Z"), longEnv());
+      expect(await expiryOf("rollups_legacy", OLD_BUCKET)).toEqual([SHORT_DEADLINE]);
+
+      at("2026-10-29T17:31:00Z");
+      expect((await stub().rollups()).map((r) => r.bucketStart)).not.toContain(OLD_BUCKET);
+      expect(await count("rollups_legacy")).toBe(1);
+      await alarm();
+      expect(await count("rollups_legacy")).toBe(0);
+    });
+
+    it("does not extend a deadline when the lengthened policy is applied first, and tightens a legacy row that has no stored deadline", async () => {
+      // short -> long: the row written under the short policy keeps its short deadline.
+      at("2026-10-28T18:10:00Z");
+      await send(await delivery("2026-10-28T17:00:00.000Z"), shortEnv87());
+      at("2026-10-28T20:00:00Z");
+      await send(await delivery("2026-10-28T19:55:00.000Z"), longEnv());
+      expect(await expiryOf("rollups", OLD_BUCKET)).toEqual([SHORT_DEADLINE]);
+      // A legacy row with a NULL deadline (the column is nullable) must not make the clamp a no-op.
+      const bucket = Date.parse("2026-10-28T16:00:00.000Z");
+      await runInDurableObject(stub(), (_i, state) => {
+        state.storage.sql.exec("INSERT INTO rollups_legacy VALUES (?, 'educateos', 'g9_12', 'text', 'rev-a', 2, 0, NULL)", bucket);
+      });
+      at("2026-10-28T20:10:00Z");
+      await send(await delivery("2026-10-28T20:05:00.000Z"), shortEnv87());
+      expect(await expiryOf("rollups_legacy", "2026-10-28T16:00:00.000Z")).toEqual(["2026-10-29T16:30:00.000Z"]);
+    });
+  });
+
   it("refuses ingest when the approval lapses, keeps already stored data only for its own TTL, and stores nothing new", async () => {
     const lapsing = policyDoc(0, { effectiveFrom: "2026-01-01T00:00:00Z", approvedUntil: "2026-10-28T20:00:00Z" });
     const e = receiverEnv(fixedConfig({ retention: lapsing }));
@@ -343,8 +437,8 @@ describe("W8a revocation", () => {
     at("2026-10-28T18:10:00Z");
     const d1 = await delivery("2026-10-28T18:05:00.000Z", { pair: true });
     const d2 = await delivery("2026-10-28T17:00:00.000Z");
-    // Exactly at the future-skew limit: its bucket (18:15) starts at the revocation floor, so only the
-    // dedupe state, not the tombstone, can stop it being counted again after re-enrolment.
+    // Exactly at the future-skew limit (accepted 5 minutes ahead): its bucket (18:15) starts at the
+    // clock-rounded revocation time, yet its totals are purged like the others and must not be acked.
     const d3 = await delivery("2026-10-28T18:15:00.000Z");
     expect(await send(d1, active())).toMatchObject({ status: "committed" });
     expect(await send(d2, active())).toMatchObject({ status: "committed" });
@@ -362,7 +456,8 @@ describe("W8a revocation", () => {
     expect(await stub().health()).toMatchObject({ lastIngestAt: null, committed: 0, deduplicated: 0, conflicts: 0 });
     // Dedupe state is deliberately kept; only the bounded tombstone and the policy state are added.
     expect(await count("deliveries")).toBe(3);
-    expect(await stub().retention()).toEqual({ state: "revoked", policyRevision: "revoked", revokedFloor: "2026-10-28T18:15:00.000Z" });
+    // The rejection boundary covers every purged bucket: the newest one (18:15) ends at 18:30.
+    expect(await stub().retention()).toEqual({ state: "revoked", policyRevision: "revoked", revokedFloor: "2026-10-28T18:30:00.000Z" });
     expect((await totals(OTHER)).evaluated).toBe(1);
 
     // While revoked nothing is accepted, held or new, and nothing is acknowledged.
@@ -373,13 +468,14 @@ describe("W8a revocation", () => {
     // Re-enrolling does not reset the no-recount boundary.
     // A delivery for the purged period is NOT acknowledged as durably counted, because it is not:
     // the producer keeps it, then records a coverage gap. Its dedupe state is still held, so nothing
-    // can recount it, with or without the tombstone.
-    for (const held of [d1, d2]) {
+    // can recount it. That includes d3, the one accepted at the edge of the future-skew allowance.
+    for (const held of [d1, d2, d3]) {
       const refused = await post(held, active());
       expect([refused.status, await refused.json()]).toEqual([422, { code: "stale_occurrence" }]);
+      expect((await send(held, active())).kind).toBe("retry");
     }
-    expect(await send(d3, active())).toEqual({ kind: "acked", status: "deduplicated" });
     expect(await totals()).toEqual({ evaluated: 0, candidate: 0, rows: 0 });
+    expect(await count("deliveries")).toBe(3);
     // A new delivery for the purged period is refused (the tombstone), so the totals cannot be rebuilt.
     const rebuilt = await post(await delivery("2026-10-28T18:05:00.000Z"), active());
     expect([rebuilt.status, await rebuilt.json()]).toEqual([422, { code: "stale_occurrence" }]);
@@ -394,6 +490,72 @@ describe("W8a revocation", () => {
     await alarm();
     expect((await stub().retention())!.revokedFloor).toBeNull();
     expect(await count("deliveries")).toBe(0);
+  });
+
+  it("does not acknowledge a purged delivery accepted at the revocation floor (reviewer scenario)", async () => {
+    at("2026-10-28T18:10:00Z");
+    const held = await delivery("2026-10-28T18:15:00.000Z");
+    expect(await send(held, active())).toMatchObject({ status: "committed" });
+    expect((await post(held, revoked())).status).toBe(403);
+    expect(await stub().rollups()).toEqual([]);
+    const replay = await post(held, active());
+    expect([replay.status, await replay.json()]).toEqual([422, { code: "stale_occurrence" }]);
+    // A replay is not acknowledged as durable, in any form the producer would accept.
+    expect((await send(held, active())).kind).toBe("retry");
+    expect(await totals()).toEqual({ evaluated: 0, candidate: 0, rows: 0 });
+  });
+
+  it("rejects every purged bucket, including the newest one and the one before it, and the exact boundary admits new occurrences", async () => {
+    at("2026-10-28T18:10:00Z");
+    // Buckets 17:45 (old), 18:00 (open) and 18:15 (future skew), each carrying counts that get purged.
+    const held = [
+      await delivery("2026-10-28T17:50:00.000Z"),
+      await delivery("2026-10-28T18:05:00.000Z", { pair: true }),
+      await delivery("2026-10-28T18:14:59.999Z"),
+      await delivery("2026-10-28T18:15:00.000Z"),
+      await delivery("2026-10-28T18:15:00.001Z", { pair: true }),
+      await delivery("2026-10-28T18:15:00.000Z", { event: { modality: "image" } }),
+    ];
+    for (const b of held) expect(await send(b, active())).toMatchObject({ status: "committed" });
+    expect(await totals()).toMatchObject({ evaluated: 6 });
+    await post(held[0]!, revoked());
+    expect(await totals()).toEqual({ evaluated: 0, candidate: 0, rows: 0 });
+    expect((await stub().retention())!.revokedFloor).toBe("2026-10-28T18:30:00.000Z");
+
+    for (const b of held) {
+      expect((await post(b, active())).status).toBe(422);
+      expect((await send(b, active())).kind).toBe("retry");
+    }
+    // A NEW delivery for any purged bucket is refused too: it could only rebuild a partial total.
+    at("2026-10-28T18:12:00Z");
+    for (const iso of ["2026-10-28T17:55:00.000Z", "2026-10-28T18:05:00.000Z", "2026-10-28T18:16:00.000Z"]) {
+      expect((await post(await delivery(iso), active())).status, iso).toBe(422);
+    }
+    expect(await totals()).toEqual({ evaluated: 0, candidate: 0, rows: 0 });
+
+    // The exact boundary: 18:29:59.999 is still a purged bucket; 18:30:00.000 is genuinely new.
+    at("2026-10-28T18:26:00Z");
+    expect((await post(await delivery("2026-10-28T18:29:59.999Z"), active())).status).toBe(422);
+    expect(await send(await delivery("2026-10-28T18:30:00.000Z"), active())).toEqual({ kind: "acked", status: "committed" });
+    expect(await totals()).toMatchObject({ evaluated: 1, rows: 1 });
+    // The dedupe rows of the purged deliveries were kept throughout, so nothing was erased to make this work.
+    expect(await count("deliveries")).toBe(7);
+  });
+
+  it("covers purged rollups from before W8a as well, and a repeated revocation never lowers the boundary", async () => {
+    at("2026-10-28T18:10:00Z");
+    await sql("SELECT 1");
+    const bucket = Date.parse("2026-10-28T19:00:00.000Z"); // newer than anything the clock-rounded floor would cover
+    await runInDurableObject(stub(), (_i, state) => {
+      state.storage.sql.exec("INSERT INTO rollups_legacy VALUES (?, 'educateos', 'g9_12', 'text', 'rev-a', 3, 1, ?)", bucket, bucket + 900_000 + 86_400_000 * 365);
+    });
+    await post(await delivery("2026-10-28T18:05:00.000Z"), revoked());
+    expect(await count("rollups_legacy")).toBe(0);
+    expect((await stub().retention())!.revokedFloor).toBe("2026-10-28T19:15:00.000Z");
+    // Revoking again (every request under a revoked configuration does) cannot lower it.
+    at("2026-10-28T18:20:00Z");
+    await post(await delivery("2026-10-28T18:19:00.000Z"), revoked());
+    expect((await stub().retention())!.revokedFloor).toBe("2026-10-28T19:15:00.000Z");
   });
 
   it("revoking a tenant that never stored anything is harmless and still refuses ingest", async () => {

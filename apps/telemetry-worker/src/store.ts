@@ -441,15 +441,26 @@ export class TelemetryAggregateStore extends DurableObject<object> {
 
   /**
    * An authorized revocation: deletes the tenant's rollups and health now, and refuses any
-   * occurrence at or before the revocation (a bounded tombstone) so re-enrolling cannot rebuild
-   * purged totals. Dedupe digests are deliberately KEPT until their normal horizon expiry, so a
-   * held delivery cannot be recounted either; the tombstone itself ages out once the accepted
-   * occurrence window has passed. Only the Worker calls this, after authenticating the tenant and
-   * finding its server-owned configuration revoked.
+   * occurrence in a bucket the purge touched or that starts before the revocation (a bounded
+   * tombstone), so re-enrolling cannot rebuild purged totals. The boundary is the later of the
+   * revocation time rounded up to a bucket and the end of the newest purged bucket: an occurrence
+   * is accepted up to the future-skew allowance ahead of the clock, so a purged bucket can start
+   * after the revocation time itself. Dedupe digests are deliberately KEPT until their normal
+   * horizon expiry, so a held delivery cannot be recounted either; and because its bucket is below
+   * the boundary it is refused, never acknowledged as durably counted when its totals are gone. The
+   * tombstone itself ages out once the accepted occurrence window has passed. Only the Worker calls
+   * this, after authenticating the tenant and finding its server-owned configuration revoked.
    */
   async revoke(): Promise<void> {
     const now = this.now();
     this.ctx.storage.transactionSync(() => {
+      // Read before the delete: the held deliveries and the totals being purged both name buckets.
+      const newest = (query: string) => this.#sql.exec<{ end: number | null }>(query).one().end ?? 0;
+      const purgedUpTo = Math.max(
+        newest("SELECT MAX(bucket_end) AS end FROM deliveries"),
+        newest(`SELECT MAX(bucket_start) + ${BUCKET_MS} AS end FROM rollups`),
+        newest(`SELECT MAX(bucket_start) + ${BUCKET_MS} AS end FROM rollups_legacy`),
+      );
       this.#sql.exec("DELETE FROM rollups");
       this.#sql.exec("DELETE FROM rollups_legacy");
       this.#resetHealth();
@@ -458,7 +469,7 @@ export class TelemetryAggregateStore extends DurableObject<object> {
          VALUES (1, 'revoked', 'revoked', 0, 0, 0, ?)
          ON CONFLICT (id) DO UPDATE SET state = 'revoked', policy_revision = 'revoked', dedupe_ms = 0, rollup_ms = 0, health_ms = 0,
                                         revoked_floor = MAX(COALESCE(revoked_floor, 0), excluded.revoked_floor)`,
-        ceilToBucket(now),
+        Math.max(ceilToBucket(now), purgedUpTo),
       );
     });
     await this.#scheduleEarliest();
@@ -520,6 +531,16 @@ export class TelemetryAggregateStore extends DurableObject<object> {
          WHERE expires_at IS NOT NULL AND last_ingest_at IS NOT NULL`,
         applied.healthMs,
       );
+      // Rollups too, current and pre-W8a alike, and persistently: the read and purge filters apply the
+      // policy in force at that moment, so a later, longer policy would otherwise bring back a
+      // deadline the shorter one already ended. A pre-W8a row may have no stored deadline at all.
+      for (const table of ["rollups", "rollups_legacy"]) {
+        this.#sql.exec(
+          `UPDATE ${table} SET expires_at = MIN(COALESCE(expires_at, bucket_start + ${BUCKET_MS} + ?), bucket_start + ${BUCKET_MS} + ?)`,
+          applied.rollupMs,
+          applied.rollupMs,
+        );
+      }
       this.#purge(now);
     });
   }

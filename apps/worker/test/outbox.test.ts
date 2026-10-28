@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EvaluationResult } from "@gmacko/hall-monitor-contracts";
 import { handle } from "../src/app.ts";
 import { prepareTelemetryDelivery } from "../src/metrics.ts";
-import type { IdempotencyStore } from "../src/store.ts";
+import { OUTBOX_WITHDRAW_BATCH_PER_ALARM, type IdempotencyStore } from "../src/store.ts";
 import type { Env } from "../src/env.ts";
 import { IdempotencyStore as TestStore } from "./entry.ts";
 import { ack, binding, probe, type Attempt } from "./collector.ts";
@@ -529,6 +529,119 @@ describe("W8a producer retention policy", () => {
     await alarmNow();
     expect(await stored()).toHaveLength(0);
     await runInDurableObject(stub(), async (_i, st) => { expect(await st.storage.getAlarm()).toBeNull(); });
+  });
+
+  describe("when the approval has ended with rows still queued", () => {
+    const COUNT = "SELECT COUNT(*) AS n FROM telemetry_outbox";
+
+    /**
+     * Runs the object's real alarm with the stored approval already elapsed. The only seam used is a
+     * spy on setAlarm that records the time asked for; it passes nothing through (an alarm armed for
+     * the past would fire by itself and race the runner's storage teardown) and is always restored.
+     */
+    async function alarmAfterApprovalEnded(prepare: (sql: SqlStorage) => void) {
+      return runInDurableObject(stub(), async (instance, st) => {
+        await st.storage.deleteAlarm();
+        st.storage.sql.exec("UPDATE telemetry_policy SET approved_until = ?", Date.now() - 1000);
+        prepare(st.storage.sql);
+        const planned: number[] = [];
+        const spy = vi.spyOn(st.storage, "setAlarm").mockImplementation(async (at) => { planned.push(Number(at)); });
+        try {
+          await instance.alarm();
+          return {
+            queued: st.storage.sql.exec<{ n: number }>(COUNT).one().n,
+            gapsLost: st.storage.sql.exec<{ n: number }>("SELECT COALESCE(SUM(lost), 0) AS n FROM telemetry_gaps").one().n,
+            planned,
+            now: Date.now(),
+          };
+        } finally {
+          spy.mockRestore();
+        }
+      });
+    }
+
+    it("finalizes a queued row that is not yet due, with no send and no alarm in the past", async () => {
+      probe.handler = async (a) => ack(a, KEY);
+      await evaluate(bindings({ HM_TELEMETRY_V2_RETENTION: retentionFor({ approvedUntil: iso(Date.now() + 60_000) }) }));
+      probe.retention = retentionFor({ approvedUntil: iso(Date.now() - 1000), effectiveFrom: iso(Date.now() - 3 * DAY) });
+      const result = await alarmAfterApprovalEnded((sql) => sql.exec("UPDATE telemetry_outbox SET next_attempt_at = ?", Date.now() + 60_000));
+      expect(result.queued).toBe(0);
+      expect(result.gapsLost).toBe(1);
+      expect(result.planned.every((at) => at > result.now)).toBe(true);
+      expect(probe.attempts).toHaveLength(0);
+      expect(await state()).toMatchObject({ pending: 0, gaps: [{ reason: "revoked", lost: 1 }] });
+    });
+
+    it("drains a queue larger than one batch in bounded steps, once each, never re-arming for an elapsed end", async () => {
+      probe.handler = async (a) => ack(a, KEY);
+      await evaluate(bindings());
+      probe.retention = retentionFor({ approvedUntil: iso(Date.now() - 1000), effectiveFrom: iso(Date.now() - 3 * DAY) });
+      const total = OUTBOX_WITHDRAW_BATCH_PER_ALARM * 2 + 7;
+      // Not due, and in two different UTC hours so each gap is counted against its own hour.
+      const seeded = (sql: SqlStorage) => {
+        const [first] = sql.exec<{ payload: string; digest: string; occurred_at: number }>("SELECT payload, digest, occurred_at FROM telemetry_outbox").toArray();
+        for (let i = 1; i < total; i++) {
+          sql.exec(
+            "INSERT INTO telemetry_outbox (delivery_id, tenant, digest, payload, occurred_at, attempts, next_attempt_at, deadline_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?)",
+            `dlv_seeded_${i}`, TENANT, first!.digest, first!.payload, first!.occurred_at - (i % 2) * 2 * 60 * 60 * 1000,
+            Date.now() + 60_000 + i, Date.now() + 6 * 60 * 60 * 1000,
+          );
+        }
+        sql.exec("UPDATE telemetry_outbox SET next_attempt_at = ? WHERE delivery_id NOT LIKE 'dlv_seeded_%'", Date.now() + 60_000);
+      };
+      const remaining: number[] = [];
+      let lost = 0;
+      let last = await alarmAfterApprovalEnded(seeded);
+      for (let step = 0; step < 10; step++) {
+        remaining.push(last.queued);
+        lost = last.gapsLost;
+        if (last.queued === 0) break;
+        // More is queued, so the object asks to run again at once: that is the forward progress, and
+        // it is never a time that stays in the past once the queue is empty.
+        expect(last.planned).toHaveLength(1);
+        last = await alarmAfterApprovalEnded(() => {});
+      }
+      expect(remaining).toEqual([total - OUTBOX_WITHDRAW_BATCH_PER_ALARM, total - 2 * OUTBOX_WITHDRAW_BATCH_PER_ALARM, 0]);
+      expect(lost).toBe(total); // every row counted exactly once
+      expect(probe.attempts).toHaveLength(0);
+      expect(last.planned.every((at) => at > last.now)).toBe(true);
+      const hours = await stored();
+      expect(hours).toHaveLength(2);
+      expect(hours.reduce((n, g) => n + g.lost, 0)).toBe(total);
+    });
+
+    it("after a restart, wakes at once for the ended approval, finalizes the row and then goes idle", async () => {
+      probe.handler = async (a) => ack(a, KEY);
+      await evaluate(bindings());
+      probe.retention = retentionFor({ approvedUntil: iso(Date.now() - 1000), effectiveFrom: iso(Date.now() - 3 * DAY) });
+      const outcome = await runInDurableObject(stub(), async (_i, st) => {
+        st.storage.sql.exec("UPDATE telemetry_policy SET approved_until = ?", Date.now() - 1000);
+        st.storage.sql.exec("UPDATE telemetry_outbox SET next_attempt_at = ?", Date.now() + 3_600_000);
+        await st.storage.deleteAlarm();
+        const planned: number[] = [];
+        const spy = vi.spyOn(st.storage, "setAlarm").mockImplementation(async (at) => { planned.push(Number(at)); });
+        try {
+          // A restart is a new object over the same storage; its constructor decides the first wake.
+          const restarted = new TestStore(st, env);
+          await st.blockConcurrencyWhile(async () => {});
+          const atRestart = [...planned];
+          planned.length = 0;
+          // The alarm the restart asked for is run by hand (the spy means it did not fire by itself).
+          await restarted.alarm();
+          return { atRestart, afterAlarm: planned, now: Date.now() };
+        } finally {
+          spy.mockRestore();
+        }
+      });
+      // The retry time is an hour away, but the ended approval makes the queued row ineligible now.
+      expect(outcome.atRestart).toHaveLength(1);
+      expect(outcome.atRestart[0]!).toBeLessThanOrEqual(outcome.now);
+      expect(await outboxRows()).toHaveLength(0);
+      expect(await state()).toMatchObject({ pending: 0, gaps: [{ reason: "revoked", lost: 1 }] });
+      expect(probe.attempts).toHaveLength(0);
+      // Nothing queued and no elapsed end left to wake for: whatever is armed is future idle cleanup.
+      expect(outcome.afterAlarm.every((at) => at > outcome.now)).toBe(true);
+    });
   });
 
   it("wakes for the approval ending when rows are queued, not only for retries and cleanup", async () => {
