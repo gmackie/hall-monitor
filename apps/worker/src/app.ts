@@ -66,6 +66,8 @@ async function handleRoute(request: Request, env: Env, ctx?: ExecutionContext): 
         return await capabilities(request, env);
       case "evaluate":
         return await evaluateOne(request, env, ctx);
+      case "governed":
+        return await evaluateOne(request, env, ctx, true);
       case "batch":
         return await evaluateBatch(request, env, ctx);
       case "receipt":
@@ -86,11 +88,11 @@ async function handleRoute(request: Request, env: Env, ctx?: ExecutionContext): 
 }
 
 type Route =
-  | { readonly name: "health" | "openapi" | "ready" | "capabilities" | "evaluate" | "batch" | "method_not_allowed" | "not_found" }
+  | { readonly name: "health" | "openapi" | "ready" | "capabilities" | "evaluate" | "governed" | "batch" | "method_not_allowed" | "not_found" }
   | { readonly name: "receipt"; readonly evaluationId: string };
 
 function routeOf(method: string, path: string): Route {
-  const want = (expected: string, name: "health" | "openapi" | "ready" | "capabilities" | "evaluate" | "batch"): Route =>
+  const want = (expected: string, name: "health" | "openapi" | "ready" | "capabilities" | "evaluate" | "governed" | "batch"): Route =>
     method === expected ? { name } : { name: "method_not_allowed" };
   switch (path) {
     case "/v1/health":
@@ -103,6 +105,8 @@ function routeOf(method: string, path: string): Route {
       return want("GET", "capabilities");
     case "/v1/evaluations":
       return want("POST", "evaluate");
+    case "/v1/evaluations:governed":
+      return want("POST", "governed");
     case "/v1/evaluations:batch":
       return want("POST", "batch");
   }
@@ -184,9 +188,10 @@ async function capabilities(request: Request, env: Env): Promise<Response> {
   return json(body);
 }
 
-async function evaluateOne(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
+async function evaluateOne(request: Request, env: Env, ctx?: ExecutionContext, requireGovernance = false): Promise<Response> {
   const config = loadConfig(env);
   const identity = await authenticate(request, env, config, SCOPE_EVALUATE);
+  if (requireGovernance && identity.governance === undefined) throw new HttpError("forbidden", "signed governance context is required");
   const parsed = parseOrThrow(await readJson(request, MAX_EVALUATION_BYTES));
   assertTenant(identity, parsed);
   const outcome = await runEvaluation(parsed, identity, config, env, ctx);
@@ -265,15 +270,29 @@ async function runEvaluation(request: EvaluationRequest, identity: ServiceIdenti
     log("info", "evaluation.failed", { tenant, errorCode: error.body.code, status: error.status, latencyMs: Date.now() - started });
     return { error };
   };
+  if (identity.governance !== undefined) {
+    if (config.governance === undefined) return fail(new HttpError("unavailable", "governance configuration is invalid"));
+    if (!Object.hasOwn(config.governance.tenants, tenant)) return fail(new HttpError("forbidden", "governance enrollment is required"));
+  }
   if (config.overlays === undefined) return fail(new HttpError("unavailable", "policy configuration is invalid"));
 
   if (env.HM_DIGEST_KEY === undefined || env.HM_DIGEST_KEY.length < 32) return fail(new HttpError("unavailable", "request digest key is not configured"));
 
   const store = storeFor(env, tenant);
-  const digest = await requestDigest(request, env.HM_DIGEST_KEY);
+  // Bind signed authority to the idempotency record without letting freshly minted expiry
+  // timestamps change a retry's meaning. A legacy result can never replay as a governed result.
+  const governance = identity.governance;
+  const authority = governance === undefined ? undefined : {
+    issuer: identity.issuer,
+    context: { ...governance, issuedAt: undefined, expiresAt: undefined },
+  };
+  const digest = await requestDigest(authority === undefined ? request : { domain: "governed-evaluation-v1", request, authority }, env.HM_DIGEST_KEY);
   const begun = await store.begin(request.idempotencyKey, digest);
   switch (begun.kind) {
     case "replay":
+      if (authority !== undefined && !modelAllowed(env, request, identity, config, CLEF_FLASH_MODEL)) {
+        return fail(new HttpError("forbidden", "governance no longer authorizes this request"));
+      }
       log("info", "evaluation.replayed", {
         tenant,
         evaluationId: begun.result.evaluationId,
@@ -301,7 +320,7 @@ async function runEvaluation(request: EvaluationRequest, identity: ServiceIdenti
       clock: () => new Date(),
       ids: { evaluationId: () => newId("eval"), receiptId: () => newId("rcpt") },
       // Enrollment cannot turn denied classification into an allow through an old shadow override.
-      enforcement: config.governance === undefined || Object.hasOwn(config.governance.tenants, tenant)
+      enforcement: identity.governance !== undefined || config.governance === undefined || Object.hasOwn(config.governance.tenants, tenant)
         ? { mode: "enforce" }
         : enforcementFor(config, tenant, (profile) => log("warn", "shadow.refused", { tenant, profileId: profile.id })),
     });
@@ -358,17 +377,7 @@ async function classifierFor(env: Env, request: EvaluationRequest, identity: Ser
   const questions = await loadDecisionQuestions(env);
   if (questions === undefined) return {};
   const gatewayId = env.HM_AI_GATEWAY_ID === undefined || env.HM_AI_GATEWAY_ID === "" ? undefined : env.HM_AI_GATEWAY_ID;
-  const authorizeModel = (modelId: string): boolean => {
-    const decision = authorizeModelTransfer(config.governance, {
-      tenant: identity.tenant, issuer: identity.issuer, context: identity.governance,
-      requestId: request.requestId, product: request.source.product, surface: request.source.surface,
-      evaluationKind: request.evaluationKind, modelId, gatewayId, sourceRevision: env.FG_COMMIT_HASH,
-      accountId: env.HM_GOVERNANCE_ACCOUNT_ID, workerName: env.HM_GOVERNANCE_WORKER_NAME,
-      now: Math.floor(Date.now() / 1000),
-    });
-    if (!decision.allowed) log("warn", "governance.denied", { reason: decision.reason });
-    return decision.allowed;
-  };
+  const authorizeModel = (modelId: string): boolean => modelAllowed(env, request, identity, config, modelId);
   if (!authorizeModel(CLEF_FLASH_MODEL)) return {};
   const gateway =
     gatewayId === undefined
@@ -385,6 +394,19 @@ async function classifierFor(env: Env, request: EvaluationRequest, identity: Ser
       authorizeModel,
     }),
   };
+}
+
+/** Current authority is required at each transfer and before releasing a governed replay. */
+function modelAllowed(env: Env, request: EvaluationRequest, identity: ServiceIdentity, config: Config, modelId: string): boolean {
+  const decision = authorizeModelTransfer(config.governance, {
+    tenant: identity.tenant, issuer: identity.issuer, context: identity.governance,
+    requestId: request.requestId, product: request.source.product, surface: request.source.surface,
+    evaluationKind: request.evaluationKind, modelId, gatewayId: env.HM_AI_GATEWAY_ID || undefined,
+    sourceRevision: env.FG_COMMIT_HASH, accountId: env.HM_GOVERNANCE_ACCOUNT_ID, workerName: env.HM_GOVERNANCE_WORKER_NAME,
+    now: Math.floor(Date.now() / 1000),
+  });
+  if (!decision.allowed) log("warn", "governance.denied", { reason: decision.reason });
+  return decision.allowed;
 }
 
 /** Content-free log fields recording a shadow-mode result's would-be decision. */

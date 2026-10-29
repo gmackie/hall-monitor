@@ -37,7 +37,7 @@ describe("buildOpenApiDocument", () => {
   it("is OpenAPI 3.1 and documents every route the Worker serves", () => {
     expect(document.openapi).toBe("3.1.0");
     expect(Object.keys(document.paths).sort()).toEqual(
-      ["/v1/capabilities", "/v1/evaluations", "/v1/evaluations:batch", "/v1/health", "/v1/openapi.json", "/v1/ready", "/v1/receipts/{evaluationId}"].sort(),
+      ["/v1/capabilities", "/v1/evaluations", "/v1/evaluations:governed", "/v1/evaluations:batch", "/v1/health", "/v1/openapi.json", "/v1/ready", "/v1/receipts/{evaluationId}"].sort(),
     );
     expect(document.paths["/v1/health"]!.get!.security).toEqual([]);
     expect(document.paths["/v1/openapi.json"]!.get!.security).toEqual([]);

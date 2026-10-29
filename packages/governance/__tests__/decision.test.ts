@@ -53,7 +53,8 @@ describe("per-transfer governance", () => {
 
   it("does not turn a malformed explicit config into unenrolled bypass", () => {
     expect(authorizeModelTransfer(parseGovernanceConfig("{}"), request())).toEqual({ allowed: false, reason: "invalid_config" });
-    expect(authorizeModelTransfer(parseGovernanceConfig(undefined), request())).toEqual({ allowed: true, governed: false });
+    expect(authorizeModelTransfer(parseGovernanceConfig(undefined), request())).toEqual({ allowed: false, reason: "enrollment_missing" });
+    expect(authorizeModelTransfer(parseGovernanceConfig(undefined), { ...request(), context: undefined })).toEqual({ allowed: true, governed: false });
   });
 
   it("requires governance extension keys and refuses birth dates and extra fields", () => {

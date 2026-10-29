@@ -25,10 +25,63 @@ function setup() {
   const env: { -readonly [K in keyof Env]?: Env[K] } = { AI: fakeAi, FG_COMMIT_HASH: e.route.sourceRevision, HM_GOVERNANCE_ACCOUNT_ID: e.route.accountId, HM_GOVERNANCE_WORKER_NAME: e.route.workerName };
   return { c, context, req, env, now };
 }
-async function post(s: ReturnType<typeof setup>, claims: unknown = s.context) {
+async function post(s: ReturnType<typeof setup>, claims: unknown = s.context, path = "/v1/evaluations:governed") {
   const token = await mintToken("educateos", { tenant: "tenant_synthetic", claims: claims === undefined ? {} : { hm_governance: claims } });
-  return direct("/v1/evaluations", call("POST", token, s.req), { ...s.env, HM_GOVERNANCE: JSON.stringify(s.c) });
+  return direct(path, call("POST", token, s.req), { ...s.env, HM_GOVERNANCE: JSON.stringify(s.c) });
 }
+
+it.each([undefined, "{}", "not-json"])("required governance refuses absent or malformed config %s", async (setting) => {
+  const s = setup(), token = await mintToken("educateos", { tenant: "tenant_synthetic", claims: { hm_governance: s.context } });
+  const response = await direct("/v1/evaluations:governed", call("POST", token, s.req), { ...s.env, ...(setting === undefined ? {} : { HM_GOVERNANCE: setting }) });
+  expect(response.status).toBe(setting === undefined ? 403 : 503);
+  expect(fakeAi.calls).toHaveLength(0);
+});
+
+it("requires signed context instead of a body or header assertion", async () => {
+  const s = setup(), init = call("POST", await mintToken("educateos", { tenant: "tenant_synthetic" }), { ...s.req, hm_governance: s.context });
+  const response = await direct("/v1/evaluations:governed", { ...init, headers: { ...init.headers, "x-hm-require-governance": "true" } }, { ...s.env, HM_GOVERNANCE: JSON.stringify(s.c) });
+  expect(response.status).toBe(403); expect(fakeAi.calls).toHaveLength(0);
+});
+
+it.each(["/v1/evaluations", "/v1/evaluations:governed"])("refuses a signed claim without enrollment on %s", async (path) => {
+  const s = setup(); delete s.c.tenants.tenant_synthetic;
+  expect((await post(s, s.context, path)).status).toBe(403); expect(fakeAi.calls).toHaveLength(0);
+});
+
+it("rejects malformed signed context and other methods on the governed endpoint", async () => {
+  const s = setup();
+  expect((await post(s, { ...s.context, dateOfBirth: "2000-01-01" })).status).toBe(401);
+  expect((await direct("/v1/evaluations:governed", call("GET", undefined))).status).toBe(405);
+  expect(fakeAi.calls).toHaveLength(0);
+});
+
+it("preserves unenrolled legacy evaluations without signed governance context", async () => {
+  const response = await direct("/v1/evaluations", call("POST", await mintToken("educateos"), evaluationRequest()), { AI: fakeAi });
+  expect(EvaluationResult.parse(await response.json()).decision).toBe("allow"); expect(fakeAi.calls).toHaveLength(1);
+});
+
+it("never replays a legacy result as a governed evaluation", async () => {
+  const s = setup();
+  const legacy = await direct("/v1/evaluations", call("POST", await mintToken("educateos", { tenant: "tenant_synthetic" }), s.req), s.env);
+  expect(legacy.status).toBe(200); expect(fakeAi.calls).toHaveLength(1);
+  expect((await post(s)).status).toBe(409); expect(fakeAi.calls).toHaveLength(1);
+});
+
+it("replays fresh tokens once, refuses changed authority, and rechecks revocation", async () => {
+  const s = setup(), first = await post(s);
+  expect(first.status).toBe(200); const result = await first.json();
+  const replay = await post(s, { ...s.context, issuedAt: s.now, expiresAt: s.now + 180 });
+  expect(replay.headers.get("idempotent-replayed")).toBe("true"); expect(await replay.json()).toEqual(result);
+  expect((await post(s, { ...s.context, eligibilityRef: "another" })).status).toBe(409);
+  s.c.tenants.tenant_synthetic!.revoked = true;
+  expect((await post(s)).status).toBe(403); expect(fakeAi.calls).toHaveLength(1);
+});
+
+it("refuses expired signed authority before replaying a committed allow", async () => {
+  const s = setup(); expect((await post(s)).status).toBe(200);
+  expect((await post(s, { ...s.context, expiresAt: s.now })).status).toBe(403);
+  expect(fakeAi.calls).toHaveLength(1);
+});
 
 it("allows a verified synthetic request and meters its actual model call", async () => {
   const response = await post(setup());

@@ -62,7 +62,9 @@ without a separately approved configuration change. Nothing here makes such a ch
 as a secret by an authorized operator. Evidence is keyed by tenant and must match institution,
 policy, approval, agreement, route, data class and eligibility. A malformed explicit setting denies
 all model transfers and reports `governanceConfig:false` in authenticated readiness. Missing
-configuration means no new enrollment; unenrolled tenants retain existing behavior. The readiness
+configuration means no new enrollment; legacy requests without signed governance retain existing
+behavior. A signed governance claim without tenant enrollment is refused, including on the legacy
+route. The readiness
 check validates configuration shape, not a human sign-off or every per-request authorization.
 Governed enrollments always enforce decisions, including synthetic enrollments. Existing shadow
 overrides cannot convert a denied hold into allow. Malformed governance also forces enforcement.
@@ -81,6 +83,21 @@ institution must match the enrolled source and request. Unknown/ineligible ages,
 claims and inconsistent synthetic/staff eligibility are denied. The extension carries no student
 identity, birth date or text. A batch token can authorize only its matching request ID; broader
 batch eligibility requires a separately designed signed contract rather than a permissive fallback.
+
+Sources requiring governance must call **`POST /v1/evaluations:governed`**, using the existing
+evaluation request/result schemas. This route requires signed context and receiver enrollment
+before evaluation. Older Workers return 404 instead of ignoring the requirement; clients must
+never fall back to `/v1/evaluations`. A header alone cannot establish this compatibility boundary.
+The EducateOS opt-in adapter uses the required route with its pinned 0.3.0 SDK and refuses degraded
+allow/coach responses, retaining deterministic support. Configuration remains off until installed.
+
+Governed idempotency digests bind issuer and stable signed governance fields in a separate HMAC
+domain. JWT/eligibility issuance and expiry timestamps are excluded so a freshly signed retry
+can replay the same commit. Changing eligibility reference, policy or other stable authority
+conflicts; a legacy result also conflicts instead of replaying as governed. Current eligibility,
+enrollment, evidence and primary-route authority are rechecked before a governed replay is
+returned, so expiry or revocation cannot release a cached allow. A refused replay makes no
+provider call and adds no evaluated-volume unit. Existing legacy digests stay unchanged.
 
 Source integration must attest eligibility from its authoritative access and records systems,
 not copy browser claims. That integration and institutional authority are separately gated work.
