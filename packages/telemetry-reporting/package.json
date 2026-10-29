@@ -1,0 +1,7 @@
+{
+  "name": "@gmacko/hall-monitor-telemetry-reporting", "version": "0.1.0", "private": true, "type": "module",
+  "description": "Inert synthetic reporting contracts and disclosure projection; no deployed reader.",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@gmacko/hall-monitor-contracts": "workspace:*", "zod": "catalog:" },
+  "devDependencies": { "vitest": "catalog:" }
+}

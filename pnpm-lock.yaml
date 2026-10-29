@@ -504,6 +504,19 @@ importers:
         specifier: 'catalog:'
         version: 3.2.7(@types/node@24.19.2)(supports-color@10.2.2)
 
+  packages/telemetry-reporting:
+    dependencies:
+      '@gmacko/hall-monitor-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
+    devDependencies:
+      vitest:
+        specifier: 'catalog:'
+        version: 3.2.7(@types/node@24.19.2)(supports-color@10.2.2)
+
   packages/telemetry-sink:
     dependencies:
       '@gmacko/hall-monitor-telemetry-contracts':
