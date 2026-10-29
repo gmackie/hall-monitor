@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:,">
+<title>Hall Monitor — recent PR review and implementation plan</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;background:transparent;color:var(--foreground,#202124);font:14px/1.58 var(--font-sans,system-ui,sans-serif)}main{width:100%;min-width:0}h1{font-size:1.25rem;line-height:1.35;margin:0 0 8px}h2{font-size:1.08rem;margin:26px 0 10px}h3{font-size:1rem;margin:16px 0 7px}h4{font-size:.9rem;margin:14px 0 4px}p{margin:8px 0}a{color:var(--accent-surface-foreground,#2458ac);text-underline-offset:3px}code,pre{font-family:var(--font-mono,ui-monospace,monospace);font-size:.87em;background:var(--code-background,#f0f2f5);color:var(--code-foreground,#202124)}code{overflow-wrap:anywhere;padding:1px 3px;border-radius:3px}pre{padding:12px;border-radius:var(--radius,8px);overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}.meta,.muted{color:var(--muted-foreground,#626b76);font-size:.9em}.small{font-size:.9em}.callout,.card,details{padding:16px;border-radius:var(--radius,9px);background:var(--card,#f7f8fa);color:var(--card-foreground,#202124);border:1px solid var(--border,#d9dee5)}.callout{border-left:3px solid var(--accent,#2465ba);margin:14px 0}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,235px),1fr));gap:12px}.card h3{margin-top:0}.chip,.badge{display:inline-block;border-radius:99px;padding:2px 8px;font-size:11px;font-weight:650;white-space:nowrap;background:var(--muted,#e9edf2);color:var(--muted-foreground,#626b76)}.chip.good{color:var(--success,#237844);background:color-mix(in srgb,var(--success,#237844) 12%,transparent)}.chip.attention{color:var(--warning-foreground,#754d0b);background:var(--warning-surface,#fff1d4)}.badge{color:var(--accent-surface-foreground,#2458ac);background:var(--accent-surface,#eaf1ff)}.badge.warn{color:var(--warning-foreground,#754d0b);background:var(--warning-surface,#fff1d4)}.steps{padding-left:22px}.steps strong{display:block}.chip.recommend{color:var(--accent-surface-foreground,#2458ac);background:var(--accent-surface,#eaf1ff)}.table-wrap{overflow-x:auto;max-width:100%;margin:10px 0}table{width:100%;border-collapse:collapse;font-size:.91em}th,td{text-align:left;vertical-align:top;padding:9px 8px;border-bottom:1px solid var(--border,#d9dee5)}th{font-size:.88em;color:var(--muted-foreground,#626b76)}td:first-child{font-weight:600}ul,ol{padding-left:22px;margin:8px 0}li{margin:5px 0}li p{margin:4px 0}details{margin:12px 0}summary{cursor:pointer;font-weight:650;line-height:1.5}summary .chip{margin-left:4px}.detail-body{padding-top:8px}.work-meta{font-size:.88em;color:var(--muted-foreground,#626b76);margin-top:8px}.timeline{list-style:none;padding:0;margin:15px 0}.timeline li{position:relative;margin:0;padding:0 0 17px 26px;border-left:2px solid var(--border,#d9dee5);margin-left:7px}.timeline li:last-child{border-left-color:transparent}.timeline li:before{content:"";position:absolute;width:12px;height:12px;left:-7px;top:5px;border-radius:50%;background:var(--muted,#e9edf2);border:2px solid var(--border,#d9dee5)}.timeline li.current:before{background:var(--accent,#2465ba);border-color:var(--accent,#2465ba)}.timeline strong{display:block}.filters{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0}.filters button{font:inherit;font-size:.88em;border:1px solid var(--border,#d9dee5);color:var(--foreground,#202124);background:var(--card,#f7f8fa);padding:6px 10px;border-radius:99px;cursor:pointer}.filters button[aria-pressed="true"]{border-color:var(--accent,#2465ba);background:var(--accent-surface,#eaf1ff);color:var(--accent-surface-foreground,#2458ac)}button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--ring,#2465ba);outline-offset:3px}[hidden]{display:none!important}.row-title{display:inline}.source{font-size:.85em;color:var(--muted-foreground,#626b76)}nav{display:flex;gap:12px;flex-wrap:wrap;font-size:.9em;margin:14px 0}.legend{display:flex;gap:8px;flex-wrap:wrap}footer{border-top:1px solid var(--border,#d9dee5);margin-top:22px;padding-top:12px}.flow{display:grid;gap:8px}.flow-row{display:grid;grid-template-columns:85px 1fr;gap:10px;align-items:start}.flow-row strong{color:var(--accent-surface-foreground,#2458ac)}.flow-row p{margin:0}.stop{border-left:2px solid var(--warning,#bb7c15);padding-left:10px}.nowrap{white-space:nowrap}@media(max-width:460px){body{font-size:13px}.card,details,.callout{padding:12px}th,td{padding:7px 6px}.flow-row{grid-template-columns:1fr;gap:2px}}@media(prefers-reduced-motion:no-preference){.timeline li{animation:arrive .35s ease-out both;animation-delay:calc(var(--i,0)*70ms)}@keyframes arrive{from{transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}}@media print{details{break-inside:avoid}.filters{display:none}}
+</style>
+</head>
+<body>
+<main>
+<h1>Complete trustworthy telemetry, then the synthetic pilot and bounded reporting.</h1>
+<p>Use the landed foundation to complete durable coverage and bounded reporting, and advance calibration and provider governance alongside a small product demo. Add protected incident handling only after a school validates the need and record ownership is settled.</p>
+<p class="meta">28 October 2026 · reconciled at canonical main <code>322734e</code> · gmackie/hall-monitor · planning issue <a href="https://tasks.gmac.io/gmacko/issue/HM-15">HM-15</a> · implementation authorized · program HM-16</p>
+<div class="cards">
+<section class="card"><span class="chip good">Landed</span><h3>Durable telemetry foundation</h3><p>Canonical PRs 6, 7 and 9–12 are merged. Outbox, receiver, trusted time and retention exist; coverage remains unavailable and the receiver is undeployed.</p></section>
+<section class="card"><span class="chip recommend">First product milestone</span><h3>Four-case synthetic demonstration</h3><p>Show request-scoped moderation, proposed private guidance, reporting and permission boundaries. Use this to qualify one school-controlled host surface.</p></section>
+<section class="card"><span class="chip attention">Material dependency</span><h3>Coordinate the active Flightdeck stack</h3><p>Main contains only a README, but FLIG-1 has an active 16-PR application stack. FLIG-2 must reuse its shell, authentication and deployment work before dashboard integration.</p></section>
+</div>
+<nav aria-label="Plan contents"><a href="#review">PR review</a><a href="#order">Execution order</a><a href="#next-slice">Next slice</a><a href="#work">Work packages</a><a href="#verification">Verification</a><a href="#gates">Pilot gates</a><a href="#delivery">Delivery workflow</a></nav>
+
+<section class="callout" id="implementation-status"><strong>Current checkpoint · next executable slice: S0a</strong>
+<p>Program <a href="https://tasks.gmac.io/gmacko/issue/HM-16">HM-16</a> and <a href="https://tasks.gmac.io/gmacko/issue/HM-21">HM-21</a> are In Progress. Direct host reads confirm canonical main <code>322734e56743963ffcb6a9a006d73cc8f30a3a82</code>. Foundation PR 6, validate-only transport PR 7, deployment fix PR 9, W6 outbox PR 10, W7 receiver PR 11 and W8a PR 12 are merged. Canonical PR 8 remains open at <code>089472ba93286520ff2846e50a34b1013c7e6162</code>; its last observed required checks failed. Do not infer current approval from older GitHub mirror runs.</p>
+<p>W8a passed independently verified exact-head canonical CI at <code>222ee45a9b4f</code>: 552 tests, standalone drill 84/84 and both bundle gates. Revision-bound approval was verified before merge. Evaluator production deployment <code>8e50eb2a-e725-4683-b186-a2c92838415b</code> runs the merge with HTTP 200 liveness; authenticated readiness and a synthetic default-off evaluation remain unverified. No receiver or real tenant was deployed/enrolled. HM-18/HM-20 remain open for that acceptance; HM-21 also needs W8b and receiver delivery.</p>
+<p><strong>W8b design spike completed; proof verdict REVISE.</strong> Independent review confirmed four logical counterexamples: retained coverage can turn expired nonzero data into zero; delayed checkpoints can be falsely tainted as restore; a sequence prefix does not establish a time prefix; and a later fence violation can contradict a bucket called final. The proposed S0 also edits a live parser despite claiming to be inert. These are proposal findings; current reads explicitly say coverage unavailable.</p>
+<p><strong>Implement S0a next:</strong> an isolated experimental evidence package, a separate nine-key retention parser, deterministic replay/conflict/presence primitives and an independent counterexample oracle. Existing runtime parsers and behavior stay unchanged. S0b must resolve count validity, time-cut and finality semantics before S1 receiver code. <a href="#w8b-review">Independent review</a> · <a href="#s0a-handoff">self-contained S0a handoff</a> · <a href="2026-10-28-w8b-coverage-design.html">attributed proposal, marked unapproved</a>.</p>
+<p class="small">The original design branch is based on old main <code>9d9fa41</code>; only its HTML artifact was copied. Do not merge that branch. The full W0–W16 scope remains authorized; implementation facts, synthetic demonstrations and human approvals are tracked separately.</p></section>
+
+<h2 id="review">Original audit and source evidence</h2>
+<details><summary>Historical PR review, verified gaps and source excerpts</summary><div class="detail-body">
+<p class="small">Initial audit baseline: Hall Monitor main <code>b59da09781bfd3066458f9c6dcba2bb21dd66d23</code> (v0.4.0). Current canonical main is <code>322734e56743963ffcb6a9a006d73cc8f30a3a82</code> after the W8a merge. GitHub PRs #7–#10 and the subsequent HM-12/HM-13/HM-14 delivery changes are already in that baseline. The three original PRs defined the initial scope. Their canonical-host mapping is GitHub #11 → Forgejo #6 (merged), GitHub #13 → Forgejo #7 (merged), and GitHub #14 → Forgejo #8 (open). The tables below retain the original audit evidence; the current checkpoint above is the delivery authority.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>PR and exact head</th><th>Delivered scope</th><th>Review / landing recommendation</th></tr></thead>
+<tbody>
+<tr><td><a href="https://github.com/gmackie/hall-monitor/pull/11">#11 · safety intelligence foundation</a><br><code title="533b6f7d2b96c4c797add9bd0e67c025cfec1a6a">533b6f7d</code><br><a href="https://forgegraf.com/changesets/9100ae69-a976-45c8-8c3d-875d5edbf5eb">ForgeGraph changeset</a></td><td>30 files: design/privacy/rollout documentation plus a private, offline TypeScript analytics package with 19 synthetic tests.</td><td>Landed as canonical PR 6. Preserve the original experimental/offline scope; it is not a historical telemetry service.</td></tr>
+<tr><td><a href="https://github.com/gmackie/hall-monitor/pull/13">#13 · T1 trusted telemetry</a><br><code title="ed4bd5fe57219979c3ec28f50325c666cde81b1e">ed4bd5fe</code><br><a href="https://forgegraf.com/changesets/5c106c0a-a0e5-4f2a-8600-2509aa8cf760">ForgeGraph changeset</a></td><td>30 files relative to #11: contracts, HMAC transport, a private receiver, completion-time evaluation projection, tests and runbook.</td><td>Landed after the foundation as canonical PR 7. Default-off evaluator configuration and absent producer binding are still verified delivery requirements.</td></tr>
+<tr><td><a href="https://github.com/gmackie/hall-monitor/pull/14">#14 · market and pilot prospectus</a><br><code title="089472ba93286520ff2846e50a34b1013c7e6162">089472ba</code><br><a href="https://forgegraf.com/changesets/5bb82c5b-2346-4217-9850-6629fb8e4b80">ForgeGraph changeset</a></td><td>Six research documents: market assumptions, competitors, ranked Michigan prospects and a synthetic-first pilot/outreach process.</td><td>Canonical PR 8 remains open. Update it onto current main and obtain fresh exact-head canonical CI. Clarify licensing before external use; no prospect commitment is asserted.</td></tr>
+</tbody></table></div>
+<details><summary>Full reviewed PR revisions</summary><div class="detail-body"><p>#11 · <code>533b6f7d2b96c4c797add9bd0e67c025cfec1a6a</code></p><p>#13 · <code>ed4bd5fe57219979c3ec28f50325c666cde81b1e</code></p><p>#14 · <code>089472ba93286520ff2846e50a34b1013c7e6162</code></p></div></details>
+<p class="small"><strong>Historical mirror CI evidence:</strong> GitHub runs <a href="https://github.com/gmackie/hall-monitor/actions/runs/40643842494">#11</a>, <a href="https://github.com/gmackie/hall-monitor/actions/runs/40646254182">#13</a> and <a href="https://github.com/gmackie/hall-monitor/actions/runs/40646036961">#14</a> passed frozen install, lint, tests and rollback drill at the exact heads above. Those were initial-review mirror states. They do not override later canonical-host state: foundation/transport have landed, and canonical PR 8’s last observed required checks failed. Recheck the current canonical revision after every branch update.</p>
+<div class="callout"><strong>Delivery facts.</strong> The original foundation/T1 ancestry was reconciled during landing. Also, <a href="https://github.com/gmackie/hall-monitor/blob/b59da09781bfd3066458f9c6dcba2bb21dd66d23/.forgegraph.yaml#L14">the existing configuration deploys production on a green main merge</a>; landing #13 is a production code change even while collection remains disabled.</div>
+
+<details><summary>Verified gaps and their priority</summary><div class="detail-body">
+<p>The first five are work needed to deliver the proposed system, rather than defects in an intentionally limited foundation. Effort is approximate; S = hours to two days, M = several days, L = multiple work packages.</p>
+<div class="table-wrap"><table><thead><tr><th>Priority / finding</th><th>Impact and evidence</th><th>Effort / change risk / confidence</th></tr></thead><tbody>
+<tr><td>P0 · Accepted does not mean persisted</td><td>T1 returns <code>persisted:false</code>; its sender treats any 202 as acceptance, with no retry or durable event ID. A chart cannot claim complete counts. <a href="https://github.com/gmackie/hall-monitor/blob/ed4bd5fe57219979c3ec28f50325c666cde81b1e/apps/telemetry-worker/src/index.ts#L43">Receiver</a> · <a href="https://github.com/gmackie/hall-monitor/blob/ed4bd5fe57219979c3ec28f50325c666cde81b1e/packages/telemetry-sink/src/index.ts#L152">sender</a></td><td>L · high · high</td></tr>
+<tr><td>P0 · Prototype aggregation loses historical identity</td><td>Its key contains weekday/hour, source, band and calendar, merging weeks and DST offsets. Missing cells have no coverage proof. <a href="https://github.com/gmackie/hall-monitor/blob/533b6f7d2b96c4c797add9bd0e67c025cfec1a6a/packages/temporal-analytics/src/aggregate.ts#L49">aggregateHourOfWeek</a></td><td>L · medium · high</td></tr>
+<tr><td>P0 for live pilot · Calibration remains unfinished</td><td>Clef uses placeholder thresholds and one low/high pair per classifier instance. Reuse <a href="https://tasks.gmac.io/gmacko/issue/HM-8">HM-8</a> for reviewed category/profile/modality applicability. <a href="https://github.com/gmackie/hall-monitor/blob/b59da09781bfd3066458f9c6dcba2bb21dd66d23/packages/clef/src/classifier.ts#L25">Current classifier</a></td><td>L + human panel · high · high</td></tr>
+<tr><td>P0 for live pilot · Route approval exceeds a logging header</td><td>The current payload-log header does not attest account logging, exports, caching, contracts or freshness. <a href="https://github.com/gmackie/hall-monitor/blob/533b6f7d2b96c4c797add9bd0e67c025cfec1a6a/docs/privacy/zero-data-retention.md#L64">Documented privacy gap</a></td><td>L · high · high</td></tr>
+<tr><td>P1 · Most proposed dashboard metrics have no producer</td><td>T1 emits evaluated and coarse candidate events only. Reports, cases, human work, costs and latency need separate authoritative projections. <a href="https://github.com/gmackie/hall-monitor/blob/ed4bd5fe57219979c3ec28f50325c666cde81b1e/apps/worker/src/metrics.ts#L35">Projection</a></td><td>M to constrain UI; L for later services · low/medium · high</td></tr>
+<tr><td>P1 · Flightdeck is a new application</td><td><a href="https://github.com/gmackie/flightdeck/blob/aaaefa7502a2c93cda532025119652652d170715/README.md">Main aaaefa7</a> contains only a bootstrap README, confirmed against remote main. The dashboard estimate needs application/auth/deployment work.</td><td>L · medium · high</td></tr>
+<tr><td>P1 · Delivery tracking and stack disagree</td><td>Open ForgeGraph changesets have empty bodies and no Kanbanger identifier; #13 has different base targets across hosts. Historical <a href="https://github.com/gmackie/hall-monitor/issues/12">GitHub issue #12</a> does not satisfy the canonical backlog workflow.</td><td>S · medium · high</td></tr>
+<tr><td>P1 before external pitch · Open-source claim needs a license decision</td><td>Main and #14 contain no root LICENSE. The prospectus promises an open-source core while <a href="https://github.com/gmackie/hall-monitor/blob/089472ba93286520ff2846e50a34b1013c7e6162/docs/market/pilot-and-outreach.md#L76">its licensing policy is still undecided</a>.</td><td>S + owner decision · low · high</td></tr>
+</tbody></table></div>
+<pre>Current T1 completion order:
+await store.complete(...);           // result + receipt commit
+scheduleEvaluationMetrics(...);      // waitUntil, best effort
+return { result, replayed: false };
+
+Current T1 sender:
+return response.status === 202;      // not a durability acknowledgment
+
+Current offline aggregation key:
+[source, gradeBand, calendarKind, weekday, localHour]</pre>
+<p class="source">Excerpts: <a href="https://github.com/gmackie/hall-monitor/blob/ed4bd5fe57219979c3ec28f50325c666cde81b1e/apps/worker/src/app.ts#L299">app.ts:299</a>, <a href="https://github.com/gmackie/hall-monitor/blob/ed4bd5fe57219979c3ec28f50325c666cde81b1e/packages/telemetry-sink/src/index.ts#L159">sink:159</a>, <a href="https://github.com/gmackie/hall-monitor/blob/533b6f7d2b96c4c797add9bd0e67c025cfec1a6a/packages/temporal-analytics/src/aggregate.ts#L57">aggregate:57</a>. Excerpts are abbreviated to show the implementation boundary.</p>
+</div></details>
+
+</div></details>
+<h2 id="order">Recommended order and scope</h2>
+<ol class="timeline">
+<li class="current" style="--i:0"><strong>1 · Model the W8b evidence, then settle the proof</strong>S0a isolates replay, identity, retention and counterexample facts. S0b must resolve time-prefix and closure semantics before receiver integration.</li>
+<li style="--i:1"><strong>2 · Close current delivery gaps in parallel</strong>Refresh market PR 8 onto current main, obtain exact-head CI, and complete authenticated default-off evaluator acceptance.</li>
+<li style="--i:2"><strong>3A · Complete receiver, producer and reporting</strong>Verifier → producer evidence → checkpoint dispatch → optional activation → synthetic drills → approved rollout → W9 private reader.</li>
+<li style="--i:3"><strong>3B · Advance the synthetic pilot and governance</strong>Charter and four fictional cases; registry → HM-8 calibration; privacy preflight → governed routes before any new live rollout.</li>
+<li style="--i:4"><strong>4 · Reuse the Flightdeck application, then integrate metrics</strong>Verify the active FLIG-1 stack, add bounded district-operator metrics and rehearse the intended environment with export parity.</li>
+<li style="--i:5"><strong>5 · Expand conditionally into protected cases</strong>Source-authoritative action facts → synthetic case-scoped engine → approved record/disclosure service. Human lifecycle metrics follow authoritative services.</li>
+</ol>
+<div class="cards">
+<section class="card"><h3>Analytics MVP</h3><p><strong>Re-estimate after the W8b proof.</strong> The original 24–38 developer-day forecast predates the coverage counterexamples and the active Flightdeck stack. W6/W7/W8a are already landed; S0a is small–medium, while closure and receiver verification retain significant uncertainty.</p><p class="muted">The work-package estimates below are historical planning ranges, not a remaining-work total or delivery commitment. Retention/privacy decisions and external application readiness are separate dependencies.</p></section>
+<section class="card"><h3>Partner discovery milestone</h3><p><strong>4–7 developer-days</strong> for a charter/evidence pack and synthetic demonstration using existing decisions and scripted proposed behavior.</p><p class="muted">Governed live processing requires additional registry, calibration, preflight and product work. The full case platform adds substantial work and is outside this first milestone.</p></section>
+</div>
+<p class="small"><strong>Next batch:</strong> S0a evidence model → S0b reviewed proof → receiver verifier → producer evidence → checkpoint dispatch → drills. In parallel, finish PR 8/current production acceptance and advance HM-23 registry, HM-24 preflight and the synthetic charter/demo without enabling live processing. W9 runtime reads wait for a defensible W8b contract; FLIG-2 application readiness can be investigated independently.</p>
+
+<h2 id="next-slice">Next executable slice · S0a evidence model</h2>
+<p><span class="chip recommend">Ready, not implemented</span> Create a private, Node-only <code>packages/telemetry-coverage/</code> package. Keep it unreferenced by every runtime app/sink/contracts package. Its standalone nine-key parser may reuse the existing eight-key validator but must not change it. Model scoped delivery/checkpoint identities, replay/conflicts and contiguous presence; do not export an exact/zero/final classifier.</p>
+<details><summary>S0a scope, adversarial acceptance and publication contract</summary><div class="detail-body">
+<p><strong>Baseline:</strong> canonical main <code>322734e56743963ffcb6a9a006d73cc8f30a3a82</code>. Check drift before implementing. Reuse HM-21; new branch <code>hm-21-w8b-evidence-model</code>. The existing parser at <code>packages/telemetry-contracts/src/index.ts:374</code> requires exactly eight keys, and receiver <code>store.ts:389</code> returns coverage unavailable.</p>
+<p><strong>Allowed files:</strong> new package manifest/config, <code>src/{index,evidence,retention}.ts</code>, tests and test-only fixture/oracle helpers, package README, <code>docs/implementation/w8b-evidence-model.md</code>, and only that package’s lockfile importer. No existing app, schema, workflow, contract, deploy, secret or OpenAPI changes.</p>
+<p><strong>Model:</strong> identities include tenant/stream/epoch; exact replays are no-ops; changed identity/digest/sequence records a deterministic conflict; receiving more deliveries than a checkpoint claims is normal. Canonical summaries converge across all 720 orders of six benign facts. Use a separate immutable completion-ledger oracle, including delayed/fence-violating completions, to expose the rejected proof rules.</p>
+<div class="table-wrap"><table><thead><tr><th>Task</th><th>Files</th><th>Verification</th><th>Status</th></tr></thead><tbody>
+<tr><td>Standalone coverage policy parser</td><td>New model retention module/tests</td><td>Exactly nine keys; no defaults; existing parser still rejects ninth key</td><td>Ready</td></tr>
+<tr><td>Evidence identities and presence</td><td>New evidence module/tests</td><td>Scoped replay, conflict and 720-order convergence; no false restore from a delayed checkpoint</td><td>Ready</td></tr>
+<tr><td>Counterexample oracle</td><td>Independent test-only ledger and fixtures</td><td>Expired nonzero versus true zero; benign delayed checkpoint; pending commit before claimed time; fence violation after claimed finality</td><td>Ready</td></tr>
+<tr><td>Regression and scope audit</td><td>New package and model note</td><td>Frozen install, focused tests, lint/full suite, 84-check standalone drill, both dry-run bundles; no runtime import</td><td>Required</td></tr>
+</tbody></table></div>
+<p><strong>Commands:</strong> <code>pnpm install --frozen-lockfile</code>; <code>pnpm --dir packages/telemetry-coverage exec vitest run</code>; <code>pnpm lint</code>; <code>pnpm test</code>; create ignored <code>dist/</code>, then <code>pnpm rollback-drill --out dist/rollback-drill.json</code>; both <code>node scripts/deploy-worker.mjs --dry-run</code> and <code>node scripts/deploy-telemetry-worker.mjs --dry-run</code>; <code>git diff --check</code>. All must pass; inspect changed paths and runtime import graph. Passing counterexample tests falsifies hypotheses; it does not prove useful exact coverage.</p>
+<p><strong>Delivery:</strong> an HM-21 PR, immediate T3 thread registration, verified Kanbanger linkage and exact-head canonical CI. Automatically approve only green required checks bound to that head. Parent owns later authorized merge/delivery. Keep HM-21 open. <strong>Stop</strong> on runtime edits, unresolved assumptions required to proceed, a non-independent oracle, or out-of-scope dependency churn. The <a href="#s0a-handoff">full handoff</a> contains the exact primitive and acceptance details.</p>
+</div></details>
+<details><summary>Status and dependency index · all W0–W16 packages</summary><div class="detail-body"><div class="table-wrap"><table><thead><tr><th>Work</th><th>Issue</th><th>Depends on</th><th>Current state / exit</th></tr></thead><tbody>
+<tr><td>W0 landing / delivery</td><td>HM-17/18/19/20</td><td>Canonical CI, synthetic credentials</td><td>Source mostly landed; PR 8 and authenticated production acceptance remain</td></tr>
+<tr><td>W1 charter</td><td>HM-19</td><td>Research, school/records owners</td><td>In Review / prepare credible synthetic-only materials and custody decision</td></tr>
+<tr><td>W2 decision registry</td><td>HM-23</td><td>Foundation; live applicability from W1</td><td>Todo / immutable pinned, verified decision pack</td></tr>
+<tr><td>W3 calibration</td><td>HM-8</td><td>W2 and human rubric/panel</td><td>Backlog / measured independent calibration, not synthetic labels</td></tr>
+<tr><td>W4 preflight</td><td>HM-24</td><td>W1 data inventory</td><td>Todo / read-only provider/privacy evidence</td></tr>
+<tr><td>W5 governed transfer</td><td>HM-24</td><td>W1 + W4 + trusted source</td><td>Todo / fail-closed route policy before model transfer</td></tr>
+<tr><td>W6 outbox</td><td>HM-20</td><td>W0</td><td>Source landed / production authenticated acceptance pending</td></tr>
+<tr><td>W7 receiver</td><td>HM-21</td><td>W6</td><td>Source landed / receiver undeployed</td></tr>
+<tr><td>W8 trusted analytics</td><td>HM-21</td><td>W7 + institution config</td><td>W8a landed; W8b S0a ready → S0b proof → S1–S6 integration/rollout</td></tr>
+<tr><td>W9 private reader</td><td>HM-22</td><td>W8b + disclosure policy</td><td>Todo / reader auth, fixed cohorts and suppression/differencing controls</td></tr>
+<tr><td>W10 Flightdeck</td><td>FLIG-2 / FLIG-1</td><td>W9; active application stack</td><td>Refresh stack readiness / bounded operator metrics and export parity</td></tr>
+<tr><td>W11 synthetic/live UX</td><td>HM-27 / SCHO-264</td><td>Demo: W1; live: W3 + W5 + referral</td><td>Todo / four fictional demonstrations before approved live integration</td></tr>
+<tr><td>W12 trusted action facts</td><td>HM-25 / SCHO-264</td><td>W1 custody; W5 for live</td><td>Todo / source-authoritative signed outbox contract</td></tr>
+<tr><td>W13 correlation</td><td>HM-25</td><td>W12 + approved rubric</td><td>Todo / pure synthetic case-scoped engine</td></tr>
+<tr><td>W14 protected cases</td><td>HM-26 / GATE-4</td><td>W1 + W5 + W12/W13</td><td>Conditional / custody, disclosure, rights and holds before persistence</td></tr>
+<tr><td>W15 staffed pilot</td><td>HM-27</td><td>W3/W5/W11; W14 if retaining cases</td><td>Gated / human signatures, referral coverage and independent evaluation</td></tr>
+<tr><td>W16 delivery / rollback</td><td>HM-27</td><td>Selected milestone software complete</td><td>Todo / synthetic reconciliation and target-specific production evidence</td></tr>
+</tbody></table></div><p class="meta">Hall Monitor issue states were read back for this update. External-project assignments retain prior handoff evidence and require owning-project drift checks before implementation. No duplicate issues were created.</p></div></details>
+
+<details id="w8b-review"><summary>Full independent W8b review · required proof revisions</summary><div class="detail-body">
+<h3>W8b needs a proof revision before runtime work.</h3>
+<p><span class="badge warn">REVISE the proof</span> <span class="badge">S0a evidence model ready</span></p>
+<p class="meta">28 October 2026 · repository gmackie/hall-monitor · program HM-16 · owning issue HM-21, In Progress · reviewer: Codex · reviewed source: <code>322734e56743963ffcb6a9a006d73cc8f30a3a82</code></p>
+<p>The per-stream commit sequence and receiver verifier are a useful candidate architecture. The proposal does not yet establish when an occurrence bucket can be called exact, zero or final. Build isolated evidence primitives first, resolve the proof with adversarial traces, then implement the verifier before the producer.</p>
+<div class="cards"><section class="card"><h3>Implemented</h3><p>W6 outbox, W7 receiver and W8a time/retention are merged. Existing reads explicitly return <code>completeness: unavailable</code>.</p></section><section class="card"><h3>Design evidence</h3><p>Four predicate-level counterexamples were checked independently. They exercise the proposal’s logic, not production code.</p></section><section class="card"><h3>Delivery boundary</h3><p>Evaluator deployment <code>8e50eb2a</code> is active with public health 200. Authenticated acceptance is unverified. Receiver deployment and real enrollment remain open.</p></section></div>
+<nav aria-label="Review contents"><a href="#w8br-findings">Required revisions</a><a href="#w8br-sequence">Execution sequence</a><a href="#w8br-gates">Decisions</a><a href="#w8br-evidence">Evidence and limits</a></nav>
+<h2 id="w8br-findings">Five required revisions</h2>
+<div class="table-wrap"><table><thead><tr><th>Finding</th><th>Consequence</th><th>Required change</th></tr></thead><tbody>
+<tr><td>R1 · Expired count becomes zero</td><td>A nonzero rollup expires while positive coverage survives. The proposed “span + no rollup + no range” predicate now returns <code>verified_zero</code>.</td><td>Give qualified counts an irreversible validity horizon. Expired or unknown count availability must return unavailable, even while raw coverage evidence remains.</td></tr>
+<tr><td>R2 · Replay looks like restore</td><td>A delayed checkpoint with seq 5 arrives after deliveries advance <code>verified_n</code> to 10. V-C8 calls it regression; V-C2 says no-op.</td><td>Separate delivery presence, accepted checkpoint order and identity/digest history. A receiver ahead of a checkpoint is normal.</td></tr>
+<tr><td>R3 · Time prefix is not proven</td><td>Sequence 1 is acked; sequence 2 committed before the claimed time but remains pending. The written frontier permits claiming only seq 1 through that later time.</td><td>Define a time cut that covers every commit before it, including equal-clock ties and pending work. Presence alone is insufficient.</td></tr>
+<tr><td>R4 · Finality can be contradicted later</td><td>A late completion outside the fence creates a historical gap after the bucket was declared final. Until its checkpoint arrives, the false assertion is visible.</td><td>Prove a closure barrier, or define a bounded “as of” cohort whose counts and evidence share that cut. Do not label a correctable assertion final.</td></tr>
+<tr><td>R5 · S0 changes a live parser</td><td>The proposed S0 edits the existing retention parser, allowing new configuration to reach current runtime callers despite claiming to be inert.</td><td>Keep all new parsers/model code in a separate unreferenced package. Existing v2 admission must keep rejecting the ninth key.</td></tr>
+</tbody></table></div>
+<p class="meta">R1–R4: high-confidence design counterexamples; R5: confirmed scope contradiction from current parser callers. Expected revision effort: R1/R2 medium, R3/R4 large or uncertain, R5 small. The implementation risk of R1–R4 is high if embedded in live coverage before the model resolves them.</p>
+<details><summary>R1 · Concrete expiry trace and acceptance tests</summary><div>
+<p>At bucket end B, a rollup contains <code>E=1</code>. Let the already-rounded rollup, coverage and gap deadlines be <code>B+10</code>, <code>B+20</code> and <code>B+30</code> time units. The proposed retention order holds. At <code>B+11</code> the rollup is hidden or deleted, the span is live and there is no gap; the proposed zero predicate becomes true.</p>
+<p>Choose a representation that persists the qualifying read floor or a bounded count-validity witness. Merely testing the current configured TTL is insufficient after long→short→long policies. Previously expired or purged data cannot be reconstructed as zero. A coverage span may have a longer storage lifetime than its permission to qualify a count.</p>
+<p><strong>Tests:</strong> read before alarm; actual alarm deletion; restart; nonzero and genuine-zero buckets; long→short→long and short→long; replay after deletion; legacy rows; a policy with no saved count-validity history. The last case is unavailable.</p>
+<p class="meta">Proposal: lines 194, 414 and 516–527. Current source: <code>apps/telemetry-worker/src/store.ts:366</code> excludes expired rollups before deletion; <code>retention.ts:57</code> defines rollup expiry.</p></div></details>
+<details><summary>R2 · Replay, conflicts and bounded identity history</summary><div>
+<p>Checkpoint <code>(ckSeq=5, accounted.seq=5)</code> is created legitimately. Receiver deliveries 6–10 then advance presence to 10. Delivering or retrying checkpoint 5 now satisfies <code>accounted.seq &lt; verified_n</code> without any producer rollback. A new checkpoint can also lag received deliveries when an acknowledgment was lost.</p>
+<p>Use an explicit per-tenant/stream/epoch checkpoint identity and fingerprint. A known identical replay is idempotent; a retained identity with a different fingerprint is a conflict. Old evidence outside the retained identity window must be ignored or rejected as stale without advancing positive coverage or falsely tainting normal reordering. A newer checkpoint contradicting a previously accepted checkpoint is a separate rule from “receiver has seen more deliveries.” Specify bounded tombstones and the exact behavior after their expiry.</p>
+<p><strong>Tests:</strong> every permutation of two checkpoints and their deliveries; identical replay before/after newer deliveries; same checkpoint number with different bytes; an older unknown checkpoint after history expiry; a new checkpoint behind presence because of a lost ack; separate tenant, stream and epoch scopes. Never independently merge time and seq from incompatible checkpoint tuples.</p>
+<p class="meta">Proposal: lines 248, 403–411, 609 and 615. Restore detection remains limited; normal delayed messages are not proof of a restore.</p></div></details>
+<details><summary>R3 and R4 · Time cuts, fences and finality</summary><div>
+<p><strong>R3 trace:</strong> commit 1 at time 1 is acked; commit 2 at time 2 is pending. The written definition permits <code>(through=3, seq=1)</code>, because all seqs ≤1 are acked and commit 1 is before time 3. It does not prove that all commits through time 3 are included. A correct frontier cannot pass an unresolved earlier commit.</p>
+<p><strong>R4 trace:</strong> bucket <code>[0,1)</code>, fence <code>F=1</code>, accounted time 2. The proposal seals it. A request prepared at occurrence 0.5 completes at time 3 and becomes a fence gap. That disproves the proposal’s universal statement that every completion with occurrence in the bucket has commit time within the fence. The producer checks the fence for accepted deliveries; fence violations remain real completions.</p>
+<p>S0b must choose and prove either a closure mechanism that prevents future relevant historical completions, or explicitly qualified “as of” semantics with the same sequence/time cut for counts and coverage. An evidence revision or later downgrade alone does not make an earlier claim of final exactness correct. Keep existing occurrence-based rollups and leave coverage unavailable until that choice is proven. Do not silently redefine E as only successfully delivered or fence-admitted completions.</p>
+<p><strong>Tests:</strong> checkpoint racing prepare/commit; pending early commit; equal logical timestamps; wall-clock rollback; allowed future skew; late fence violations with delayed checkpoints; old/new revisions; the accepted occurrence-age horizon; unresolved work at closure. Compare receiver-visible claims against a separate ground-truth commit ledger at every trace step.</p>
+<p class="meta">Proposal: lines 201–205, 254, 478–484, 495 and 803. This review supplies counterexamples, not a replacement proof.</p></div></details>
+<details><summary>R5 · Keep the first slice inert</summary><div>
+<p>The existing <code>parseTelemetryRetentionPolicy</code> in <code>packages/telemetry-contracts/src/index.ts:374</code> requires exactly eight keys and is used by both producer and receiver. The proposal’s S0 instruction to extend it to nine keys changes runtime admission.</p>
+<p>S0a gets a separate experimental <code>parseCoverageRetentionPolicy</code> in <code>packages/telemetry-coverage/</code>. It may call existing pure validation helpers without altering them. A nine-key fixture must be accepted only by the experimental parser and still rejected by the existing parser. No app, sink or live contracts package may import the model.</p></div></details>
+<details><summary>Additional corrections and review limits</summary><div><ul>
+<li><strong>Intentional collection exclusions:</strong> disabled, unbound, unenrolled or unapproved telemetry currently returns no observation by design. Some paths log a coarse reason. Those are future proof boundaries, not a confirmed defect in W8a, which claims no completeness.</li>
+<li><strong>Heartbeat wording:</strong> the design document says “heartbeat <em>and exposure inventory</em>.” Clarify that the inventory must be authoritative for the claimed scope; the original sentence does not claim a heartbeat alone is sufficient.</li>
+<li><strong>Completion reservation:</strong> <code>store.ts:218</code> does not check the affected UPDATE row count or a reservation generation. Reproduce stale/double completion before changing the hot path or claiming it is a current incident. Resolving its semantics is a prerequisite for assigning one sequence per completion in S2.</li>
+<li><strong>Precision and retention:</strong> <code>committed_at</code>, <code>clock_hi</code> and <code>armed_last</code> are potentially finer than 15 minutes. Enumerate their purpose, access and TTL rather than claiming all state is coarse.</li>
+<li><strong>Bounds:</strong> coalescing ranges must conservatively enlarge taint; epoch/range/span/history bounds must never discard negative evidence while leaving an exact claim. Key every identity by tenant, stream and epoch, including uniqueness constraints.</li>
+<li><strong>Unobserved config changes:</strong> observations cannot reconstruct a disabled/re-enabled interval they never saw. Define the scope and unknown state; do not bridge the interval from a later heartbeat.</li>
+<li><strong>Out of proof scope:</strong> front-door availability, student activity, product submissions, receiver storage rollback and compromised writer keys. No enrollment or dashboard claim follows from an evaluator-completion proof.</li>
+</ul></div></details>
+<h2 id="w8br-sequence">Revised implementation sequence</h2>
+<ol class="steps">
+<li class="current" style="--i:0"><strong>S0a · Experimental evidence primitives</strong>Separate parser, checkpoint identity rules and finite evidence ledger; explicit adversarial fixtures. No final/complete/zero classifier and no runtime imports. <a href="#s0a-handoff">Self-contained executable plan</a>.</li>
+<li style="--i:1"><strong>S0b · Resolve and review the coverage proof</strong>Count validity, full time-prefix frontier, checkpoint conflict history, closure/as-of semantics, scope and precision/TTL contract. Produce positive and negative reachability evidence. Blocks S1.</li>
+<li style="--i:2"><strong>S1 · Receiver verifier</strong>Strict v3 admission, migration, presence verification, conservative bounded evidence, read-time/alarm retention and revocation. Synthetic only; existing v1/v2 unchanged.</li>
+<li style="--i:3"><strong>S2 · Producer evidence</strong>First reproduce reservation semantics and verify platform transaction/ack guarantees. Then atomically commit one sequence/evidence item with each scoped completion. No checkpoint dispatch yet.</li>
+<li style="--i:4"><strong>S3–S4 · Dispatch and optional activation</strong>Separate checkpoint/alarm delivery PR from the completion path. Optional cron only after explicit expected-stream inventory, authorization, resource bounds and cost measurement.</li>
+<li style="--i:5"><strong>S5 · Synthetic adversarial drills</strong>Reconcile fixed ground truth across retries, outage, reordering, restarts, policy change and rollback. Prove no transient false exactness.</li>
+<li style="--i:6"><strong>S6 · Approved rollout</strong>Human retention/privacy decisions, deployment target verification and synthetic enrollment before any real tenant. W9 controls all reader/disclosure work.</li>
+</ol>
+<div class="table-wrap"><table><thead><tr><th>Task</th><th>Files</th><th>Verification</th><th>Status</th></tr></thead><tbody>
+<tr><td>S0a package and model</td><td><code>packages/telemetry-coverage/</code>, lockfile importer, model note</td><td>Focused tests, existing lint/full suite/drill/bundles; no runtime importer</td><td>Ready, not started</td></tr>
+<tr><td>S0b proof decision</td><td>Model tests and <code>docs/implementation/w8b-evidence-model.md</code></td><td>R1–R5 closed with trace evidence; useful exact/zero states reachable under documented assumptions</td><td>Required before S1</td></tr>
+<tr><td>S1–S5 source integration</td><td>Receiver first; producer second; dispatch third</td><td>Real DO atomicity/restart tests and synthetic end-to-end reconciliation</td><td>Not started</td></tr>
+<tr><td>S6 / W9 / W10</td><td>Delivery, private reader and Flightdeck owning repos</td><td>Approval references, health/readiness, reader authorization and disclosure tests</td><td>Gated</td></tr>
+</tbody></table></div>
+<h2 id="w8br-gates">Open decisions and stop conditions</h2>
+<p>Engineering owns R1–R5, transaction semantics, durable-ack output gating, clock/fence/tick measurements, restoration limitations and storage bounds. The product/evaluation owner must confirm which four evaluation kinds and degraded completions belong in E. Authorized privacy/legal owners must approve retention values and the new evidence precision/disclosure contract; no durations are supplied by this plan.</p>
+<p class="stop">Stop before S1 if a trace still permits false zero, false exactness or a benign replay to create a rollback taint. Stop before S2 if completion uniqueness or platform atomicity is unproven. Stop before rollout if the receiver target, retention approvals, authenticated synthetic acceptance or revocation/rollback evidence is missing.</p>
+<h2 id="w8br-evidence">Evidence and provenance</h2>
+<p>Reviewed the complete 821-line proposal from local commit <code>ffcc985fcad9f5ed3cdbac8000f489fd323fb649</code>; only its artifact was copied. Its old-base branch must not be merged. Current canonical main was independently read from the host at <code>322734e</code>; the clean source snapshot <code>222ee45</code> has an identical tracked tree.</p>
+<p>Four small assertion-based reductions confirmed R1–R4 from the written predicates. No new runtime test suite, bundle or production acceptance was run for this document review. The 552-test/84-drill evidence belongs to previously verified W8a CI run 30 and is not evidence for W8b.</p>
+<p>Source reads covered the producer completion/prepare path, v2 contracts and retention parser, receiver rollup reads, expiry, config and ingest boundaries, package/test configuration, and the relevant temporal measurement wording. This was a scoped design review, not a new audit of the queue/capacity model, all test bodies, platform recovery copies or other repositories.</p>
+<p class="meta">Source links: <a href="https://git.forgegraf.com/gmackie/hall-monitor/src/commit/322734e56743963ffcb6a9a006d73cc8f30a3a82/apps/telemetry-worker/src/store.ts#L366">receiver read</a> · <a href="https://git.forgegraf.com/gmackie/hall-monitor/src/commit/322734e56743963ffcb6a9a006d73cc8f30a3a82/packages/telemetry-contracts/src/index.ts#L374">retention parser</a> · <a href="https://git.forgegraf.com/gmackie/hall-monitor/src/commit/322734e56743963ffcb6a9a006d73cc8f30a3a82/apps/worker/src/store.ts#L208">completion transaction</a> · <a href="2026-10-28-w8b-coverage-design.html">attributed proposal</a> · <a href="#implementation-status">full W0–W16 plan</a></p>
+<footer><p class="meta">HM-21 and HM-16 remain In Progress. This verdict revises a design; it does not assert CI, approval, deployment, enrollment or feature completion.</p></footer>
+</div></details>
+<details id="s0a-handoff"><summary>Full S0a executor handoff · scope, steps, commands and stop conditions</summary><div class="detail-body">
+<h3>S0a · Build an isolated W8b evidence model.</h3>
+<p><span class="badge">Ready for implementation</span> <span class="badge warn">Experimental; no runtime activation</span></p>
+<p class="meta">28 October 2026 · gmackie/hall-monitor · HM-21, Hall Monitor project <code>63824a86-9f00-40d4-9f70-c27a59fb3827</code> · program HM-16 · priority P1 · effort S–M · implementation risk low while isolated · planned source <code>322734e56743963ffcb6a9a006d73cc8f30a3a82</code></p>
+<p>Create a pure package that records scoped delivery/checkpoint facts, validates an experimental coverage-retention document and makes four rejected proof rules reproducibly fail against independent ground truth. This slice supplies evidence for a subsequent protocol decision. It does not supply a complete/zero classifier.</p>
+<nav aria-label="Plan contents"><a href="#s0a-state">Current state</a><a href="#s0a-scope">Scope</a><a href="#s0a-steps">Tasks</a><a href="#s0a-cases">Acceptance cases</a><a href="#s0a-checks">Checks</a><a href="#s0a-stop">Stop conditions</a></nav>
+<div class="callout"><strong>Executor instruction</strong><p>Follow this file in order. Verify each step before continuing. Stay within the file allowlist. Stop on the conditions below. The reviewer maintains <code>plans/index.html</code>. Do not merge the old design branch or infer approval from its local commit.</p></div>
+<h2 id="s0a-state">Current state and constraints</h2>
+<p>The canonical repo is <code>https://git.forgegraf.com/gmackie/hall-monitor</code>. Main <code>322734e</code> includes W6 outbox, W7 receiver and W8a chronological time, correction revisions and retention. The original W8b proposal is only a local document at commit <code>ffcc985</code> on an older base. Use it as a rejected hypothesis, never as source to merge.</p>
+<p>Receiver <code>apps/telemetry-worker/src/store.ts:366</code> omits expired rollups before alarm deletion and sets <code>completeness: unavailable</code>. Its <code>health()</code> also reports producer coverage unavailable. Preserve those outcomes. The 552-test/84-drill baseline was established on the identical W8a source tree; it is not a W8b test result.</p>
+<p>The source uses ESM TypeScript, Node ≥22, pnpm 12.8.1, strict types with <code>noUncheckedIndexedAccess</code> and <code>exactOptionalPropertyTypes</code>. Root <code>tsconfig.json</code> already includes <code>packages/*/src</code> and <code>packages/*/__tests__</code>. Root Vitest discovers <code>packages/*</code> and <code>apps/*</code>. Match <code>packages/temporal-analytics/vitest.config.ts</code> for a Node-only project and <code>packages/telemetry-contracts/__tests__/retention-policy.test.ts</code> for strict validation conventions.</p>
+<details><summary>Load-bearing current excerpts</summary><div>
+<p><code>packages/telemetry-contracts/src/index.ts:345–379</code>:</p><pre>const POLICY_KEYS = [
+  "policyRevision", "approvalRef", "effectiveFrom", "approvedUntil",
+  "dedupeSeconds", "rollupSeconds", "healthSeconds", "gapSeconds",
+];
+// parseTelemetryRetentionPolicy(value):
+if (keys.length !== POLICY_KEYS.length ||
+    !POLICY_KEYS.every((k) =&gt; keys.includes(k))) return null;</pre>
+<p><code>apps/telemetry-worker/src/store.ts:367–371,389</code>:</p><pre>const now = this.now();
+const rollupMs = this.#rollupMs();
+const live = `MIN(expires_at, bucket_start + $&#123;BUCKET_MS&#125; + ?) &gt; ?`;
+// SELECT only live rows; each resulting row has:
+completeness: "unavailable"</pre>
+<p>Root verification scripts:</p><pre>"lint": "pnpm check:boundaries &amp;&amp; pnpm typecheck &amp;&amp; pnpm openapi:check",
+"test": "vitest run",
+"rollback-drill": "node scripts/rollback-drill.mjs"</pre>
+<p>The existing eight-key parser is used by live producer and receiver configuration. New coverage schema handling belongs exclusively in this unimported model package.</p></div></details>
+<h2 id="s0a-scope">Scope and delivery target</h2>
+<p><strong>Allowed files:</strong> create only the following package files plus one model note and the lockfile importer:</p>
+<pre>packages/telemetry-coverage/package.json
+packages/telemetry-coverage/vitest.config.ts
+packages/telemetry-coverage/src/{index,evidence,retention}.ts
+packages/telemetry-coverage/__tests__/{evidence,retention,counterexamples}.test.ts
+packages/telemetry-coverage/__tests__/{fixtures,oracle}.ts
+packages/telemetry-coverage/README.md
+docs/implementation/w8b-evidence-model.md
+pnpm-lock.yaml                         # only new package importer/workspace links</pre>
+<p><strong>Runtime boundaries:</strong> no edits to existing contracts source or its parser, worker/sink code, SQL migrations, workflows, configs, deployment scripts, OpenAPI, published package versions or credentials. No runtime importer of this package, no v3 route, no coverage switch, no default TTL/fence/tick and no database table. Keep wire grammars and the final coverage decision for S0b.</p>
+<p><strong>Delivery target for this slice:</strong> published, reviewed experimental source and exact-head canonical CI. It is non-enabling software inside production-target issue HM-21; HM-21 and HM-16 remain open. No deployment or tenant enrollment is an acceptance criterion for S0a.</p>
+<h2 id="s0a-steps">Ordered implementation tasks</h2>
+<div class="table-wrap"><table><thead><tr><th>Task</th><th>Files</th><th>Verification</th><th>Status</th></tr></thead><tbody>
+<tr><td>0 · Drift and issue check</td><td>No source changes</td><td>Current main/ref and issue read; excerpts match</td><td>Not started</td></tr>
+<tr><td>1 · Package and standalone parser</td><td>Manifest, config, retention, index, retention tests, lockfile</td><td>Focused tests; old parser still rejects ninth key</td><td>Not started</td></tr>
+<tr><td>2 · Pure scoped evidence ledger</td><td>evidence, evidence tests, fixtures</td><td>Replay/conflict/scope tests, six-event permutations</td><td>Not started</td></tr>
+<tr><td>3 · Independent counterexample oracle</td><td>oracle, counterexample tests</td><td>C1–C4 explicit witnesses with independent truth</td><td>Not started</td></tr>
+<tr><td>4 · Model note and gates</td><td>README, model note</td><td>All check commands below, allowlist/import audit</td><td>Not started</td></tr>
+<tr><td>5 · Publish for review</td><td>PR metadata and issue linkage</td><td>Remote head, issue link and canonical CI evidence</td><td>Not started</td></tr>
+</tbody></table></div>
+<h3>0 · Verify the starting point</h3>
+<p>Use a managed isolated worktree based on canonical main. A T3 delegate must request <code>isolation: worktree</code>; it must not create a checkout inside its task. Outside T3, follow the Worktrunk skill for the protected <code>/Volumes/dev/hall-monitor</code> seed. Do not edit or raw-reset the seed. Preserve any existing executor checkout rather than changing another agent’s branch.</p>
+<pre>git status --short
+git ls-remote forgegraf refs/heads/main
+git diff --stat 322734e56743963ffcb6a9a006d73cc8f30a3a82..HEAD --   package.json pnpm-workspace.yaml pnpm-lock.yaml vitest.config.ts   tsconfig.json tsconfig.base.json packages/telemetry-contracts   packages/telemetry-coverage apps/worker/src apps/telemetry-worker/src
+kanbanger issue view HM-21</pre>
+<p>Expected: clean starting tree; correct project; HM-21 open. If main advanced, compare every dependency excerpt and reconcile the plan before implementing. A changed unrelated doc alone is not a proof failure. Reuse HM-21; do not create a duplicate backlog. Record this slice’s scope and acceptance in a comment before implementation. New branch suggestion: <code>hm-21-w8b-evidence-model</code>.</p>
+<h3>1 · Add the package and experimental retention parser</h3>
+<p>Use private package name <code>@gmacko/hall-monitor-telemetry-coverage</code>, ESM, source export <code>./src/index.ts</code>, existing catalog Vitest, and a workspace dependency on <code>@gmacko/hall-monitor-telemetry-contracts</code>. Use no new registry dependency. Its Vitest config uses Node and <code>__tests__/**/*.test.ts</code>, matching the temporal package. Root scripts already discover it.</p>
+<p>Export <code>parseCoverageRetentionPolicy(value)</code> from the new package. It accepts exactly the existing eight raw policy keys plus required <code>coverageSeconds</code>. Validate the base eight with the existing pure <code>parseTelemetryRetentionPolicy</code>, without altering it. Validate coverage as an integer using the existing retention min/max constants, and require <code>dedupeSeconds ≤ rollupSeconds ≤ coverageSeconds ≤ gapSeconds</code>. Return the validated base policy plus <code>coverageSeconds</code> or null. This is an experimental necessary ordering constraint, not a proof that zeros are safe.</p>
+<p>Use plainly fictional approval refs and durations in fixtures. Test every missing/extra key, non-integer, NaN/infinity, bad date, ordering violation and valid equality boundary. Explicitly test that the existing parser rejects the same nine-key document accepted by the new parser. No default duration is introduced.</p>
+<p><strong>Verify:</strong> after creating the manifest and config, run <code>pnpm install --lockfile-only --ignore-scripts</code>; inspect <code>git diff -- pnpm-lock.yaml</code> for only the new importer/workspace links. Then run <code>pnpm install --frozen-lockfile</code> and <code>pnpm --dir packages/telemetry-coverage exec vitest run __tests__/retention.test.ts</code>. Both exit 0. The new workspace dependency must be linked before the focused test. Report unrelated dependency churn before continuing.</p>
+<h3>2 · Model facts, presence and checkpoint identity</h3>
+<p>Keep model values synthetic and in memory. Public types must be labeled experimental. Do not model HMAC verification or network admission; input facts are assumed authenticated for a named synthetic scope. All keys include <code>tenant, streamId, epoch</code>. Within a scope, delivery identity binds <code>deliveryId, digest, sequence</code>; a sequence also binds one delivery identity/digest. Checkpoint identity binds <code>checkpointSequence, digest</code>. Different scopes may reuse all local labels.</p>
+<p>Expose a small pure reducer <code>applyEvidence(state, fact)</code> and a deterministic <code>summarizeEvidence(state, scope)</code>. Store observed facts/conflicts without declaring coverage. Reapplying an identical delivery or checkpoint is a no-op. Same identity with different digest/sequence, or same sequence for another delivery, records a stable conflict. Store enough canonical fact information that applying the same finite set in a different order yields the same summary. No “first winner” may erase a conflict.</p>
+<p>Compute the highest contiguous delivered sequence from the finite delivery facts, starting at 1. Preserve checkpoint facts separately; <code>accountedSeq &lt; observedPresence</code> does not by itself mean rollback. The summary may expose sorted IDs, checkpoint identities, presence and conflicts. It must not return <code>complete</code>, <code>verified_zero</code>, a rate or an inferred final frontier.</p>
+<p>Keep bounds explicit: at most 64 distinct canonical fact variants per model state, across its scopes. Identical retries consume no slot. On the 65th distinct variant, enter a terminal typed capacity state; summarization then returns only that outcome, with no normal presence or coverage summary. Do not evict a conflict or expose the prior state as a successful result. Convergence is required for finite sets within the bound. Test identical replay at 64 and a contradictory 65th variant. No unbounded production-storage algorithm is being approved. Retention and loss ranges can be explicit fixture facts used by the oracle; production persistence/coalescing semantics remain S0b/S1 work.</p>
+<p><strong>Verify:</strong> <code>pnpm --dir packages/telemetry-coverage exec vitest run __tests__/evidence.test.ts</code> exits 0. Enumerate all 720 orders of three distinct deliveries, one identical retry and two checkpoint facts; final canonical summaries match and all prefixes avoid a false conflict from presence being ahead. Add isolated conflicting and cross-scope fixtures.</p>
+<h3>3 · Reproduce rejected predicates against independent truth</h3>
+<p>The test-only <code>oracle.ts</code> reads a synthetic immutable completion ledger; it must not call the evidence reducer to calculate truth. Each committed ledger entry has a stable completion identity, scope, synthetic sequence, occurrence time, commit ordering index, logical commit time and candidate bit. Synthetic sequence is assigned in commit order within a scope; a fixture constructor rejects duplicate completion identities or contradictory sequence/order pairs. Replay deliveries do not add ledger entries. Counts include all committed entries in the test’s declared scope, including delayed/fence-violating completions. This defines test ground truth; it does not decide which evaluation kinds production E should include.</p>
+<p>Keep the original proposal’s problematic predicates as clearly named <em>test-local rejected candidates</em>, not exported algorithms. Passing tests must show a concrete disagreement with the oracle, naming the input history, candidate claim and ground truth. The known witnesses below should be fixed fixtures, not only randomized searches. A successful counterexample suite means a hypothesis was falsified; it must never be reported as a proven coverage implementation.</p>
+<details><summary>Exact rejected candidate predicates to reconstruct</summary><div>
+<p>These definitions are hypotheses from the rejected design, not functions to export. Test constructors supply the stated prerequisites. The oracle calculates counts and time-prefix membership independently.</p>
+<pre>// R1: a currently valid span is assumed; no qualifying gap exists.
+// TTL ordering alone allows count information to vanish first.
+oldZero = spanLive &amp;&amp; !rollupVisible &amp;&amp; !gapOverlaps;
+
+// R2: the proposal simultaneously calls this regression and permits
+// old checkpoints as no-ops. In the witness, ck5 is not contradictory.
+oldRegression = checkpoint.accountedSeq &lt; deliveredContiguousN;
+
+// R3: seq S is the largest all-acked-or-declared sequence prefix.
+// The missing condition is that every commit before through is included.
+oldFrontierAllowed = everySeqUpToSIsAckedOrDeclared
+  &amp;&amp; commitTimeOfS &lt;= through;
+trueTimePrefix = allCommittedEntriesWithTimeAtOrBeforeThrough
+  .every(entry =&gt; entry.seq &lt;= S);
+
+// R4: all currently observed accounting is verified and no taint exists.
+// Proposed finality adds no guarantee against a later fence violator.
+oldSealed = armedSince &lt;= bucketStart - F
+  &amp;&amp; through &gt;= bucketEnd + F
+  &amp;&amp; accountingVerified &amp;&amp; !observedTaint
+  &amp;&amp; receiverNow &gt;= bucketEnd;
+oldFinal = oldSealed;</pre>
+<p>For C4 set <code>armedSince=-1</code>, <code>bucket=[0,1)</code>, <code>F=1</code>, <code>through=2</code>, <code>receiverNow=2</code>, with an empty delivered/accounted sequence and no observed taint. A request prepared at 0.5 can complete at 3. One suffix has no later completion, another has that delayed completion and a historical fence-gap checkpoint. Both share the observed prefix. A runtime proof needs an additional invariant that excludes or qualifies the latter suffix.</p>
+</div></details>
+<h2 id="s0a-cases">Required acceptance scenarios</h2>
+<div class="table-wrap"><table><thead><tr><th>ID</th><th>Trace / fact</th><th>Expected evidence</th></tr></thead><tbody>
+<tr><td>C1 · False zero</td><td>One completion; rollup deadline B+10; coverage-span deadline B+20; gap-retention deadline B+30; no overlapping gap exists; read at B+11. Deadlines use illustrative coarse units, not production TTLs.</td><td>Original ordering holds and zero predicate says zero; oracle E is 1 and count availability is expired. Pair with a genuine-empty history having the same surviving receiver facts, demonstrating missing information.</td></tr>
+<tr><td>C2 · Benign checkpoint</td><td>Preload deliveries 1–5; checkpoint ck5/seq5 is generated legitimately; deliveries 6–10 arrive, so contiguous presence is 10; ck5 arrives or retries. Also a new checkpoint lags presence due to a lost ack.</td><td>The original “accounted &lt; presence” rule says regression; checkpoint history has no identity conflict. Identical replay is idempotent.</td></tr>
+<tr><td>C3 · Incomplete time prefix</td><td>Seq1 at t1 acked; seq2 at t2 pending; candidate frontier through t3 with seq1.</td><td>Written seq-prefix predicate holds; oracle finds a committed seq before through that is excluded. Cover equal-clock ties separately with explicit commit order.</td></tr>
+<tr><td>C4 · Premature finality</td><td>Bucket [0,1), F=1, claimed final at through2; later completion at t3 has occurrence0.5 and becomes a fence gap.</td><td>Two legal suffixes share the same observed prefix but produce different eventual bucket totals/completeness. Revision after the fact cannot prove the original “final” assertion.</td></tr>
+<tr><td>I1 · Identity / scope</td><td>Same delivery/key/seq/digest/checkpoint labels reused by two tenants, streams or epochs.</td><td>Independent state; changes in one scope cannot conflict with another.</td></tr>
+<tr><td>I2 · Replay / conflicts</td><td>Exact replay; changed digest; changed seq; one seq with another ID; checkpoint number reused with changed digest.</td><td>Replay no-op; real contradiction recorded deterministically; all 720 benign permutations converge.</td></tr>
+<tr><td>T1 · Retention transitions</td><td>Read-time expiry before deletion; alarm deletion; policy long→short→long; restart represented by serializable facts; revoked then re-enrolled scope.</td><td>Oracle tracks expiration/revocation independently; no expired information is treated as a fresh count. These fixtures are evidence requirements for a later deriver, not a new coverage implementation.</td></tr>
+<tr><td>B1 · Bounds</td><td>Model fact capacity reached; malformed integer/time fixture rejected by its test constructor.</td><td>Explicit capacity/invalid result; no fabricated positive claim or dropped conflict.</td></tr>
+</tbody></table></div>
+<p><strong>Verify:</strong> focused counterexample tests exit 0 and each C1–C4 produces an explicit witness assertion. Reviewers must inspect the oracle to verify independence. Test useful facts and known disagreements; a dummy “always unavailable” classifier is not an implementation of this slice.</p>
+<h3>4 · Document the decisions still needed and run gates</h3>
+<p>The README and model note must explain the scope, fixture bounds, experimental status, counterexamples and current runtime unavailability. List the S0b obligations: irreversible count-validity horizon; full time-prefix frontier; checkpoint identity/conflict retention; closure versus qualified as-of semantics; E membership; clock precision and TTL; taint-preserving bounds; platform transaction/ack assumptions. No final proof, protocol, fence value or production retention approval may be asserted.</p>
+<p>Separate the model note from runtime runbooks so operators cannot mistake it for enrollment instructions. Include exact commands and observed results, committed SHA and all skipped checks.</p>
+<h2 id="s0a-checks">Verification commands and done criteria</h2>
+<div class="table-wrap"><table><thead><tr><th>Gate</th><th>Command</th><th>Expected</th></tr></thead><tbody>
+<tr><td>Install</td><td><code>pnpm install --frozen-lockfile</code></td><td>Exit 0 after the scoped importer update</td></tr>
+<tr><td>Focused model</td><td><code>pnpm --dir packages/telemetry-coverage exec vitest run</code></td><td>All model tests pass, C1–C4 and 720-order property present</td></tr>
+<tr><td>Existing admission</td><td><code>pnpm --dir packages/telemetry-contracts exec vitest run __tests__/retention-policy.test.ts</code></td><td>Unchanged legacy parser cases pass</td></tr>
+<tr><td>Lint/types/OpenAPI</td><td><code>pnpm lint</code></td><td>Exit 0; no public API drift</td></tr>
+<tr><td>Full regressions</td><td><code>pnpm test</code></td><td>Existing suite and new package pass; report actual file/test counts</td></tr>
+<tr><td>Standalone drill</td><td><code>mkdir -p dist</code><br><code>pnpm rollback-drill --out dist/rollback-drill.json</code></td><td>Exit 0, existing 84 checks preserved</td></tr>
+<tr><td>Bundle gates</td><td><code>node scripts/deploy-worker.mjs --dry-run</code><br><code>node scripts/deploy-telemetry-worker.mjs --dry-run</code></td><td>Both exit 0; no deployment</td></tr>
+<tr><td>Runtime import audit</td><td><code>rg -n 'telemetry-coverage|telemetryCoverage' apps packages/telemetry-contracts/src packages/telemetry-sink/src scripts</code></td><td>No matches, rg exit 1; inspect import paths for relative bypasses too</td></tr>
+<tr><td>Scope / whitespace</td><td><code>git diff --name-only 322734e56743963ffcb6a9a006d73cc8f30a3a82..HEAD</code><br><code>git status --short</code><br><code>git diff --check</code></td><td>Only allowlisted files; clean committed source; no whitespace errors</td></tr>
+</tbody></table></div>
+<p>Also require an empty diff against the baseline for existing apps, contracts, sink, workflows and deploy scripts. Report lockfile edits by importer. No exported function may return a coverage-complete/verified-zero verdict; those terms may appear only in documentation and counterexample fixtures/tests explaining rejected rules. Root regression failures remain failures; do not raise timeouts, remove assertions, loosen auth or disable storage isolation to satisfy this plan.</p>
+<h3>5 · Publish with traceability</h3>
+<p>Commit with an HM-21-prefixed message. Open an HM-21-titled canonical PR with base main and a description of the experimental model, runtime import audit, actual gates and S0b obligations. Push normally, without rewriting another branch. As the next tool call after creating/taking over/pushing the PR, register its full URL with T3 <code>link_pull_request</code> if available. Link it using <code>kanbanger issue link HM-21 &lt;url&gt;</code> and read HM-21 back. The description and handoff must preserve the remainder of HM-21’s runtime/production scope.</p>
+<p>After publication, read available canonical checks once and hand back the exact final head and check/review state, including pending or missing checks. A delegated executor does not wait by polling, watch, merge, deploy or enroll. The parent owns waiting, validating all required exact-head checks, running <code>forge pr approve &lt;changeset-id&gt;</code> when green, verifying revision-bound approval and any later authorized delivery. Pending, missing, stale or failed checks are insufficient. Mark HM-21 In Review while the slice PR is open and document its unfinished S0b/runtime scope; use In Progress for implementing review revisions. S0a remains pending until its publication/review/CI criteria pass. HM-21 stays open after this slice because W8b and receiver production are unfinished.</p>
+<h2 id="s0a-stop">Stop conditions</h2>
+<ul><li>A runtime caller must change, an existing parser must accept new fields, or a non-allowlisted file seems necessary.</li>
+<li>The model requires a final coverage algorithm to proceed. Record the open proof obligation; do not invent an answer or silently change E.</li>
+<li>Ground truth reuses the candidate’s verdict, or one of C1–C4 cannot be reconstructed from the stated predicates. Report the discrepancy rather than weakening the oracle.</li>
+<li>The drift check shows incompatible source changes, lockfile update rewrites unrelated dependencies, or platform behavior is required for a pure model test.</li>
+<li>A verification fails twice after a reasonable scoped correction. Retain the failure evidence and report the exact blocker.</li></ul>
+<h2>Maintenance and next review</h2>
+<p class="meta">Cold read completed by an independent reviewer against the current source configuration. Their four handoff findings—explicit predicates and starting facts, install order, capacity semantics and pending-CI ownership—were incorporated. This was a document review; no S0a source or tests exist yet.</p>
+<p>Keep evidence primitives independent of production transport and user-facing metric vocabulary. Future S0b work must show the first useful safe exact/zero states as well as prove the known unsafe states unreachable. S1 cannot begin from passing counterexample tests alone. A fresh reviewer should inspect every exported symbol, the independent oracle, the scope/import audit and the old parser’s unchanged behavior.</p>
+<p class="meta">Related artifacts: <a href="#w8b-review">independent review</a> · <a href="2026-10-28-w8b-coverage-design.html">original proposal with review notice</a> · <a href="#implementation-status">full W0–W16 program</a>. This file contains all required context; the executor need not read a parent conversation.</p>
+</div></details>
+<h2 id="work">Detailed work packages</h2>
+<p class="small">Each package names its deliverable, scope, order, tests and exit condition. New paths are proposals. Shared contracts and packages stay product-neutral; source UI/permissions, original records and identity stay in the owning product. All slices use the common verification and delivery gates below.</p>
+<div class="filters" role="group" aria-label="Filter work packages">
+<button type="button" data-filter="all" aria-pressed="true">All work</button>
+<button type="button" data-filter="first" aria-pressed="false">Start first</button>
+<button type="button" data-filter="analytics" aria-pressed="false">Analytics MVP</button>
+<button type="button" data-filter="pilot" aria-pressed="false">Pilot readiness</button>
+<button type="button" data-filter="later" aria-pressed="false">Later expansion</button>
+<button type="button" id="expand">Expand visible packages</button>
+</div>
+<p id="filter-status" class="meta" role="status">All 17 work packages shown.</p>
+
+<details class="work" id="w0" data-track="first pilot analytics">
+<summary>W0 · Finish PR 8 and evaluator production acceptance <span class="chip attention">Partially delivered</span></summary><div class="detail-body">
+<p class="work-meta">Owner: Hall Monitor delivery owner · issues: HM-17 Done; HM-18/HM-20 In Review; HM-19 In Review · dependencies: existing canonical source and authorized synthetic credentials · delivery: docs publication plus verified default-off evaluator production</p>
+<p><strong>Completed:</strong> foundation, T1 and deployment/outbox/receiver/time-retention source have landed. Current evaluator deployment <code>8e50eb2a</code> is active at <code>322734e</code>, with public health 200. Remaining work is bounded to PR 8 and authenticated acceptance; it does not block isolated S0a work.</p>
+<ol>
+<li>Take over PR 8 in an isolated managed checkout, register it with the current T3 thread, and read its current remote head and diff. Bring canonical main into its existing branch with a normal branch update; preserve market docs, issue identifier and licensing labels. Do not force-push or merge the old W8b document branch.</li>
+<li>Run current frozen-install, lint, tests, standalone rollback and evaluator/receiver dry-run bundles. The updated branch must contain the W8a timeout-test restructuring from main. Obtain canonical checks for the new exact head; if runner stalls recur, diagnose the platform rather than raising timeouts or removing isolation.</li>
+<li>On all required exact-head checks passing, automatically approve through ForgeGraph and verify the revision-bound approval. Continue the authorized merge using an expected-head guard. Link PR 8 to HM-19 and read back its state; W1 charter work is not automatically complete because docs merged.</li>
+<li>Verify authenticated <code>/v1/ready</code> and one authorized synthetic evaluation on the actual deployed evaluator, using private supplied trusted service credentials. Reuse the prepared verifier if available; never mint a token, alter trust settings, or log it to satisfy a check. Confirm the collector binding is absent and telemetry remains default-off. Record exact deployed commit, deployment, environment and results in HM-18/HM-20 and read them back.</li>
+<li>Preserve receiver-disabled/no-real-enrollment state. Its separate W8b/retention/privacy/delivery requirements are in W8/W16. Repeated PR-reader failures are a host-mapping/platform problem; direct authenticated host reads are available and changing remotes has not fixed the reader.</li>
+</ol>
+<p><strong>Acceptance:</strong> PR 8 is reviewed against current main with required exact-head CI; evaluator authenticated readiness/evaluation and default-off behavior are verified at the intended production revision. Only then may the corresponding production delivery issue close. Synthetic credentials remain the outstanding acceptance input; elapsed waiting does not count as a pass.</p>
+<p class="stop"><strong>Stop:</strong> scope drift, stale/missing CI, unknown deployed revision, unintended collection settings, or no authorized synthetic credentials. Leave the relevant issue open with the owner and next action.</p>
+</div></details>
+
+<details class="work" id="w1" data-track="first pilot">
+<summary>W1 · Pilot charter, ownership and credible external materials <span class="chip">1–2 days + human decisions</span></summary>
+<div class="detail-body">
+<p class="work-meta">Owner: product owner + school sponsor + privacy/safeguarding leads · depends on: canonical PR 8 research; can begin before runtime work · status: HM-19 In Review; research PR 8 open; charter and human decisions pending; delivery: non-deploying</p>
+<p><strong>Files:</strong> update <code>docs/market/{PROSPECTUS,pilot-and-outreach}.md</code>; add <code>docs/launch/pilot-charter.md</code> and <code>docs/privacy/record-custody-decision.md</code>. A root <code>LICENSE</code> is added only after the owner chooses its terms.</p>
+<ol>
+<li>Separate design/introducer roles (Michigan Virtual/Oakland Schools) from an actual school host (Catholic Central/Novi are hypotheses). Record a sponsor, IT owner, one permitted grades 9–12 workflow, existing vendor gap and the concrete source integration.</li>
+<li>Inventory data, authoritative identity/age-eligibility source, excluded counseling/private surfaces, original-record owner, retention, consent/notices and existing staffed referral. Decide whether future cases live in the source product or a separate district-owned service before designing live case storage.</li>
+<li>Produce the two-page pitch/privacy FAQ and implemented-versus-proposed capability matrix. Resolve the missing license and private-registry distribution story; do not imply access to arbitrary LMS or private messages.</li>
+<li>Pre-register the study's error/help-seeking/participation/trust measures and go/no-go owners. Prepare outreach drafts and verify public contacts only when outreach is separately authorized.</li>
+</ol>
+<p><strong>Acceptance:</strong> one signed or explicitly pending charter with named accountable roles, an instrumentable source, bounded data purpose, referral hours and decision log. The four demo cases and commercial hypotheses are accurately labeled. No confirmed host is claimed without an agreement.</p>
+<p class="stop"><strong>Stop live integration:</strong> no authorized surface, unclear record ownership or no acceptable referral path. Continue synthetic co-design while these are resolved.</p>
+<p class="source"><a href="https://github.com/gmackie/hall-monitor/blob/089472ba93286520ff2846e50a34b1013c7e6162/docs/market/pilot-and-outreach.md#L31">Pilot scope and sequence</a> · <a href="https://github.com/gmackie/hall-monitor/blob/533b6f7d2b96c4c797add9bd0e67c025cfec1a6a/docs/validation-and-rollout.md#L89">Unsettled case custody</a></p>
+</div></details>
+
+<details class="work" id="w2" data-track="pilot">
+<summary>W2 · Immutable decision-pack registry <span class="chip">3–5 days</span></summary>
+<div class="detail-body">
+<p class="work-meta">Owner: model evaluation lead · depends on: merged foundation PR 6; W1 applicability decisions for live use · status: HM-23 Todo; original blueprint T4</p>
+<p><strong>Files:</strong> create <code>packages/noul-registry/src/{definition,registry,index}.ts</code> and tests; adapt <code>packages/clef/src/clef-protocol.ts</code> and its tests. Keep the registry private initially.</p>
+<ol>
+<li>Describe existing Clef questions in strict immutable definitions: decision ID/version, positive and negative criteria, required context, modality, provider support, fixture revision and human owner. Use a digest-pinned pack and a versioned manifest; a signed approval can be layered on without accepting arbitrary unsigned remote packs.</li>
+<li>Add an adapter that generates exactly the current wire questions for the initial pack. Keep model uncertainty, referent confidence and human adjudication separate. Unsupported categories/modalities remain unknown.</li>
+<li>Pin the selected pack in server policy/config. Registry installation never changes thresholds or activates a school profile. Reject missing, tampered, incompatible or unsupported packs before inference.</li>
+</ol>
+<p><strong>Tests / exit:</strong> golden request/output equivalence with existing questions; digest tampering; duplicate IDs; unsupported image/category; missing score; incompatible version. All existing classifier decisions remain unchanged under the initial pack, and root lint/tests pass.</p>
+<p class="stop"><strong>Stop:</strong> portable taxonomy mapping would change the meaning of an existing question without a benchmark and explicit policy revision.</p>
+<p class="source"><a href="https://github.com/gmackie/hall-monitor/blob/533b6f7d2b96c4c797add9bd0e67c025cfec1a6a/docs/design/semantic-registry.md#L32">Registry contract</a></p>
+</div></details>
+
+<details class="work" id="w3" data-track="first pilot">
+<summary>W3 · Finish calibration through HM-8 <span class="chip attention">5–8 engineering days + human panel</span></summary>
+<div class="detail-body">
+<p class="work-meta">Owner: model evaluation + safeguarding/educator panel · depends on: labeling rubric; W2 for the final pinned pack · status: existing <a href="https://tasks.gmac.io/gmacko/issue/HM-8">HM-8 · Backlog</a> · original blueprint: T4</p>
+<p><strong>Files:</strong> <code>packages/test-fixtures/src/{types,corpus,score}.ts</code>, <code>packages/shadow-report/src/{report,markdown,variant}.ts</code>, <code>packages/clef/src/classifier.ts</code>, <code>apps/worker/src/app.ts</code> configuration selection, relevant tests and signed calibration artifacts.</p>
+<ol>
+<li>Start blinded independent labeling now using synthetic/licensed positive, negative and ambiguous cases. Include quotation, supportive reporting, legitimate dissent, multilingual/code-switching, disability-related expression, rumor forwarding, false attribution and moderation abuse. Do not turn private student chat into a training corpus.</li>
+<li>Record disagreement/adjudication and split development/calibration/held-out evaluation data. Measure precision/recall, false restriction, missed concerns, abstention, confidence intervals and applicability per category/profile/language/modality.</li>
+<li>Replace the single global threshold option with explicit versioned per-question/applicability selection. Load only approved configurations; missing or unsupported calibration returns governed uncertainty/unavailability. Activation is a separate reviewed policy/deployment change.</li>
+<li>Publish shadow reports and decision diffs against the existing baseline. Human owners select acceptable error limits before activating any live student configuration. Keep student images held until their own grade/modality calibration and floor revision pass.</li>
+</ol>
+<p><strong>Verify:</strong> <code>pnpm shadow-report --profile student-9-12 --out dist/calibration-report.json --markdown dist/calibration-report.md</code>, targeted classifier/fixture tests, then full CI. The default fake classifier tests mechanics only; label such reports simulated. Real measured calibration requires an approved model run and human labels.</p>
+<p><strong>Exit:</strong> immutable calibration revision, held-out results with counts/uncertainty and safeguarding sign-off; tests prove no unsupported fallback to placeholder thresholds in the governed pilot. HM-8 currently declares non-deploying delivery: link a separate production activation issue before shipping live threshold changes.</p>
+<p class="stop"><strong>Stop activation:</strong> no qualified panel, inadequate data for a requested subgroup, or results outside agreed limits. Agents can implement the harness but cannot supply human adjudication or sign-off.</p>
+<p class="source"><a href="https://github.com/gmackie/hall-monitor/blob/b59da09781bfd3066458f9c6dcba2bb21dd66d23/packages/clef/src/classifier.ts#L25">Placeholder implementation</a> · <a href="https://github.com/gmackie/hall-monitor/blob/533b6f7d2b96c4c797add9bd0e67c025cfec1a6a/docs/validation-and-rollout.md#L65">Required evaluation and launch gates</a></p>
+</div></details>
+
+<details class="work" id="w4" data-track="first pilot">
+<summary>W4 · Read-only provider/privacy preflight <span class="chip">3–5 days</span></summary>
+<div class="detail-body">
+<p class="work-meta">Owner: security/privacy engineering · depends on: chosen deployment and W1 data inventory · status: HM-24 Todo; read-only preflight</p>
+<p><strong>Files:</strong> new <code>scripts/privacy-preflight.ts</code>, test fixtures/tests, <code>docs/privacy/preflight-evidence.md</code>. Keep provider-specific inspection behind typed adapters.</p>
+<ol>
+<li>Define evidence fields: approved account/route/model/data class/age eligibility, logging/export/cache observations, agreement reference, verifier, checked-at and expiry, policy revision and result. Store no access token, prompt or student data.</li>
+<li>Inspect the actual Worker observability, AI Gateway logging and Logpush destinations, caching, provider route and account bindings. Report unavailable permissions or unknown settings as unverifiable; never equate an unset request header with infrastructure proof.</li>
+<li>Combine observations with human-entered agreement/retention approvals and produce a machine-readable attestation. Use fake inspection responses for tests; a separately approved synthetic sentinel drill checks only observable retention surfaces.</li>
+<li>Document a read-only drift recheck and expiration/revocation response. Prefer the existing approved direct Workers AI route for the first pilot; additional providers are optional.</li>
+</ol>
+<p><strong>Tests / exit:</strong> enabled payload logging, independent Logpush export, cache, wrong route, expired evidence and missing permissions fail; valid fixed fixtures pass. Invocation must have a dry/read-only mode and never repair cloud configuration silently. Root typecheck and focused tests pass.</p>
+<p class="stop"><strong>Stop attestation:</strong> provider/account data cannot be checked or required human approval is absent. The report may show “unverified”; it may not certify ZDR or legal compliance.</p>
+<p class="source"><a href="https://github.com/gmackie/hall-monitor/blob/533b6f7d2b96c4c797add9bd0e67c025cfec1a6a/docs/privacy/zero-data-retention.md#L64">Infrastructure controls and assurance hierarchy</a></p>
+</div></details>
+
+<details class="work" id="w5" data-track="pilot">
+<summary>W5 · Enforce governed routes before model transfer <span class="chip">4–6 days</span></summary>
+<div class="detail-body">
+<p class="work-meta">Owner: Hall Monitor + source integration/security owners · depends on: W1, W4, and trusted source eligibility · status: HM-24 Todo; live enforcement depends on approved policy</p>
+<p><strong>Files:</strong> new <code>packages/governance/src/{policy,decision,index}.ts</code>; <code>apps/worker/src/{auth,config,app}.ts</code>; classifier transport construction; source guard integration under its own issue.</p>
+<ol>
+<li>Define strict server-owned enrollment and <code>GovernanceContext</code>: approved purpose/data class, source-attested age eligibility, institution, policy and route approval references. Carry per-request eligibility in an issuer-validated, audience-bound signed assertion or validated JWT extension; keep date of birth out of the evaluation payload.</li>
+<li>For enrolled pilot traffic, require current matching approval and configuration evidence before constructing or calling the external model route. Grade labels, browser input and an ordinary teacher setting cannot authorize a route.</li>
+<li>Represent denial with fixed content-free codes and existing unavailable/fail-closed behavior. Preserve deterministic support/help paths. Recheck both primary and escalation model permission; never silently switch provider.</li>
+<li>Roll out through synthetic enrollment first. Tie revocation and stale evidence to an immediate deny path and a named operational owner. Migrating other deployed tenants is a separately reviewed rollout.</li>
+</ol>
+<p><strong>Tests / exit:</strong> denied/unknown/expired eligibility or attestation results in <em>zero</em> transport calls; forged issuer/tenant/purpose is rejected; escalation cannot escape the allowlist; malformed outputs retain uncertainty; distress/support and existing policy floor tests pass. No new student identities or histories enter the public <code>EvaluationRequest</code>.</p>
+<p class="stop"><strong>Stop:</strong> the source cannot attest eligibility, a denial would accidentally allow unmoderated student output, or integration requires new authority not covered by the charter.</p>
+<p class="source"><a href="https://github.com/gmackie/hall-monitor/blob/533b6f7d2b96c4c797add9bd0e67c025cfec1a6a/docs/privacy/ferpa-coppa.md#L29">Source responsibilities and age eligibility</a> · <a href="https://github.com/gmackie/hall-monitor/blob/533b6f7d2b96c4c797add9bd0e67c025cfec1a6a/docs/privacy/zero-data-retention.md#L88">Gate proposal</a></p>
+</div></details>
+
+<details class="work" id="w6" data-track="first analytics">
+<summary>W6 · T2a: durable outbox and a versioned acknowledgment <span class="chip recommend">3–4 days</span></summary>
+<div class="detail-body">
+<p class="work-meta">Owner: Hall Monitor Worker/transport engineer · depends on: W0 · status: HM-20 In Review; source merged in PR 10 and evaluator deployed; authenticated production acceptance remains</p>
+<p><strong>Files:</strong> <code>apps/worker/src/{store,metrics,app,env}.ts</code>, <code>packages/telemetry-contracts/src/index.ts</code>, <code>packages/telemetry-sink/src/index.ts</code>, and existing store/telemetry/transport tests.</p>
+<ol>
+<li>Add a strict v2 protected delivery envelope containing an opaque stable delivery ID, approved producer/config revision and the evaluated/optional-candidate pair. Keep it separate from <code>TemporalMetricEvent</code>; event IDs never become analytic dimensions. Sign the exact envelope with a distinct v2 domain.</li>
+<li>Project permitted content-free metrics before completion and insert the outbox row in the same tenant Durable Object transaction as the result/receipt. Freeze the completion timestamp and producer revision once. Failed completion and idempotent replay create no new row.</li>
+<li>Extend the existing Durable Object alarm to schedule the earliest of cleanup and delivery work; do not replace its idempotency/receipt cleanup. Deliver after commit with bounded exponential backoff, retry horizon and operator-visible failure state. Re-sign each retry with a fresh transport time while retaining the same delivery ID and payload digest. Keep network delivery outside the moderation response path.</li>
+<li>Require a parsed versioned durable acknowledgment, including matching delivery ID and committed/deduplicated status, before marking delivered. T1's <code>202 persisted:false</code> must never clear a v2 outbox row.</li>
+<li>Bound outbox growth. If approved capacity/retry limits are exceeded, commit a durable coverage-gap marker and surface incomplete analytics while preserving moderation. Do not claim lossless observation through saturation. Never place request content or source message IDs in the outbox.</li>
+</ol>
+<p><strong>Tests / exit:</strong> injected commit failure, commit→crash→alarm restart, duplicate evaluation replay, collector timeout/rejection, invalid T1-style acknowledgment, batch partial failure and full-outbox behavior. Counts remain pending until genuine durable ack; user decisions remain unchanged during delivery outage. Use the existing <code>apps/worker/test/store.test.ts</code> Cloudflare harness as the pattern.</p>
+<p class="stop"><strong>Stop:</strong> outbox write cannot be atomic with completion or the design requires indefinite per-message storage. Resolve the transaction/retention contract before shipping.</p>
+<p class="source"><a href="https://github.com/gmackie/hall-monitor/blob/ed4bd5fe57219979c3ec28f50325c666cde81b1e/apps/worker/src/store.ts#L105">Existing completion transaction</a> · <a href="https://github.com/gmackie/hall-monitor/blob/ed4bd5fe57219979c3ec28f50325c666cde81b1e/docs/implementation/t1-trusted-telemetry.md#L82">T2 handoff</a></p>
+</div></details>
+
+<details class="work" id="w7" data-track="first analytics">
+<summary>W7 · T2b: atomic dedupe and exact district rollups <span class="chip recommend">4–6 days</span></summary>
+<div class="detail-body">
+<p class="work-meta">Owner: telemetry service engineer · depends on: W6 contract · status: HM-21 In Progress; source merged in PR 11; receiver undeployed</p>
+<p><strong>Files:</strong> <code>apps/telemetry-worker/src/{index,store,rollup}.ts</code>, its config/env/migrations, transport contracts and Cloudflare integration tests.</p>
+<ol>
+<li>Add a distinct opt-in v2 aggregate route/mode alongside the v1 validate/discard path. Preserve internal-only deployment, 16 KiB streaming bound, strict schemas, per-tenant grants and source/grade restrictions. Do not widen the T1 endpoint to accept incident/review events.</li>
+<li>Use one tenant-scoped SQLite Durable Object for the first exact store. In a single transaction, check the protected delivery-key digest, reject same-ID/different-body conflicts, insert dedupe state and increment coarse occurrence-bucket counters once for the entire pair.</li>
+<li>Persist only short-lived protected dedupe digests and aggregate rows; discard per-evaluation event payloads after processing. Record trusted ingress time separately for operational health. A duplicate with the same digest returns the durable already-committed acknowledgment.</li>
+<li>Enforce an explicit maximum allowed occurrence/retry age and future-clock skew. Dedupe retention must cover the complete accepted retry/late-event horizon; after expiry, an old re-signed event is rejected rather than counted again.</li>
+<li>Convert receiver tests from Node-only handler tests to a Workers/DO harness where persistence matters. Include a dry-run bundle check for this newly stateful Worker.</li>
+</ol>
+<p><strong>Tests / exit:</strong> duplicate, reordered and concurrent deliveries converge to exactly the same totals; pair mutation is atomic under injected failure; wrong tenant/source and conflicting digest fail; replay after dedupe expiry cannot recount; no content/IDs reach rollups or logs. The v1 response still explicitly says <code>persisted:false</code>.</p>
+<p class="stop"><strong>Stop:</strong> tenant aggregate throughput exceeds a measured single-object budget. Measure first, then plan sharding with unchanged idempotency semantics; do not introduce queues/WAE by default.</p>
+<p class="source"><a href="https://github.com/gmackie/hall-monitor/blob/533b6f7d2b96c4c797add9bd0e67c025cfec1a6a/docs/design/temporal-analytics.md#L51">Transactional source/consumer contract</a></p>
+</div></details>
+
+<details class="work" id="w8" data-track="analytics">
+<summary>W8 · T2c: time, source coverage, corrections and retention <span class="chip attention">Proof revision required</span></summary>
+<div class="detail-body">
+<p class="work-meta">Owner: telemetry/time-domain engineer · depends on: W7 and institution configuration owner · status: HM-21 In Progress; W8a merged/deployed to evaluator; W8b proof REVISE, S0a ready; receiver and authenticated acceptance remain</p>
+<p><strong>Reviewed W8b scope:</strong> <a href="#w8b-review">five required revisions and revised S0a–S6 order</a>. W8a is done in source; the following describes the remaining capability and its acceptance.</p>
+<p><strong>Files:</strong> S0a uses only new <code>packages/telemetry-coverage/</code> and its model note. Later reviewed slices extend receiver coverage/store/config/retention, then producer completion/outbox and checkpoint dispatch. Existing W8a <code>time.ts</code>, <code>retention.ts</code> and <code>tenant-config.ts</code> are already implemented; avoid re-creating them.</p>
+<ol>
+<li>Pin district IANA zone, effective-dated calendar and producer release/config revisions in a server-owned dimension table. Derive all local dimensions from those trusted records. Do not accept arbitrary caller calendar/release labels.</li>
+<li>Keep chronological occurrence buckets with local date/hour, UTC offset, UTC bucket start, zone/calendar revision and fixed source/band/modality dimensions. Preserve both fall-back hours and skipped spring hours. Fold to 168 tiles only in reporting; do not store the prototype's date-free output as history.</li>
+<li>Follow S0a → S0b → receiver → producer → dispatch → optional activation → synthetic drills. Use a per-stream sequence/checkpoint verifier only after its temporal and retention proof is reviewed. A healthy collector or later heartbeat alone cannot prove prior activity, continuous instrumentation or zero.</li><li>Before any exact/zero state: persist an irreversible count-validity horizon; distinguish checkpoint replay from contradictory checkpoint history; establish a full time-prefix cut; prove closure or explicitly define matched as-of cohorts; and bind every identity by tenant/stream/epoch. The four reviewed counterexamples must be unreachable in the resulting model.</li>
+<li>Late/reordered events revise their original occurrence bucket and advance a visible correction revision. Mark recent incomplete windows. Match numerator and denominator across source, modality, release and coverage before returning a rate.</li>
+<li>Implement separately approved TTLs for outbox/dedupe, rollups, coverage, negative evidence and any precise protected transport state. Positive evidence may not qualify expired counts as zero, and negative evidence may not expire while a positive claim survives. Enforce immutable expiry/read floors across long→short→long policy changes. Test alarm/read-time deletion, revoke/re-enroll and platform recovery handling. Keep WAE outside the first MVP.</li>
+</ol>
+<p><strong>Tests / exit:</strong> Detroit and Los Angeles DST 167/169 elapsed-hour weeks, Phoenix/Honolulu and half-hour offsets; holiday, calendar change and year rollover; producer silent while receiver healthy; outbox gap; zero exposure; late correction; expired data and policy revocation. Missing coverage returns null/status rather than zero. Approved retention parameters are configured and exercised before live storage.</p>
+<p class="stop"><strong>Stop:</strong> completeness cannot be established or the retention/accepted-retry horizon conflicts. Report “coverage unavailable” and withhold rates rather than filling gaps.</p>
+<p class="source"><a href="https://github.com/gmackie/hall-monitor/blob/533b6f7d2b96c4c797add9bd0e67c025cfec1a6a/docs/design/temporal-metrics.md#L38">Measurement rules</a> · <a href="https://github.com/gmackie/hall-monitor/blob/533b6f7d2b96c4c797add9bd0e67c025cfec1a6a/docs/design/temporal-analytics.md#L63">Time and coverage design</a></p>
+</div></details>
+
+<details class="work" id="w9" data-track="analytics">
+<summary>W9 · T3a: bounded aggregate reporting API <span class="chip">3–5 days</span></summary>
+<div class="detail-body">
+<p class="work-meta">Owner: telemetry API/security engineer · depends on: W7/W8; privacy review before live release · status: HM-22 Todo; runtime reads depend on W8b proof and privacy controls</p>
+<p><strong>Files:</strong> strict query/response DTOs in <code>packages/telemetry-contracts/src/queries.ts</code>; <code>apps/telemetry-worker/src/{query,query-auth,privacy}.ts</code>; query/security/export tests and API documentation.</p>
+<ol>
+<li>Implement the design's <code>GET /v1/analytics/hour-of-week</code> on the separate internal telemetry Worker. Require a verified tenant-bound reader principal with <code>analytics:read</code>, dedicated audience and anti-replay guarantees. Writer HMAC keys confer no read privilege.</li>
+<li>Allow only fixed metric/filter enums and approved aligned 7/28-day windows. First metrics are evaluated volume, coarse candidate rate and coverage; first role is district operator. Build teacher/class and cross-district access only under a later disclosure model.</li>
+<li>Return 168 display cells plus optional exact chronology, timezone/calendar/release, correction revision, freshness and explicit states: measured, suppressed, insufficient exposure, incomplete coverage or source unavailable. No raw identity, transport delivery ID or private record reference.</li>
+<li>Apply reviewed population/exposure thresholds, complementary suppression and cross-query/differencing limits in the server. Repeated adjacent windows, totals and CSV exports use the same disclosure policy and DTO transformation.</li>
+<li>Document metric units and matching denominators. Do not implement cost/review/urgent endpoints as fabricated empty values; advertise them unavailable until authorized producers exist.</li>
+</ol>
+<p><strong>Tests / exit:</strong> cross-tenant/role spoofing; raw-query/unknown filter rejection; repeated overlapping windows; reconstructing suppressed cells from totals; CSV parity; zero versus missing; DST/release mismatch; F never exceeds matching E. Screen/export results share the same redacted fixture output.</p>
+<p class="stop"><strong>Stop release:</strong> privacy approval cannot justify the available filters or cohort population is unknown. Keep synthetic-only access and coarser fixed windows.</p>
+<p class="source"><a href="https://github.com/gmackie/hall-monitor/blob/533b6f7d2b96c4c797add9bd0e67c025cfec1a6a/docs/design/temporal-events-and-api.md#L45">Proposed endpoints</a> · <a href="https://github.com/gmackie/hall-monitor/blob/533b6f7d2b96c4c797add9bd0e67c025cfec1a6a/docs/design/flightdeck-operations.md#L113">Read/export boundary</a></p>
+</div></details>
+
+<details class="work" id="w10" data-track="analytics">
+<summary>W10 · T3b: bootstrap Flightdeck, then integrate metrics <span class="chip attention">9–15 days, lower confidence</span></summary>
+<div class="detail-body">
+<p class="work-meta">Owner: Flightdeck application owner · depends on: W9 DTO/API; bootstrap can start earlier · status: FLIG-2; coordinate active FLIG-1 stack; readiness evidence must be refreshed before implementation</p>
+<p><strong>Verified starting point:</strong> <code>gmackie/flightdeck</code> main <code>aaaefa7502a2c93cda532025119652652d170715</code> has only <code>README.md</code>, with no app, package manifest, auth, CI or deployment. Implementation reconnaissance now confirms Flightdeck project 1c20dfd4-25a9-4c04-a105-5b5bc2fe3e15, active FLIG-1 and a 16-PR draft application stack through PR #17 (d41e4516c11111a9a256e5e06507c85adaa6e885). W10 is tracked in FLIG-2 and must reuse that application, identity and deployment work after verification; do not rebuild a bootstrap from the main-only snapshot.</p>
+<ol>
+<li><strong>Application readiness dependency (FLIG-1):</strong> inspect and verify the existing application/installer stack and its build/auth/deployment contracts. Reuse its framework and verified identity; only fill a demonstrated gap under FLIG-2. The original 6–10 day bootstrap estimate is superseded by this new evidence.</li>
+<li><strong>Integration PR, 3–5 days:</strong> bind the server to the private reporting API. Tenant scope comes from verified operator identity and server configuration, never a browser tenant field. Keep cloud credentials out of browser code.</li>
+<li>Implement evaluated volume, coarse candidate rate, coverage, 168 local-hour tiles and chronological DST detail. Add source/metric/denominator/release/timezone/freshness legends and accessible keyboard/table alternatives.</li>
+<li>Expose unavailable future report/case/review/cost panels as unsupported capabilities. Use the same server-projected response for screen and export. Synthetic demos are visibly watermarked and isolated from real metrics.</li>
+</ol>
+<p><strong>Tests / exit:</strong> verified session/tenant boundary; read-only service integration; no direct cloud analytics credentials; missing/suppressed states; DST and corrected windows; accessible labels and export parity. The verified FLIG-1 stack must establish exact build/test/deploy commands before the integration issue is executable. The original README-only main snapshot cannot supply those commands; refresh readiness evidence rather than inventing them.</p>
+<p class="stop"><strong>Stop:</strong> no identity/deployment owner or the implementation is expected to include general product analytics. Re-scope to this bounded operations view; do not inflate Hall Monitor's evaluator into a UI host.</p>
+<p class="source"><a href="https://github.com/gmackie/flightdeck/blob/aaaefa7502a2c93cda532025119652652d170715/README.md">Flightdeck bootstrap</a> · <a href="https://github.com/gmackie/hall-monitor/blob/533b6f7d2b96c4c797add9bd0e67c025cfec1a6a/docs/design/flightdeck-operations.md#L29">168-cell view specification</a></p>
+</div></details>
+
+<details class="work" id="w11" data-track="first pilot">
+<summary>W11 · Four-case demo, then ephemeral nudge/report UX <span class="chip">3–5 demo days; 5–8 more for live integration</span></summary>
+<div class="detail-body">
+<p class="work-meta">Owner: selected source product + education/accessibility reviewers · demo depends on: existing evaluator and W1; live depends on: W3/W5 and signed pilot/referral scope · status: synthetic demo HM-27 Todo; product adapter SCHO-264; live UX gated</p>
+<p><strong>Hall Monitor scope:</strong> synthetic fixtures and shadow-report outputs only. <strong>Product scope:</strong> existing message composer, report/help path and permission checks. EducateOS is a plausible first source because <code>school-os/packages/educateos-discussions/src/screening.ts</code> already calls Hall Monitor and has screening tests. This is a technical candidate, not an approved pilot host.</p>
+<ol>
+<li>Build four fictional demonstrations: quoted language versus threat; rumor forwarding versus supportive report; private mute versus delegated required-group removal; bait-and-report. Use the real existing evaluation pipeline where supported and label scripted proposed relational/permission behavior. Reuse fixtures and the current client.</li>
+<li>Show a synthetic-only Flightdeck sample without waiting for W10. Include an implemented/proposed label on every capability and the privacy/record-flow explanation from W1.</li>
+<li>For an approved live source, add curated private edit/continue-where-allowed/report/support choices, accessible copy and reversible friction. Keep the draft on failure; do not reveal another student's report or infer misconduct from declining a prompt.</li>
+<li>Reuse the product's report/referral mechanism and verified access state. Ordinary classroom report UI is not a confidential safeguarding case channel. Designate a distinct restricted referral if required; no persistent incident graph is needed for a bounded ephemeral nudge pilot.</li>
+</ol>
+<p><strong>Tests / exit:</strong> supportive disclosure survives profanity/quotation; no accidental publish of held content; help/report stays usable during budget/classifier outage; genuine reports are not penalized by volume; personal mute remains private; no attribution/discipline from a score. Product UI requires its own accessibility and role tests plus root gates in its repo.</p>
+<p class="stop"><strong>Stop live UX:</strong> no staffed recipient or a proposed behavior depends on unbuilt contextual classification. Keep that case scripted/synthetic rather than presenting it as supported.</p>
+<p class="source"><a href="https://github.com/gmackie/hall-monitor/blob/089472ba93286520ff2846e50a34b1013c7e6162/docs/market/pilot-and-outreach.md#L176">First deliverables</a> · <a href="https://github.com/gmackie/hall-monitor/blob/533b6f7d2b96c4c797add9bd0e67c025cfec1a6a/docs/design/behavior-and-interventions.md#L29">Intervention boundaries</a></p>
+</div></details>
+
+<details class="work" id="w12" data-track="later">
+<summary>W12 · T5: trusted safety actions from one product <span class="chip">5–8 days + source adaptation</span></summary>
+<div class="detail-body">
+<p class="work-meta">Owner: Hall Monitor contract owner + selected source product · depends on: W1 custody/surface decision and W5 for live transfer · status: HM-25 Todo; related source adapter SCHO-264; use synthetic contracts first</p>
+<p><strong>Files:</strong> create <code>packages/safety-events/src/{events,validation,index}.ts</code> and tests. Source transaction/outbox and permission adapter live in the chosen EducateOS or PlayTrek repository with a separate related Kanbanger issue.</p>
+<ol>
+<li>Separate signed server-observed actions from human allegations. Require approved producer, stable event ID/version, source occurrence time, keyed tenant/case-scoped actor/target references, evidence pointer, verified group purpose and actual permission transition. No message body on the event bus.</li>
+<li>Emit only after the source transaction commits, with durable outbox/idempotency conflict handling and correction/restoration events. Verify enrollment, role and entitlement at the source; an allegation may never become a platform fact by changing an event kind.</li>
+<li>Start with one justified use case, such as unauthorized loss of required-group access. Personal mute/ignore preferences never enter this stream. Group report counts cannot automatically silence another participant.</li>
+<li>Use synthetic contract/outbox fixtures until W14 provides the approved destination and rights lifecycle. Keep a direct staffed urgent referral independent of delayed analytical/case queues.</li>
+</ol>
+<p><strong>Tests / exit:</strong> forged role/membership/group purpose; duplicate/reordered/retracted events; restored access beats stale removal; cross-tenant references rejected; copied reports remain dependent allegations; no personal preference signal is emitted.</p>
+<p class="stop"><strong>Stop:</strong> the chosen product has no authoritative action/API for this use case or identity/retention scope is unclear. Do not infer permission transitions from model text.</p>
+<p class="source"><a href="https://github.com/gmackie/hall-monitor/blob/533b6f7d2b96c4c797add9bd0e67c025cfec1a6a/docs/design/temporal-events-and-api.md#L81">Restricted action schema</a></p>
+</div></details>
+
+<details class="work" id="w13" data-track="later">
+<summary>W13 · T6a: synthetic, case-scoped correlation engine <span class="chip">5–8 days</span></summary>
+<div class="detail-body">
+<p class="work-meta">Owner: incident-domain + safeguarding/evaluation leads · depends on: W12 contract and approved case rubric · status: HM-25 Todo; synthetic only until approved case rubric</p>
+<p><strong>Files:</strong> create <code>packages/incident-engine/src/{assertions,correlation,lifecycle,index}.ts</code> and synthetic tests. Keep network, identity resolution and production persistence outside this package.</p>
+<ol>
+<li>Model observed facts, claims, model assertions, competing referents, evidence groups, counterevidence and expiring case hypotheses separately. Track provenance and independent-source groups; ten forwards do not become ten witnesses.</li>
+<li>Implement idempotent ingestion, causal version checks, correction/retraction and expiry. Preserve ambiguous targets rather than merging nicknames/pronouns into a person.</li>
+<li>Produce interpretable reasons for qualified review under a versioned rubric. Classification confidence cannot authorize disclosure, discipline or permanent reputation.</li>
+</ol>
+<p><strong>Tests / exit:</strong> same-name students, ambiguous pronouns, quote/report context, forged screenshot provenance, duplicated forwards, brigading, optional friendship versus required participation, counterevidence, restored access, expiry and wrong attribution. Review-domain owners sign off the rubric before any live use.</p>
+<p class="stop"><strong>Stop:</strong> the rule requires a global student relationship graph or a score-driven identity reveal. Reframe the case evidence need.</p>
+<p class="source"><a href="https://github.com/gmackie/hall-monitor/blob/533b6f7d2b96c4c797add9bd0e67c025cfec1a6a/docs/design/incident-graph.md#L22">Assertion and case model</a></p>
+</div></details>
+
+<details class="work" id="w14" data-track="later">
+<summary>W14 · T6b: protected cases, human review and record rights <span class="chip attention">15–25+ days; re-estimate after custody decision</span></summary>
+<div class="detail-body">
+<p class="work-meta">Owner: district records/security + incident service + Gatekeeper owners · depends on: W1 custody, W5, W12/W13; qualified reviewers · status: HM-26 Todo with GATE-4; conditional expansion, custody/rights gates open</p>
+<p><strong>Proposed scope:</strong> <code>apps/safety-worker</code>, restricted D1/R2 adapters and migrations; <code>apps/review-ui</code> only if a separate UI is selected. If the source owns cases, place these responsibilities there instead. Gatekeeper integration gets an owning-project issue.</p>
+<ol>
+<li><strong>Storage/access PR:</strong> tenant/case/purpose-authorized repositories; source evidence pointers; justified encrypted evidence custody; legal TTL/hold metadata; strict keys and migration/FK checks. D1 has no implicit row-level tenant protection—test each repository boundary.</li>
+<li><strong>Review/disclosure PR:</strong> implement the proposed incident/review/disclosure-request APIs; separate request/approval roles; time-limited minimum-necessary resolution; independently audited urgent exception; no raw evidence access from Flightdeck.</li>
+<li><strong>Records/lifecycle PR:</strong> supervised inspection/export and multi-student redaction, correction/appeal, access expiry and deletion propagation, legal/inspection holds, backup/index handling and auditable decisions. Holds override ordinary deletion.</li>
+<li>Only now emit de-identified case/review/action lifecycle metrics from authoritative transitions. Queue age, acknowledgment and protection time use the exact protected ledger. Dashboard availability follows producer readiness.</li>
+</ol>
+<p><strong>Tests / exit:</strong> teacher/private-case denial; cross-tenant IDOR; requester cannot self-approve; expired/purpose-mismatched disclosure rejected; wrong attribution correction; two-student export redacts unrelated records; held material survives expiry; deletion reaches derived records; urgent response works with analytics unavailable.</p>
+<p class="stop"><strong>Stop live persistence:</strong> unclear custody/legal hold authority, incomplete rights workflows, or unavailable independent disclosure control. Synthetic correlation can continue without opening a production case database.</p>
+<p class="source"><a href="https://github.com/gmackie/hall-monitor/blob/533b6f7d2b96c4c797add9bd0e67c025cfec1a6a/docs/design/temporal-events-and-api.md#L25">Separate safety APIs</a> · <a href="https://github.com/gmackie/hall-monitor/blob/533b6f7d2b96c4c797add9bd0e67c025cfec1a6a/docs/design/incident-graph.md#L113">Disclosure/retention model</a></p>
+</div></details>
+
+<details class="work" id="w15" data-track="pilot later">
+<summary>W15 · T8: qualified staffing and an independently evaluated pilot <span class="chip">3–5 engineering days; external operations additional</span></summary>
+<div class="detail-body">
+<p class="work-meta">Owner: safeguarding lead + research/evaluation partner + technical operator · depends on: exact approved pilot scope; W3/W5/W11 for live nudges, W14 if cases retained · status: HM-27 Todo; human staffing/evaluation gates open</p>
+<p><strong>Files:</strong> pilot protocol and <code>docs/launch/{launch-checklist,incident-runbook,rollback-drill}.md</code>; synthetic operational fixtures. Staffing simulator changes, if required, stay under <code>packages/temporal-analytics/src/queue.ts</code> and tests.</p>
+<ol>
+<li>Document actual trained staffing, hours, urgency definitions, fallback contacts, acknowledgment ownership and withdrawal/rollback authority. A running Worker does not provide a human response service.</li>
+<li>Run the approved sequence: synthetic local → consenting staff → optional limited disclosed grades 9–12 exercise → independent review. For live nudges, reuse the clearly staffed existing referral path; a new case platform is required only if the approved scope retains cases.</li>
+<li>Drill Friday-night urgent referral, no available reviewer, source/collector outage, provider approval drift, access revocation, school withdrawal and deletion/hold. Protect help-seeking during failures.</li>
+<li>Measure wrongful restriction, missed concerns, help-seeking completion, attribution error, appeals, participation, trust and total labor/infrastructure cost. Edited messages or fewer reports alone do not establish improved welfare.</li>
+</ol>
+<p><strong>Simulator follow-up, 2–4 additional days if used:</strong> its active tasks store finish times only and compare against aggregate current capacity. Decide whether shifts represent anonymous capacity or distinct reviewers before using shift replacement/overrun forecasts. Add reviewer ownership/handoff, skill, absence, weekend/DST and censored-pending tests; bound workload sizes. This is a modeling limitation to resolve for T8, not a T0 merge blocker.</p>
+<p><strong>Exit:</strong> actual human signatures, qualified coverage/referral drill evidence, pre-registered acceptance results and an explicit continue/revise/stop decision. Published response claims match verified staffing.</p>
+<p class="stop"><strong>Stop live exercise:</strong> missing required signatures, inadequate response, unexpected disclosure, unacceptable false restriction or increased suppression of help-seeking.</p>
+<p class="source"><a href="https://github.com/gmackie/hall-monitor/blob/533b6f7d2b96c4c797add9bd0e67c025cfec1a6a/docs/launch/launch-checklist.md#L137">Human-only sign-off</a> · <a href="https://github.com/gmackie/hall-monitor/blob/533b6f7d2b96c4c797add9bd0e67c025cfec1a6a/packages/temporal-analytics/src/queue.ts#L90">Simulator capacity semantics</a></p>
+</div></details>
+
+<details class="work" id="w16" data-track="analytics pilot">
+<summary>W16 · Reconcile synthetic traffic, deploy and prove rollback <span class="chip">2–3 days per initial system rollout</span></summary>
+<div class="detail-body">
+<p class="work-meta">Owner: delivery/security operators · depends on: the selected milestone's completed implementation · status: HM-27 Todo; target-specific delivery and synthetic reconciliation pending</p>
+<p><strong>Files:</strong> synthetic end-to-end fixtures, receiver/Worker harness tests, <code>.forgegraph.yaml</code>, Worker configs, <code>scripts/deploy-worker.mjs</code>, CI bundle checks and launch evidence. Add telemetry/Flightdeck deployment targets deliberately; the current file deploys only the evaluator.</p>
+<ol>
+<li>Complete all component/contract checks. Reconcile a fixed synthetic evaluation ledger to durable E/F counters after duplicates, retries, restart, outage, late arrival and retention. Rejected/uncommitted/replayed evaluations contribute no additional count.</li>
+<li>Place synthetic sentinel content and opaque source identifiers in test inputs; verify absence from outbox payload fields not permitted by schema, aggregate storage, logs, errors, exports and observed cloud telemetry. Check the signed transport separately from analytic dimensions.</li>
+<li>Deploy internal receiver/store first in the approved environment with collection off, then compatible producer, then reader/UI. Test a synthetic tenant before enabling any approved real source. Stage separation is new work: current configuration has only production.</li>
+<li>Exercise disable/revoke/rollback while preserving moderation protections and legally required retained records. A code rollback alone does not remove secrets or deployed bindings; explicitly verify disabled settings and source delivery state.</li>
+<li>Record exact commit/artifact, PR, deployment IDs, environment, health and acceptance evidence in each owning issue; read it back. Production issues remain open until all required targets and checks are verified.</li>
+</ol>
+<p><strong>Exit:</strong> exact synthetic reconciliation, no observed sentinel leakage, target-specific health/readiness, verified default-off/tenant revocation and recovery evidence. Losses or incomplete coverage remain visible after recovery.</p>
+<p class="stop"><strong>Stop promotion:</strong> stale/missing checks, unknown deployed revision, incomplete rollback, exposed collector route or unreviewed data enrollment.</p>
+</div></details>
+
+<h2>Dependency map and metric capability boundary</h2>
+<div class="card flow" aria-label="Dependencies between implementation paths">
+<div class="flow-row"><strong>Land</strong><p>Canonical foundation #6 → transport #7 are merged; #9–#12 are merged. Finish market #8 and authenticated evaluator acceptance.</p></div>
+<div class="flow-row"><strong>Analytics</strong><p>W6 → W7 → W8 → W9 → W10 integration → W16. W10 bootstrap can overlap W6–W9.</p></div>
+<div class="flow-row"><strong>Pilot</strong><p>W1 → W11 synthetic demo. W2 → W3 and W4 → W5; W1 + W3 + W5 → W11 live subset → W15.</p></div>
+<div class="flow-row"><strong>Cases</strong><p>W1 custody + W5 → W12 → W13 → W14 → authoritative lifecycle metrics and the expanded W15 operational study.</p></div>
+</div>
+<div class="table-wrap"><table><thead><tr><th>Metric</th><th>Authority / earliest availability</th><th>First release behavior</th></tr></thead><tbody>
+<tr><td>Evaluated volume E / candidate rate F÷E</td><td>Completed Hall Monitor evaluation → W6–W8 durable rollups</td><td>Supported with matched denominator, release and coverage.</td></tr>
+<tr><td>Collection coverage</td><td>Reviewed scoped proof, expected streams and receiver-verified progress in W8b</td><td>Currently unavailable. Expired counts, silence and missing evidence never imply zero.</td></tr>
+<tr><td>Inference cost / route / latency</td><td>Receipts are the existing exact cost authority; a new approved aggregate producer is needed for dashboard routing/latency/cost</td><td>Unavailable until that bounded projection is implemented; never infer money from WAE or image bytes.</td></tr>
+<tr><td>Reports R / cases I / queue Q,V / protection P / resolution C</td><td>Source reporting and human case/action transitions, W12/W14</td><td>Unavailable. Distinct units/clocks, not a single strict conversion funnel.</td></tr>
+<tr><td>Urgent backlog / response time</td><td>Exact staffed safeguarding ledger, W14/W15</td><td>Restricted service only; no sampled urgent counts or implied 24/7 coverage.</td></tr>
+</tbody></table></div>
+
+<h2 id="verification">Verification contract</h2>
+<p><strong>Conventions:</strong> Node 24 in CI, pnpm 12.8.1, TypeScript strict/no-emit, Vitest 3.2.x, synthetic fixtures, fixed-field content-free errors/logs and integer nanoUSD. Match existing package tests and the Worker integration harness. Keep shared packages independent of product code.</p>
+<div class="table-wrap"><table><thead><tr><th>Gate</th><th>Exact current command</th><th>Expected result</th></tr></thead><tbody>
+<tr><td>Local artifact directory</td><td><code>mkdir -p dist</code></td><td>Create the standard ignored output directory before shadow-report or drill output.</td></tr>
+<tr><td>Dependency reproducibility</td><td><code>pnpm install --frozen-lockfile</code></td><td>Exit 0 in implementation worktree/CI; update the lock deliberately when manifests change.</td></tr>
+<tr><td>Boundaries + types + OpenAPI drift</td><td><code>pnpm lint</code></td><td>Exit 0; no product imports, type errors or generated schema drift.</td></tr>
+<tr><td>Workspace regression suite</td><td><code>pnpm test</code></td><td>All tests pass; retain existing contracts, policy, anti-replay, image, shadow and privacy behavior.</td></tr>
+<tr><td>Focused T0 reference check</td><td><code>pnpm --filter @gmacko/hall-monitor-temporal-analytics test</code></td><td>Existing 19 synthetic tests plus applicable new regression cases pass.</td></tr>
+<tr><td>Policy/decision rollback</td><td><code>pnpm rollback-drill --out dist/rollback-drill.json</code></td><td>Exit 0; drill artifact records passing checks. CI currently writes the same artifact at repository root.</td></tr>
+<tr><td>Existing evaluator bundle</td><td><code>node scripts/deploy-worker.mjs --dry-run</code></td><td>Exit 0; no live deploy. New receiver/Flightdeck bundles need their own CI gates.</td></tr>
+<tr><td>Contract/route changes</td><td><code>pnpm openapi</code> then <code>pnpm openapi:check</code></td><td>Commit intentional generated evaluator schema changes; keep separate service APIs separately documented/validated.</td></tr>
+</tbody></table></div>
+<p class="small">Run focused tests while implementing and all required gates before publishing. Do not count fake-AI tests as calibrated provider performance. The current temporal and telemetry unit tests run in Node; new Durable Object persistence requires the Cloudflare integration pool. This planning task read source and verified existing CI; it did not run the local runtime suite.</p>
+
+<details><summary>Required adversarial and operational scenarios</summary><div class="detail-body">
+<ul>
+<li><strong>Delivery:</strong> source commits then crashes; collector commits then acknowledgment is lost; pair redelivery; same ID/new digest; outbox saturation; producer disabled; dedupe expiry; re-signed late replay.</li>
+<li><strong>Time/quality:</strong> Detroit/LA DST fold and skip; Phoenix/Honolulu; half-hour offset; holiday/year boundary; policy/calendar change; late correction; healthy receiver with silent producer; no eligible exposure.</li>
+<li><strong>Privacy:</strong> cross-tenant roles; body/header error leakage; raw SQL/unknown dimension; sparse cell plus totals; overlapping windows; API/CSV differencing; source/message/case identifiers in aggregates.</li>
+<li><strong>Governance:</strong> unknown source age eligibility; stale approval; primary approved but escalation denied; logging/export/cache drift; no approved route; support path during classifier/budget failure.</li>
+<li><strong>Cases:</strong> false referent; copied reports; forged authority; teacher browsing; requester self-approval; legal hold/deletion conflict; multi-student export; corrected assertion; urgent human acknowledgment independent of analytics.</li>
+</ul>
+</div></details>
+
+<h2 id="gates">Decisions and live-pilot gates</h2>
+<div class="table-wrap"><table><thead><tr><th>Decision / evidence</th><th>Accountable owner</th><th>Recommended default while unresolved</th></tr></thead><tbody>
+<tr><td>Real host, controlled source, exact use case and institutional authority</td><td>Product owner + school sponsor + IT</td><td>Synthetic design study; one source, not simultaneous EducateOS and PlayTrek rollouts.</td></tr>
+<tr><td>Consent/notices, age eligibility, excluded channels, agreements, approved TTLs and record custody</td><td>School privacy/counsel + records officer</td><td>No new live processing/storage outside the approved scope; grade is not proof of age.</td></tr>
+<tr><td>Acceptable errors and calibrated applicability</td><td>Safeguarding + model evaluation panel</td><td>Retain uncertainty and student image holds; no guessed thresholds.</td></tr>
+<tr><td>Actual provider/config approval, freshness, route revocation</td><td>Security/privacy operator</td><td>Approved Clef route only; deny unverifiable transfers. Additional model adapters wait.</td></tr>
+<tr><td>Analytics population, allowed windows, suppression/differencing rules</td><td>Privacy + analytics owner</td><td>District operator, coarse fixed queries, exact district rollups; no classroom or cross-district comparisons.</td></tr>
+<tr><td>Qualified referral coverage, urgent response and withdrawal</td><td>Safeguarding lead</td><td>Explicitly staffed existing referral; no software-only human-response guarantee.</td></tr>
+<tr><td>License, distribution and supported service offer</td><td>Product owner + legal</td><td>Describe planned open-source distribution accurately; do not select legal terms implicitly.</td></tr>
+</tbody></table></div>
+<p>Before a student exercise, complete the actual <a href="https://github.com/gmackie/hall-monitor/blob/533b6f7d2b96c4c797add9bd0e67c025cfec1a6a/docs/launch/launch-checklist.md#L137">human sign-off rows</a>. Agents can prepare tests and evidence; named safety/privacy/security/product/district owners authorize the relevant pilot scope. The prospectus's 90-day sequence is illustrative and does not guarantee approval timing.</p>
+
+<h2 id="delivery">Repository and issue delivery workflow</h2>
+<p><strong>Canonical tracker:</strong> <a href="https://tasks.gmac.io/gmacko/project/63824a86-9f00-40d4-9f70-c27a59fb3827">Hall Monitor</a>, workspace <code>gmacko</code>, team <code>GMA</code>. Reuse HM-8 for calibration. HM-15 covers this non-deploying plan; HM-16 owns the authorized program. The status/dependency index maps every W-label to real owning issues; W-labels themselves are document references.</p>
+<ol>
+<li>Before each substantive implementation, search the owning Kanbanger project, verify the issue's project, and record repository/goal/scope/acceptance/delivery target. Use one issue per independently deliverable slice; cross-repository work gets related issues in EducateOS, Playtrek, Gatekeeper or Flightdeck as applicable. Do not continue GitHub issue #12 as a parallel backlog.</li>
+<li>Work in a protected-seed Worktrunk worktree with the real issue ID in a new branch. The plan artifact is in <code>hm-15-pr-implementation-plan</code>; source implementation belongs on its own issue branches. Never edit canonical source under <code>/Volumes/dev/hall-monitor</code>.</li>
+<li>Use actual states: <strong>In Progress</strong> when work starts, <strong>In Review</strong> when the PR opens. GMA currently has no waiting/blocked state; if blocked, leave it open with blocker, owner and next action. Keep dependencies explicit.</li>
+<li>Include issue IDs in ForgeGraph title/body; use <code>kanbanger issue link &lt;id&gt; &lt;pr-url&gt;</code> and read back the issue. Register every created/taken-over/pushed PR with T3 as a separate linkage. Link every stack layer.</li>
+<li>After each push, verify required checks on that exact SHA. When all pass, run <code>forge pr approve &lt;changeset-id&gt;</code> automatically and verify approval. Missing/pending/stale checks are not success. Respect enforced gates and continue only the authorized merge/deployment scope.</li>
+<li>For production work, record PR, exact deployed commit/artifact, deployment ID, environment and health/acceptance evidence before Done. A merge or staging deploy alone does not close production work. Read the issue after delivery; reopen and report an integration that prematurely closes it. Verify status automation rather than assuming a PR link provides it.</li>
+</ol>
+<p class="small"><strong>Tracker discovery note:</strong> the CLI's assigned-issue listing returned no issues even though the project contains HM-1–HM-14. Project-scoped GraphQL through <code>kanbanger api</code> confirmed the backlog and HM-8. Search with that supported CLI query if the listing omits unassigned issues; do not conclude the project is empty.</p>
+<p class="small"><strong>Publication:</strong> the existing release script publishes seven public-interface packages to the private registry. Temporal/telemetry packages are private and are not in <code>scripts/pack-release.mjs</code>'s allowlist. Do not promise installable new SDKs or bump all versions merely to land internal telemetry. Publish and verify a coordinated client/contracts release only when an actual consumer API change requires it.</p>
+
+<h2>Deferred scope and review limits</h2>
+<p><strong>T9 external evidence:</strong> defer beyond the first pilot. A later 2–3 day design spike can define case-scoped submitted URLs/screenshots, provenance, media security and rights. Implementation needs separate approved scope and estimation. General social-media scraping, permanent peer-reputation graphs, model-driven discipline/disclosure, uncalibrated student image enablement and cross-district benchmarks remain outside the proposed first delivery.</p>
+<p><strong>Considered and not treated as defects:</strong> T0's illustrative suppression and date-free weekly projection; T1's validate/discard behavior and absent retries; fixed WAE retention; explicit student image holds. These match the drafts' documented boundaries. Production work adds the guarantees separately.</p>
+<p><strong>Review limits:</strong> this was a focused source/PR/CI/design/backlog review. It was not a fresh dependency or cloud security audit, legal review, contact re-verification, complete EducateOS/PlayTrek/Gatekeeper audit, live production probe or load test. The Flightdeck bootstrap was verified locally and against remote main. EducateOS was inspected only enough to identify an existing screening integration; its full UI/permission implementation needs owning-repository reconnaissance and guides before changes.</p>
+<footer>
+<p class="meta">Current Hall Monitor source baseline: 322734e. Original audit: b59da097; GitHub #11/13/14 correspond to canonical #6/7/8. External Flightdeck readiness evidence retains the prior snapshot and must be refreshed. Refresh affected evidence if any head changes. Engineering ranges exclude human labeling, contracts, school approvals, procurement and qualified staffing.</p>
+<p class="meta">Completion of this planning task means the plan is saved, checked and rendered. It does not represent feature completion, PR approval, deployment, outreach or approval to process new student data.</p>
+</footer>
+</main>
+<script>
+(function(){
+ const works=Array.from(document.querySelectorAll("details.work"));
+ const filters=Array.from(document.querySelectorAll("[data-filter]"));
+ const status=document.getElementById("filter-status");
+ const expand=document.getElementById("expand");
+ filters.forEach(function(button){
+  button.addEventListener("click",function(){
+   const wanted=button.dataset.filter;
+   filters.forEach(function(other){other.setAttribute("aria-pressed",String(other===button));});
+   works.forEach(function(work){work.hidden=wanted!=="all"&&!work.dataset.track.split(" ").includes(wanted);});
+   const visible=works.filter(function(work){return !work.hidden;});
+   status.textContent=visible.length+" of "+works.length+" work packages shown · "+button.textContent+".";
+   expand.textContent="Expand visible packages";
+  });
+ });
+ expand.addEventListener("click",function(){
+  const visible=works.filter(function(work){return !work.hidden;});
+  const shouldOpen=visible.some(function(work){return !work.open;});
+  visible.forEach(function(work){work.open=shouldOpen;});
+  expand.textContent=shouldOpen?"Collapse visible packages":"Expand visible packages";
+ });
+})();
+</script>
+</body>
+</html>
