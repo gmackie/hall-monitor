@@ -16,7 +16,8 @@
     "openapi:check": "node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/openapi.ts --check",
     "shadow-report": "node --experimental-transform-types --disable-warning=ExperimentalWarning packages/shadow-report/src/bin.ts",
     "rollback-drill": "node scripts/rollback-drill.mjs",
-    "privacy-preflight": "node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/privacy-preflight.ts"
+    "privacy-preflight": "node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/privacy-preflight.ts",
+    "calibration": "node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/calibration.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
