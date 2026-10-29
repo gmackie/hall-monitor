@@ -1,4 +1,5 @@
 import { CLEF_CLASSIFIER_VERSION, createClefClassifier, workersAiBindingTransport } from "@gmacko/hall-monitor-clef";
+import { authorizeModelTransfer } from "@gmacko/hall-monitor-governance";
 import { loadDecisionQuestions } from "./decision-packs.ts";
 import {
   BATCH_EVALUATION_KINDS,
@@ -150,6 +151,7 @@ async function ready(request: Request, env: Env): Promise<Response> {
     // Presence and shape only: readiness never makes a billed model call.
     classifier: typeof env.AI?.run === "function",
     decisionPack: await loadDecisionQuestions(env) !== undefined,
+    governanceConfig: config.governance !== undefined,
   };
   const isReady = Object.values(checks).every(Boolean);
   return json({ ready: isReady, checks }, isReady ? 200 : 503);
@@ -158,7 +160,7 @@ async function ready(request: Request, env: Env): Promise<Response> {
 async function capabilities(request: Request, env: Env): Promise<Response> {
   const config = loadConfig(env);
   const identity = await authenticate(request, env, config);
-  const classifierEnabled = env.AI !== undefined && await loadDecisionQuestions(env) !== undefined;
+  const classifierEnabled = env.AI !== undefined && config.governance !== undefined && await loadDecisionQuestions(env) !== undefined;
   const body: Capabilities = {
     schemaVersion: SCHEMA_VERSION,
     supportedSchemaVersions: [...SUPPORTED_SCHEMA_VERSIONS],
@@ -284,11 +286,14 @@ async function runEvaluation(request: EvaluationRequest, identity: ServiceIdenti
     result = await evaluate(request, {
       policies: (profileId, revision) => lookupPolicy(config, tenant, profileId, revision),
       bundle: defaultBundle,
-      ...(await classifierFor(env, request)),
+      ...(await classifierFor(env, request, identity, config)),
       priceBook: PRICE_BOOK_CLOUDFLARE_2026_10_20,
       clock: () => new Date(),
       ids: { evaluationId: () => newId("eval"), receiptId: () => newId("rcpt") },
-      enforcement: enforcementFor(config, tenant, (profile) => log("warn", "shadow.refused", { tenant, profileId: profile.id })),
+      // Enrollment cannot turn denied classification into an allow through an old shadow override.
+      enforcement: config.governance === undefined || Object.hasOwn(config.governance.tenants, tenant)
+        ? { mode: "enforce" }
+        : enforcementFor(config, tenant, (profile) => log("warn", "shadow.refused", { tenant, profileId: profile.id })),
     });
   } catch (error) {
     await store.abandon(request.idempotencyKey, digest);
@@ -337,15 +342,28 @@ async function admit(env: Env, tenant: string): Promise<void> {
   if (!success) throw new HttpError("rate_limited", "tenant request rate exceeded", { retryable: true, headers: { "retry-after": "10" } });
 }
 
-async function classifierFor(env: Env, request: EvaluationRequest) {
+async function classifierFor(env: Env, request: EvaluationRequest, identity: ServiceIdentity, config: Config) {
   if (env.AI === undefined) return {};
   const questions = await loadDecisionQuestions(env);
   if (questions === undefined) return {};
   const gatewayId = env.HM_AI_GATEWAY_ID === undefined || env.HM_AI_GATEWAY_ID === "" ? undefined : env.HM_AI_GATEWAY_ID;
+  const authorizeModel = (modelId: string): boolean => {
+    const decision = authorizeModelTransfer(config.governance, {
+      tenant: identity.tenant, issuer: identity.issuer, context: identity.governance,
+      requestId: request.requestId, product: request.source.product, surface: request.source.surface,
+      evaluationKind: request.evaluationKind, modelId, gatewayId, sourceRevision: env.FG_COMMIT_HASH,
+      accountId: env.HM_GOVERNANCE_ACCOUNT_ID, workerName: env.HM_GOVERNANCE_WORKER_NAME,
+      now: Math.floor(Date.now() / 1000),
+    });
+    if (!decision.allowed) log("warn", "governance.denied", { reason: decision.reason });
+    return decision.allowed;
+  };
+  if (!authorizeModel(CLEF_FLASH_MODEL)) return {};
   const gateway =
     gatewayId === undefined
       ? undefined
-      : { id: gatewayId, metadata: { tenant: request.source.tenantId, product: request.source.product, kind: request.evaluationKind } };
+      : { id: gatewayId, metadata: { tenant: request.source.tenantId, product: request.source.product, kind: request.evaluationKind },
+        ...(config.governance !== undefined && Object.hasOwn(config.governance.tenants, identity.tenant) ? { skipCache: true, collectLog: false } : {}) };
   return {
     classifier: createClefClassifier({
       transport: workersAiBindingTransport(env.AI, gateway),
@@ -353,6 +371,7 @@ async function classifierFor(env: Env, request: EvaluationRequest) {
       newAttemptId: () => newId("att"),
       questions: questions.text,
       imageQuestions: questions.image,
+      authorizeModel,
     }),
   };
 }

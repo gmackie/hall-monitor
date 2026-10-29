@@ -48,6 +48,29 @@ function classify(
 }
 
 describe("createClefClassifier", () => {
+  it("denies a primary route before transport without recording a provider attempt", async () => {
+    const transport = new FakeTransport([]);
+    const plugin = createClefClassifier({ transport, priceBook: PRICE_BOOK_CLOUDFLARE_2026_10_20,
+      newAttemptId: () => "att_denied", authorizeModel: () => false });
+    const result = await plugin.evaluate(request(), { profile: STUDENT_9_12_PROFILE, signal: new AbortController().signal });
+    expect(transport.calls).toHaveLength(0); expect(result.attempts).toHaveLength(0);
+    expect(result.signals).toEqual({ classifierUnavailable: true });
+  });
+
+  it("rechecks authority after primary completion and does not meter denied escalation", async () => {
+    let current = true;
+    const transport = new FakeTransport([scored({ violence: 0.5 })]);
+    const guarded = { async run(...args: Parameters<FakeTransport["run"]>) {
+      const result = await transport.run(...args); current = false; return result;
+    } };
+    const checked: string[] = [];
+    const plugin = createClefClassifier({ transport: guarded, priceBook: PRICE_BOOK_CLOUDFLARE_2026_10_20,
+      newAttemptId: () => "att_one", authorizeModel: (model) => { checked.push(model); return current; } });
+    const result = await plugin.evaluate(request(), { profile: STUDENT_9_12_PROFILE, signal: new AbortController().signal });
+    expect(checked).toEqual([CLEF_FLASH_MODEL, CLEF_MODEL]); expect(transport.calls).toHaveLength(1);
+    expect(result.attempts).toHaveLength(1); expect(result.signals).toEqual({ uncertain: true });
+  });
+
   it("makes one Clef-flash call for a clear result and prices it exactly", async () => {
     const transport = new FakeTransport([scored()]);
     const output = await classify(transport);

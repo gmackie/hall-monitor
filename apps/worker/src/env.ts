@@ -66,6 +66,13 @@ export interface Env {
   readonly HM_AI_GATEWAY_ID?: string;
   /** Strict `{ id, version, digest }` pin into installed packs. Absent selects the source-pinned baseline. */
   readonly HM_DECISION_PACK?: string;
+  /** Opt-in enrolled tenants and operator-installed route evidence; strict JSON, no request override. */
+  readonly HM_GOVERNANCE?: string;
+  /** Operator-verified deployed account and Worker name, required for enrolled traffic. */
+  readonly HM_GOVERNANCE_ACCOUNT_ID?: string;
+  readonly HM_GOVERNANCE_WORKER_NAME?: string;
+  /** ForgeGraph injects the deployed revision; enrolled routes must match inspected evidence. */
+  readonly FG_COMMIT_HASH?: string;
   /**
    * Secret (set with `wrangler secret put`, at least 32 characters) that keys the request digests
    * stored for idempotency. Without it, evaluations fail closed.

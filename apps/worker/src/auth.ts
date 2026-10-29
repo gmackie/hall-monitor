@@ -1,4 +1,5 @@
 import { OpaqueId } from "@gmacko/hall-monitor-contracts";
+import { GovernanceContext } from "@gmacko/hall-monitor-governance";
 import { z } from "zod";
 
 /** Allowed clock skew, in seconds, when checking `exp`, `nbf` and `iat`. */
@@ -63,6 +64,8 @@ export interface ServiceIdentity {
   readonly tokenId: string;
   /** The token's `exp`, in seconds since the epoch. */
   readonly expiresAt: number;
+  /** Validated only after the service-token signature and audience checks. */
+  readonly governance?: GovernanceContext;
 }
 
 /** Why a token was refused. The reason is a fixed code, safe to log; it never quotes the token. */
@@ -109,6 +112,7 @@ const Claims = z.object({
   jti: z.string().min(1).max(256),
   tenant: OpaqueId,
   scope: z.union([z.string().max(2048), z.array(z.string().max(128)).max(64)]),
+  hm_governance: GovernanceContext.optional(),
 });
 
 /** Reads the bearer token from an `Authorization` header, or throws `missing_token`. */
@@ -155,6 +159,7 @@ export async function verifyServiceToken(token: string, options: VerifyOptions):
   const claims = Claims.safeParse(unverified);
   if (!claims.success) throw new AuthError("missing_claim");
   const { exp, nbf, iat, aud, jti, tenant, scope } = claims.data;
+  if (claims.data.hm_governance !== undefined && claims.data.hm_governance.expiresAt > exp) throw new AuthError("missing_claim");
   if (options.now >= exp + CLOCK_SKEW_SECONDS) throw new AuthError("expired");
   if (exp > options.now + MAX_TOKEN_LIFETIME_SECONDS + CLOCK_SKEW_SECONDS) throw new AuthError("lifetime_too_long");
   if ((nbf !== undefined && options.now < nbf - CLOCK_SKEW_SECONDS) || (iat !== undefined && iat > options.now + CLOCK_SKEW_SECONDS)) {
@@ -165,7 +170,8 @@ export async function verifyServiceToken(token: string, options: VerifyOptions):
   if (!audiences.some((candidate) => accepted.includes(candidate))) throw new AuthError("wrong_audience");
 
   const scopes = new Set((typeof scope === "string" ? scope.split(" ") : scope).filter((entry) => entry.length > 0));
-  return { issuer: issuer.iss, tenant, scopes, tokenId: jti, expiresAt: exp };
+  return { issuer: issuer.iss, tenant, scopes, tokenId: jti, expiresAt: exp,
+    ...(claims.data.hm_governance === undefined ? {} : { governance: claims.data.hm_governance }) };
 }
 
 function selectKey(issuer: TrustedIssuer, algorithm: "EdDSA" | "ES256", kid: string | undefined): Jwk {

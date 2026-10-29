@@ -125,7 +125,12 @@ This type is a **proposed decision record**, not a currently implemented contrac
 
 ## Current code versus proposed gaps
 
-Current: content-free Worker logging; digest-based idempotency; content-free receipt storage with configurable retention; Clef adapter sends images/text without storing them as receipts; optional Gateway transport explicitly disables payload logging; test fixtures are synthetic.
+Current source: content-free Worker logging; digest-based idempotency; content-free receipt storage
+with configurable retention; Clef sends images/text without storing them as receipts; optional
+Gateway transport explicitly disables payload logging; test fixtures are synthetic.
+[W4/W5](preflight-evidence.md) adds a read-only configuration preflight and opt-in server enrollment
+with signed eligibility and per-call route checks. Real cloud evidence, source acceptance, human
+approvals and production delivery remain open. No actual enrollment or ZDR certification is supplied.
 
 Not yet verified/implemented here: account-wide Gateway logs off, Logpush disablement, caching enforcement, OpenAI project ZDR attestation, cross-provider Governance Gate, continuous configuration drift monitoring, district contracts, actual Student PII processor review and school-specific data-erasure service.
 

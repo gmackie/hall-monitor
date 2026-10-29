@@ -133,6 +133,13 @@ Policy revisions pinned: `__________`  Resolver: `__________`  Evaluator bundle:
 
 ## Unresolved risks
 
+Before enrolling a governed source, also complete [the W4/W5 preflight](../privacy/preflight-evidence.md):
+name the issuer and source-side age/purpose authority, inspect the exact deployed account/Worker/
+revision and route/logging/export/cache settings, approve the explicit evidence lifetime and
+agreement references, test primary and escalation denial, and exercise source withdrawal.
+Synthetic tests do not fill these human/configuration gates. Existing unenrolled traffic is not
+automatically migrated by installing the optional governance package.
+
 | Risk | Impact | Mitigation | Owner | Review date |
 |---|---|---|---|---|
 | | | | | |

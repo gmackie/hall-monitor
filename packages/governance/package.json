@@ -1,0 +1,10 @@
+{
+  "name": "@gmacko/hall-monitor-governance",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "test": "vitest run" },
+  "dependencies": { "@gmacko/hall-monitor-contracts": "workspace:*", "zod": "catalog:" },
+  "devDependencies": { "vitest": "catalog:" }
+}
