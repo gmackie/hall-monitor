@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { advanceProposedAsOfClock, applyProposedAsOfFact, clampProposedCountDeadline, createProposedAsOf,
+import { EVALUATED_VOLUME_MEMBERSHIP_REVISION, advanceProposedAsOfClock, applyProposedAsOfFact, clampProposedCountDeadline, createProposedAsOf,
   invalidateProposedCountsBefore, readProposedAsOf, revokeProposedAsOf, type ProposedAsOfFact, type ProposedAsOfScope } from "../src/index.ts";
 import { completionLedger, oracleCounts, type SyntheticCompletion } from "./oracle.ts";
 
-const scope: ProposedAsOfScope = { tenant: "synthetic-tenant", streamId: "synthetic-stream", epoch: "epoch-1", membershipRevision: "all-committed-fixture-1" };
+const scope: ProposedAsOfScope = { tenant: "synthetic-tenant", streamId: "synthetic-stream", epoch: "epoch-1", membershipRevision: EVALUATED_VOLUME_MEMBERSHIP_REVISION };
 const digest = (n: number) => n.toString(16).padStart(64, "0");
 const completion = (sequence: number, bucket = 10, candidate = false): ProposedAsOfFact => ({ kind: "completion", sequence, completionId: `completion-${sequence}`, digest: digest(sequence), occurrenceBucket: bucket, candidate });
 const checkpoint = (throughSequence: number, checkpointId = 1): ProposedAsOfFact => ({ kind: "checkpoint", checkpointId, digest: digest(1000 + checkpointId), throughSequence });

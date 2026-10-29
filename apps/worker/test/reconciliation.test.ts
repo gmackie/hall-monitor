@@ -2,7 +2,7 @@
 // receiver -> aggregate DO -> signed durable ack. Only AI, clocks and network failures are fake.
 import { env, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { EvaluationRequest, EvaluationResult } from "@gmacko/hall-monitor-contracts";
+import { EvaluationKind, type EvaluationRequest, type EvaluationResult } from "@gmacko/hall-monitor-contracts";
 import { signedDeliveryRequestV2 } from "@gmacko/hall-monitor-telemetry-sink";
 import { handleTelemetry } from "../../telemetry-worker/src/index.ts";
 import { controls } from "../../telemetry-worker/test/controls.ts";
@@ -81,6 +81,57 @@ beforeEach(() => {
 afterEach(() => { probe.reset(); controls.reset(); fakeAi.reset(); vi.restoreAllMocks(); });
 
 describe("synthetic reconciliation through both real durable stores", () => {
+  // Independent product membership table: a new supported kind must be classified explicitly.
+  const kinds = ["interaction.input", "interaction.output", "content.candidate", "assessment.evaluator-result"] as const;
+  it("accounts for every supported evaluation kind in the product membership table", () => {
+    expect([...kinds].sort()).toEqual([...EvaluationKind.options].sort());
+  });
+
+  it.each(kinds.flatMap((kind) => [false, true].map((degraded) => ({ kind, degraded }))))(
+    "counts a unique $kind commit with degraded=$degraded once through the real receiver",
+    async ({ kind, degraded }) => {
+      const request = evaluationRequest({ kind, text: `${SENTINEL} ${HARASSMENT_MARKER}` });
+      fakeAi.failing = degraded;
+      const first = await evaluate(request);
+      expect(first.status).toBe(200);
+      const result = await first.json() as EvaluationResult;
+      expect(result.degraded !== undefined).toBe(degraded);
+      expect(await outbox()).toHaveLength(1);
+      const replay = await evaluate(request);
+      expect(replay.status).toBe(200);
+      expect(replay.headers.get("idempotent-replayed")).toBe("true");
+      expect((await replay.json() as EvaluationResult).evaluationId).toBe(result.evaluationId);
+      // A conflicting retry and a rejected evaluation never manufacture a committed unit.
+      expect((await evaluate({ ...request, content: { type: "text", text: "changed" } })).status).toBe(409);
+      expect((await evaluate(evaluationRequest({ kind, policy: { profileId: "missing", revision: "builtin-1" } }))).status).toBe(404);
+      expect(await outbox()).toHaveLength(1);
+      probe.handler = receive;
+      await deliver();
+      // Degraded holds belong in E; they are not evidence of a candidate F.
+      expect(await totals()).toEqual({ evaluated: 1, candidate: degraded ? 0 : 1 });
+      expect(await outbox()).toHaveLength(0);
+      expect((await aggregate().health()).producerCoverage).toBe("unavailable");
+    },
+  );
+
+  it("counts unique batch item commits, excluding an already committed item and a rejected item", async () => {
+    const candidate = evaluationRequest({ kind: "content.candidate", text: HARASSMENT_MARKER });
+    const assessment = evaluationRequest({ kind: "assessment.evaluator-result" });
+    const missing = evaluationRequest({ kind: "content.candidate", policy: { profileId: "missing", revision: "builtin-1" } });
+    expect((await evaluate(candidate)).status).toBe(200);
+    const response = await handle(new Request("https://hall-monitor.test/v1/evaluations:batch",
+      call("POST", await mintToken("educateos"), { requests: [candidate, assessment, missing] })), bindings());
+    expect(response.status).toBe(200);
+    const body = await response.json() as { items: { status: string; result?: EvaluationResult }[] };
+    expect(body.items.map((i) => i.status)).toEqual(["ok", "ok", "error"]);
+    expect(body.items[0]!.result!.requestId).toBe(candidate.requestId);
+    expect(await outbox()).toHaveLength(2);
+    probe.handler = receive;
+    await deliver();
+    expect(await totals()).toEqual({ evaluated: 2, candidate: 1 });
+    expect((await aggregate().health()).producerCoverage).toBe("unavailable");
+  });
+
   it("matches an independent completion ledger after outage, restart, reordered concurrent duplicates and lost acknowledgments", async () => {
     // Truth is fixed before evaluating or looking at transport/receiver records.
     const ledger = Object.freeze([

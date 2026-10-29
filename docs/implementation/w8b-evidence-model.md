@@ -48,8 +48,9 @@ authorize receiver/producer integration.
    tombstones. Delivery presence ahead of a checkpoint is ordinary reordering.
 4. Choose proven closure or explicitly qualified **as-of** semantics. Counts and evidence must
    use the same cohort and cut. A later correction does not justify an earlier finality claim.
-5. Confirm E membership across evaluation kinds and degraded completions with product/evaluation
-   owners. Successfully delivered or fence-admitted work cannot silently become the denominator.
+5. Bind the [owner-confirmed E membership](evaluated-volume.md) to source sequences and expected-stream
+   census: all four kinds and degraded commits. Successfully delivered or fence-admitted work cannot
+   silently become the denominator. The product decision was confirmed on 2026-10-29.
 6. Define evidence clock precision, accepted retry horizon, policy/TTL transitions and privacy
    approval for any finer-than-bucket evidence. This model supplies no production duration.
 7. Prove bounded compaction preserves taint and identity contradictions. This finite experiment
