@@ -22,6 +22,33 @@ export interface ClefQuestion {
   readonly instructions: string;
 }
 
+/** Structural input for a server-selected pack; Clef has no dependency on a private registry. */
+export interface ClefDecisionDefinition {
+  readonly id: string;
+  readonly category: FindingCategory;
+  readonly questions: readonly { readonly modality: "text" | "image"; readonly instructions: string }[];
+}
+
+/**
+ * Adapt a whole pack or decline it. Never drop an unsupported decision and silently interpret
+ * its absent answer as low risk. Version, digest and provider admission belong to the server.
+ */
+export function clefQuestionsFromDefinitions(definitions: readonly ClefDecisionDefinition[], modality: "text" | "image"): readonly ClefQuestion[] | undefined {
+  if (definitions.length === 0 || definitions.length > 64) return undefined;
+  const questions: ClefQuestion[] = [];
+  const ids = new Set<string>();
+  const categories = new Set(CLEF_QUESTIONS.map((q) => q.category));
+  for (const definition of definitions) {
+    const matching = definition.questions.filter((q) => q.modality === modality);
+    const instructions = matching[0]?.instructions;
+    if (!/^[a-z][a-z0-9_]{0,63}$/.test(definition.id) || ids.has(definition.id) || !categories.has(definition.category) ||
+        matching.length !== 1 || instructions === undefined || instructions.length > 2048 || instructions.trim().length === 0) return undefined;
+    ids.add(definition.id);
+    questions.push(Object.freeze({ id: definition.id, category: definition.category, instructions }));
+  }
+  return Object.freeze(questions);
+}
+
 /**
  * The category questions asked in a single request. Bundling them costs one billed request
  * instead of one per category (Clef accepts 1 to 64 questions per request).

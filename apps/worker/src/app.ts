@@ -1,4 +1,5 @@
 import { CLEF_CLASSIFIER_VERSION, createClefClassifier, workersAiBindingTransport } from "@gmacko/hall-monitor-clef";
+import { loadDecisionQuestions } from "./decision-packs.ts";
 import {
   BATCH_EVALUATION_KINDS,
   ContentType,
@@ -148,6 +149,7 @@ async function ready(request: Request, env: Env): Promise<Response> {
     replayGuard: env.TOKEN_REPLAY_GUARD !== undefined,
     // Presence and shape only: readiness never makes a billed model call.
     classifier: typeof env.AI?.run === "function",
+    decisionPack: await loadDecisionQuestions(env) !== undefined,
   };
   const isReady = Object.values(checks).every(Boolean);
   return json({ ready: isReady, checks }, isReady ? 200 : 503);
@@ -156,7 +158,7 @@ async function ready(request: Request, env: Env): Promise<Response> {
 async function capabilities(request: Request, env: Env): Promise<Response> {
   const config = loadConfig(env);
   const identity = await authenticate(request, env, config);
-  const classifierEnabled = env.AI !== undefined;
+  const classifierEnabled = env.AI !== undefined && await loadDecisionQuestions(env) !== undefined;
   const body: Capabilities = {
     schemaVersion: SCHEMA_VERSION,
     supportedSchemaVersions: [...SUPPORTED_SCHEMA_VERSIONS],
@@ -282,7 +284,7 @@ async function runEvaluation(request: EvaluationRequest, identity: ServiceIdenti
     result = await evaluate(request, {
       policies: (profileId, revision) => lookupPolicy(config, tenant, profileId, revision),
       bundle: defaultBundle,
-      ...classifierFor(env, request),
+      ...(await classifierFor(env, request)),
       priceBook: PRICE_BOOK_CLOUDFLARE_2026_10_20,
       clock: () => new Date(),
       ids: { evaluationId: () => newId("eval"), receiptId: () => newId("rcpt") },
@@ -335,8 +337,10 @@ async function admit(env: Env, tenant: string): Promise<void> {
   if (!success) throw new HttpError("rate_limited", "tenant request rate exceeded", { retryable: true, headers: { "retry-after": "10" } });
 }
 
-function classifierFor(env: Env, request: EvaluationRequest) {
+async function classifierFor(env: Env, request: EvaluationRequest) {
   if (env.AI === undefined) return {};
+  const questions = await loadDecisionQuestions(env);
+  if (questions === undefined) return {};
   const gatewayId = env.HM_AI_GATEWAY_ID === undefined || env.HM_AI_GATEWAY_ID === "" ? undefined : env.HM_AI_GATEWAY_ID;
   const gateway =
     gatewayId === undefined
@@ -347,6 +351,8 @@ function classifierFor(env: Env, request: EvaluationRequest) {
       transport: workersAiBindingTransport(env.AI, gateway),
       priceBook: PRICE_BOOK_CLOUDFLARE_2026_10_20,
       newAttemptId: () => newId("att"),
+      questions: questions.text,
+      imageQuestions: questions.image,
     }),
   };
 }

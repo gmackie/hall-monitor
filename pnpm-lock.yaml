@@ -242,6 +242,9 @@ importers:
       '@gmacko/hall-monitor-evaluators':
         specifier: workspace:*
         version: link:../../packages/evaluators
+      '@gmacko/hall-monitor-noul-registry':
+        specifier: workspace:*
+        version: link:../../packages/noul-registry
       '@gmacko/hall-monitor-policy':
         specifier: workspace:*
         version: link:../../packages/policy
@@ -371,6 +374,25 @@ importers:
       '@gmacko/hall-monitor-policy':
         specifier: workspace:*
         version: link:../policy
+    devDependencies:
+      vitest:
+        specifier: 'catalog:'
+        version: 3.2.7(@types/node@24.19.2)(supports-color@10.2.2)
+
+  packages/noul-registry:
+    dependencies:
+      '@gmacko/hall-monitor-clef':
+        specifier: workspace:*
+        version: link:../clef
+      '@gmacko/hall-monitor-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@gmacko/hall-monitor-costing':
+        specifier: workspace:*
+        version: link:../costing
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
     devDependencies:
       vitest:
         specifier: 'catalog:'
