@@ -27,7 +27,12 @@ Do **not** quietly extend the existing request/receipt API to accept identifiers
 15. [U.S. time-of-day/week research](us-moderation-timing.md): Gaggle, North Carolina tipline, Reddit and trolling research with evidence boundaries.
 16. [Temporal implementation blueprint](temporal-implementation-plan.md): concrete package paths, staged PRs, security matrix and human sign-off.
 
-The synthetic/offline temporal reference implementation lives in [packages/temporal-analytics](../../packages/temporal-analytics/README.md). [T1's authenticated telemetry transport](../implementation/t1-trusted-telemetry.md) is also implemented but disabled by default: its collector **validates and discards** input without persistence. No dashboard or identity graph is enabled.
+The synthetic/offline temporal reference implementation lives in [packages/temporal-analytics](../../packages/temporal-analytics/README.md).
+[T1](../implementation/t1-trusted-telemetry.md) validates and discards input.
+[V2](../implementation/t2-durable-telemetry.md) implements a durable outbox and exact coarse
+receiver with trusted time/retention, but the receiver is not production-verified or enrolled
+for real sources. The isolated W8b S0a evidence model does not establish runtime coverage.
+No dashboard or identity graph is enabled. See the [capability matrix](../market/capability-matrix.md).
 
 Current operational materials remain [the launch checklist](../launch/launch-checklist.md), [incident runbook](../launch/incident-runbook.md), and [rollback drill](../launch/rollback-drill.md).
 

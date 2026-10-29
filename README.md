@@ -7,7 +7,7 @@ product, role, curriculum context and institutional policy, and what should happ
 returns findings and a decision (`allow`, `coach`, `hold`, `block`, `support`) plus a content-free
 cost receipt. It never authorizes access to student data, impersonates a teacher, or awards grades.
 
-## Safety intelligence research and opt-in T1 transport
+## Safety intelligence research and opt-in telemetry
 
 A detailed **design package and synthetic-only temporal analytics foundation** for privacy-preserving cyberbullying prevention, social-action moderation,
 pseudonymous incident correlation, student nudges, provider-independent Nouls, FERPA/COPPA,
@@ -15,10 +15,16 @@ Zero Data Retention, and limited external-evidence workflows lives at
 [docs/design/README.md](docs/design/README.md). See the [research/source register](docs/references.md)
 and [validation milestones](docs/validation-and-rollout.md).
 
-The existing Worker remains a request-scoped evaluator with optional, **disabled-by-default** content-free telemetry via an authenticated internal service binding. T1's collector validates and **discards** events—it has no persistent metrics or dashboard. See the [T1 deployment and security guide](docs/implementation/t1-trusted-telemetry.md).
+The existing Worker remains a request-scoped evaluator with optional, **disabled-by-default**
+content-free telemetry via an authenticated internal service binding. T1 validates and discards
+events. The separate v2 protocol adds a durable outbox and exact coarse rollups with trusted
+time and explicit retention admission; its receiver is not production-verified or enrolled for
+real sources. Runtime coverage remains unavailable and there is no reporting API/dashboard.
+See the [T1 guide](docs/implementation/t1-trusted-telemetry.md) and
+[durable telemetry guide](docs/implementation/t2-durable-telemetry.md).
 
-There remains **no incident graph, identity vault,
-cross-conversation monitoring, OSINT collector, teacher case viewer, or student nudge UI is shipped**.
+There is **no shipped incident graph, identity vault,
+cross-conversation monitoring, OSINT collector, teacher case viewer or student nudge UI**.
 The proposed case evidence service would be separate from the current content-free receipts and
 would require district-specific legal, safeguarding, security, provider and model calibration
 approvals before any learner deployment. The separate `packages/temporal-analytics` module has
@@ -41,12 +47,20 @@ scenario planning and an offline priority/shift staffing queue simulator, all wi
 | `packages/test-fixtures` | Synthetic fixtures only; never real student data |
 | `packages/shadow-report` | Shadow-run reports and policy decision diffs over synthetic corpora (private) |
 | `packages/temporal-analytics` | Strict synthetic/offline time-bucket, DST, aggregate, suppression, cost and staffing-queue reference implementation (not wired to live Worker) |
-| `packages/telemetry-contracts` | Fixed strict no-content metric batches and tenant-specific source/grade policies |
-| `packages/telemetry-sink` | HMAC-signed, best-effort internal Worker service-binding emitter |
-| `apps/telemetry-worker` | Disabled-by-default internal validate-and-discard receiver (no storage) |
+| `packages/telemetry-contracts` | Strict content-free v1/v2 batches, signing/ack domains and retention policies |
+| `packages/telemetry-sink` | Internal signed v1 emitter and v2 delivery/ack validation |
+| `packages/telemetry-coverage` | Isolated experimental evidence model; no runtime completeness/zero classification |
+| `apps/telemetry-worker` | Internal v1 validate/discard and v2 durable aggregate receiver; default off, not production-verified |
 | `apps/worker` | Cloudflare Worker HTTP API |
 
 ## Rules
+
+The [pilot charter](docs/launch/pilot-charter.md), [custody decision](docs/privacy/record-custody-decision.md)
+and [capability matrix](docs/market/capability-matrix.md) distinguish source implementation from
+deployment, institutional approval and proposed features. The initial study remains synthetic.
+Open-source distribution is intended, but no root license has been selected; existing packages
+use a private authenticated registry. Do not treat repository visibility as a license or supported
+school deployment agreement.
 
 - No product code: shared packages never import `@playtrek/*`, `@schoolos/*` or `@gadgets/*`
   (`pnpm check:boundaries`).

@@ -1,11 +1,20 @@
 # Pilot offer, procurement plan and outreach playbook
 **As of 2026-10-28. No named prospect has been approached or accepted. No student-data access is authorized.**
 
+**W1 clarification, 2026-10-29:** the [charter](../launch/pilot-charter.md) is explicitly pending;
+the [two-page pitch/privacy FAQ](pilot-brief.md), [capability matrix](capability-matrix.md) and
+[custody decision](../privacy/record-custody-decision.md) are the current discovery materials.
+Open-source licensing is intended, with no root license selected. Existing packages are distributed
+through a private authenticated registry. Draft outreach is not permission to send it, and public
+contacts from the research snapshot must be reverified when outreach is authorized.
+
 ## 1. First-meeting positioning
 
 ### One-line
 
-“Hall Monitor is an open-source, school-controlled way to add privacy-respecting moderation and prosocial prompts **inside the digital collaboration tools a school actually owns**, while keeping confidential incident records behind human approval.”
+“Hall Monitor evaluates content inside an explicitly integrated school-controlled tool. We propose
+a synthetic-first study of private preventive prompts, with institutional control and a qualified
+referral path.”
 
 ### Thirty-second explanation
 
@@ -110,11 +119,11 @@ Document direct answers; don't silently transform interview anecdotes into natio
 
 Hello Michigan Virtual Institute team,
 
-I’m developing Hall Monitor, an open-source safety and moderation layer intended for school-controlled digital learning and collaboration tools. Rather than expanding surveillance of students' personal accounts, we're exploring whether contextual classifiers and small, private prosocial prompts can address behaviors like exclusion from required projects, rumor forwarding and misuse of group moderation privileges.
+I’m developing Hall Monitor, a safety and moderation prototype intended for school-controlled digital learning and collaboration tools. Rather than expanding surveillance of students' personal accounts, we're exploring whether contextual classifiers and small, private prosocial prompts can address behaviors like exclusion from required projects, rumor forwarding and misuse of group moderation privileges.
 
 I noticed Michigan Virtual's invitation to propose future EdTech pilots. Would your research/innovation team be open to a 30-minute discussion about a **synthetic-data-first** study, with educator and privacy review, before approaching a participating school? The immediate deliverable would be an evaluation protocol and working demonstration—not a request to access student messages.
 
-I can share the open-source architecture, FERPA/COPPA and provider-retention controls under design, and a proposed measurement plan.
+I can share the proposed architecture and intended open-source distribution, FERPA/COPPA and provider-retention controls under design, and a proposed measurement plan.
 
 Would you be the appropriate group for that discussion?
 
@@ -124,7 +133,7 @@ Would you be the appropriate group for that discussion?
 
 Hello Justin,
 
-I'm developing Hall Monitor, a district-owned/open-source moderation and safety layer that works *within approved school learning applications*. Its focus is prevention and procedural abuse (e.g., repeated removal from required group work or report brigading), rather than monitoring students' personal social media.
+I'm developing Hall Monitor, a proposed district-controlled moderation and safety layer that works *within approved school learning applications*. Its focus is prevention and procedural abuse (e.g., repeated removal from required group work or report brigading), rather than monitoring students' personal social media.
 
 Your team's focus on responsible AI across Oakland County seems particularly aligned. I'm looking for a technical/educational design critique and, if it seems promising, an interested local school to help define a synthetic-only pilot protocol. We would not request students' existing private communications or assume Oakland Schools can grant member-district data access.
 
@@ -136,7 +145,7 @@ Would 30 minutes with you and an appropriate student-support/privacy colleague b
 
 Hello [IT/Counseling leader],
 
-I'm working on an open-source system to help school-controlled discussion tools distinguish overtly unsafe messages from ordinary student disagreement—and, potentially, identify harmful patterns such as rumor forwarding or misuse of group moderation controls. The intent is to provide private, constructive prompts before incidents escalate, while limiting adult access to private conversations.
+I'm working on a prototype intended to help school-controlled discussion tools distinguish overtly unsafe messages from ordinary student disagreement—and, potentially, identify harmful patterns such as rumor forwarding or misuse of group moderation controls. The intent is to provide private, constructive prompts before incidents escalate, while limiting adult access to private conversations.
 
 I'm not proposing school-wide surveillance or replacing your existing safety vendors. I'd like to learn which *approved, school-owned* discussion activities might benefit from a synthetic/staff-only demonstration and what safeguards your counseling and technology teams would require.
 
@@ -148,7 +157,7 @@ Would you be open to a brief exploratory call? I'd be happy to send a one-page d
 
 Hello [Director],
 
-I was reviewing your public work on student wellbeing and relational aggression, especially rumor spreading, exclusion and impacts on classroom participation. Hall Monitor is an open-source research prototype exploring whether privacy-first in-app nudges and carefully limited, human-reviewed incident evidence could support existing bullying-prevention practices.
+I was reviewing your public work on student wellbeing and relational aggression, especially rumor spreading, exclusion and impacts on classroom participation. Hall Monitor is a research prototype exploring whether privacy-first in-app nudges and carefully limited, human-reviewed incident evidence could support existing bullying-prevention practices.
 
 I'm not requesting student records or proposing automated discipline. The first stage would be synthetic scenarios with educators, IT and privacy staff to see whether the approach solves a real problem without chilling student communication.
 

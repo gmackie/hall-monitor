@@ -1,7 +1,19 @@
 # Hall Monitor — U.S. Market Prospectus
 **Research snapshot: October 28, 2026 · Draft for customer discovery and product validation · Not an offer or a claim of pilot commitments**
 
-Related engineering: [Hall Monitor safety/temporal architecture — draft PR #11](https://github.com/gmackie/hall-monitor/pull/11); [M9 implementation backlog](https://github.com/gmackie/hall-monitor/issues/12). This prospectus is an **independent research proposal**. Current Hall Monitor is a request-scoped text/image content evaluation service using deterministic plugins, Cloudflare Clef and district policy profiles. It does **not** yet contain the social-incident graph, student nudges, safeguarding case service, school data integrations or operational Flightdeck dashboards described here.
+Related engineering: [architecture](../design/README.md), [current program HM-16](https://tasks.gmac.io/gmacko/issue/HM-16),
+[capability matrix](capability-matrix.md) and [pending pilot charter](../launch/pilot-charter.md).
+The historical GitHub planning issue is not the active backlog. This prospectus is an
+**independent research proposal**. Hall Monitor is a request-scoped text/image evaluator with
+deterministic plugins, Clef and district policy profiles. Durable telemetry source exists but
+real collection/coverage/reporting acceptance is incomplete. It does **not** yet contain the
+social-incident graph, student nudges, safeguarding case service, school source integrations or
+operational Flightdeck dashboards described here.
+
+**Distribution clarification, 2026-10-29:** open-source distribution and the commercial model below
+are intentions. No root license is selected; existing packages use a private authenticated registry.
+No host or study is authorized. See the [pitch/privacy FAQ](pilot-brief.md) and
+[custody decision](../privacy/record-custody-decision.md).
 
 ## Executive thesis
 
