@@ -9,12 +9,14 @@
   "durable_objects": {
     "bindings": [
       { "name": "IDEMPOTENCY_STORE", "class_name": "IdempotencyStore" },
-      { "name": "TOKEN_REPLAY_GUARD", "class_name": "TokenReplayGuard" }
+      { "name": "TOKEN_REPLAY_GUARD", "class_name": "TokenReplayGuard" },
+      { "name": "AGGREGATES", "class_name": "TelemetryAggregateStore" }
     ]
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["IdempotencyStore"] },
-    { "tag": "v2", "new_sqlite_classes": ["TokenReplayGuard"] }
+    { "tag": "v2", "new_sqlite_classes": ["TokenReplayGuard"] },
+    { "tag": "v3", "new_sqlite_classes": ["TelemetryAggregateStore"] }
   ],
   "vars": { "HM_AUDIENCE": "hall-monitor" }
 }

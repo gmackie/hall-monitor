@@ -34,6 +34,10 @@ their features are implemented.
   person's judgement, authority or signature and **cannot be completed by an agent**. Marked
   "human only" below.
 
+The [synthetic evaluator-to-receiver drill](synthetic-reconciliation.md) supplies local W16
+outage/retry/restart/expiry/revocation reconciliation. It does not fill deployed acceptance,
+coverage, cloud sentinel inspection or human staffing/signature rows in this checklist.
+
 Stage: `__________`  Deployment / account: `__________`  Hall Monitor commit or release: `__________`
 Policy revisions pinned: `__________`  Resolver: `__________`  Evaluator bundle: `__________`
 
