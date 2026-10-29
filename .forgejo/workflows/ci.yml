@@ -28,8 +28,17 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
-      - run: pnpm test
-      - run: pnpm rollback-drill --out rollback-drill.json
+      # Podman's disk-backed /tmp on the canonical runner can stall SQLite fsyncs long enough to
+      # time out Worker tests. Use ephemeral tmpfs scratch space; the real SQLite store, per-test
+      # storage isolation, assertions and test deadlines are unchanged.
+      - name: Run tests and rollback drill with memory-backed scratch storage
+        run: |
+          set -eu
+          test_tmpdir=$(mktemp -d /dev/shm/hall-monitor-tests.XXXXXX)
+          trap 'rm -rf "$test_tmpdir"' EXIT
+          export TMPDIR="$test_tmpdir"
+          pnpm test
+          pnpm rollback-drill --out rollback-drill.json
       - name: Check the Worker bundles
         run: node scripts/deploy-worker.mjs --dry-run
 
