@@ -296,7 +296,7 @@ async function runEvaluation(request: EvaluationRequest, identity: ServiceIdenti
         : enforcementFor(config, tenant, (profile) => log("warn", "shadow.refused", { tenant, profileId: profile.id })),
     });
   } catch (error) {
-    await store.abandon(request.idempotencyKey, digest);
+    await store.abandonReserved(request.idempotencyKey, digest, begun.reservationId);
     if (error instanceof HttpError) return fail(error);
     if (error instanceof HallMonitorError) return fail(new HttpError(error.body.code, error.body.message, { retryable: error.body.retryable }));
     log("error", "internal.error", { tenant, route: "evaluate", errorName: errorName(error) });
@@ -306,7 +306,7 @@ async function runEvaluation(request: EvaluationRequest, identity: ServiceIdenti
   // The v2 delivery is projected before completion so the store commits it with the result and
   // receipt in one transaction. Disabled (the default), it is null and nothing changes.
   const telemetry = await prepareTelemetryDelivery(env, tenant, request, result);
-  await store.complete(request.idempotencyKey, digest, result, {
+  const committed = await store.completeReserved(request.idempotencyKey, digest, begun.reservationId, result, {
     schemaVersion: SCHEMA_VERSION,
     evaluationId: result.evaluationId,
     requestId: result.requestId,
@@ -314,6 +314,7 @@ async function runEvaluation(request: EvaluationRequest, identity: ServiceIdenti
     receipt: result.receipt,
     recordedAt: new Date().toISOString(),
   }, telemetry ?? undefined);
+  if (committed === null) return fail(new HttpError("idempotency_conflict", "evaluation reservation is no longer current", { retryable: true }));
   log("info", "evaluation.completed", {
     tenant,
     evaluationId: result.evaluationId,

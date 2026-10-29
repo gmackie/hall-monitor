@@ -46,7 +46,7 @@ export const LEGACY_GAP_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 export type GapReason = "capacity" | "expired" | "revoked" | "error" | "conflict";
 
 /**
- * What the Worker hands {@link IdempotencyStore.complete} to persist atomically with the result:
+ * What the Worker hands {@link IdempotencyStore.completeReserved} to persist atomically with the result:
  * either the content-free delivery to queue, or a note that one could not even be built.
  */
 export type TelemetryInput =
@@ -88,7 +88,7 @@ export interface TelemetryState {
 /** What {@link IdempotencyStore.begin} found for a key. */
 export type BeginOutcome =
   /** No live record: the key is now reserved for this request. */
-  | { readonly kind: "started" }
+  | { readonly kind: "started"; readonly reservationId: string }
   /** A completed evaluation of the same request: replay its result. */
   | { readonly kind: "replay"; readonly result: EvaluationResult }
   /** The key was used for a different request. */
@@ -132,6 +132,7 @@ export class IdempotencyStore extends DurableObject<Env> {
         digest TEXT NOT NULL,
         state TEXT NOT NULL,
         result TEXT,
+        reservation_id TEXT,
         expires_at INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idempotency_expiry ON idempotency (expires_at);
@@ -167,6 +168,11 @@ export class IdempotencyStore extends DurableObject<Env> {
         approved_until INTEGER NOT NULL
       );
     `);
+    // Additive migration: completed legacy records still replay; unfenced pending work must
+    // expire and reserve again. Never invent an owner token for work already in flight.
+    if (!this.#sql.exec<{ name: string }>("PRAGMA table_info(idempotency)").toArray().some((c) => c.name === "reservation_id")) {
+      this.#sql.exec("ALTER TABLE idempotency ADD COLUMN reservation_id TEXT");
+    }
     // A restart may find committed outbox rows whose alarm was never set (or was lost): make sure
     // the earliest pending work has an alarm before serving anything.
     ctx.blockConcurrencyWhile(() => this.#scheduleEarliest());
@@ -186,14 +192,16 @@ export class IdempotencyStore extends DurableObject<Env> {
       )
       .toArray()[0];
     if (row === undefined) {
+      const reservationId = crypto.randomUUID();
       this.#sql.exec(
-        "INSERT OR REPLACE INTO idempotency (key, digest, state, result, expires_at) VALUES (?, ?, 'pending', NULL, ?)",
+        "INSERT OR REPLACE INTO idempotency (key, digest, state, result, expires_at, reservation_id) VALUES (?, ?, 'pending', NULL, ?, ?)",
         key,
         digest,
         now + PENDING_HOLD_MS,
+        reservationId,
       );
       await this.#scheduleAt(now + PENDING_HOLD_MS);
-      return { kind: "started" };
+      return { kind: "started", reservationId };
     }
     if (row.digest !== digest) return { kind: "conflict" };
     if (row.state !== "done" || row.result === null) return { kind: "in_progress" };
@@ -203,25 +211,34 @@ export class IdempotencyStore extends DurableObject<Env> {
   /**
    * Records the result of a reserved request and its receipt record. When `telemetry` is given,
    * its outbox row (or, if the outbox is full, a coverage-gap count) is written in the same
-   * transaction: either the result, receipt and telemetry state all commit, or none do.
+   * transaction: either the result, receipt and telemetry state all commit, or none do. The
+   * current, unexpired reservation owner may complete once; missing/stale/legacy owners get null.
    */
-  async complete(
+  async completeReserved(
     key: string,
     digest: string,
+    reservationId: string,
     result: EvaluationResult,
     record: Omit<ReceiptRecord, "expiresAt">,
     telemetry?: TelemetryInput,
-  ): Promise<ReceiptRecord> {
-    const expiresAt = Date.now() + this.#retentionMs;
+  ): Promise<ReceiptRecord | null> {
+    // No caller without a current owner token may write anything.
+    if (typeof reservationId !== "string" || reservationId.length === 0) return null;
+    const now = Date.now();
+    const expiresAt = now + this.#retentionMs;
     const stored: ReceiptRecord = { ...record, expiresAt: new Date(expiresAt).toISOString() };
-    this.ctx.storage.transactionSync(() => {
-      this.#sql.exec(
-        "UPDATE idempotency SET state = 'done', result = ?, expires_at = ? WHERE key = ? AND digest = ?",
+    const committed = this.ctx.storage.transactionSync(() => {
+      const updated = this.#sql.exec(
+        "UPDATE idempotency SET state = 'done', result = ?, expires_at = ?, reservation_id = NULL WHERE key = ? AND digest = ? AND state = 'pending' AND reservation_id = ? AND expires_at > ? RETURNING key",
         JSON.stringify(result),
         expiresAt,
         key,
         digest,
-      );
+        reservationId,
+        now,
+      ).toArray();
+      // rowsWritten includes index entries; RETURNING identifies matched request rows exactly.
+      if (updated.length !== 1) return false;
       this.#sql.exec(
         "INSERT OR REPLACE INTO receipts (evaluation_id, record, expires_at) VALUES (?, ?, ?)",
         result.evaluationId,
@@ -230,15 +247,26 @@ export class IdempotencyStore extends DurableObject<Env> {
       );
       if (telemetry !== undefined) this.#queueTelemetry(record.tenantId, telemetry);
       this.afterCompletionWrites();
+      return true;
     });
+    if (!committed) return null;
     await this.#scheduleEarliest();
     return stored;
   }
 
   /** Releases a reservation whose evaluation failed, so the caller may retry with the same key. */
-  async abandon(key: string, digest: string): Promise<void> {
-    this.#sql.exec("DELETE FROM idempotency WHERE key = ? AND digest = ? AND state = 'pending'", key, digest);
+  async abandonReserved(key: string, digest: string, reservationId: string): Promise<void> {
+    if (typeof reservationId !== "string" || reservationId.length === 0) return;
+    this.#sql.exec("DELETE FROM idempotency WHERE key = ? AND digest = ? AND state = 'pending' AND reservation_id = ?", key, digest, reservationId);
   }
+
+  /** Retired unfenced RPC. Older callers must fail instead of mistaking a null for success. */
+  async complete(..._legacy: unknown[]): Promise<never> {
+    throw new Error("reservation ownership is required");
+  }
+
+  /** Retired unfenced RPC. A stale caller cannot delete another owner's pending work. */
+  async abandon(..._legacy: unknown[]): Promise<void> {}
 
   /** The receipt record for an evaluation of this tenant, or null when unknown or expired. */
   async receipt(evaluationId: string): Promise<ReceiptRecord | null> {

@@ -22,25 +22,29 @@ const record = { schemaVersion: "1.0", evaluationId: "eval_store_1", requestId: 
 describe("IdempotencyStore", () => {
   it("reserves, replays, conflicts and reports in-flight requests", async () => {
     const store = env.IDEMPOTENCY_STORE.get(env.IDEMPOTENCY_STORE.idFromName("tenant:store-1"));
-    expect(await store.begin("idem_1", "digest-a")).toEqual({ kind: "started" });
+    const reservation = await store.begin("idem_1", "digest-a");
+    expect(reservation).toMatchObject({ kind: "started", reservationId: expect.any(String) });
+    if (reservation.kind !== "started") throw new Error("expected reservation");
     expect(await store.begin("idem_1", "digest-a")).toEqual({ kind: "in_progress" });
     expect(await store.begin("idem_1", "digest-b")).toEqual({ kind: "conflict" });
-    await store.complete("idem_1", "digest-a", RESULT, record);
+    await store.completeReserved("idem_1", "digest-a", reservation.reservationId, RESULT, record);
     expect(await store.begin("idem_1", "digest-a")).toEqual({ kind: "replay", result: RESULT });
     expect(await store.receipt("eval_store_1")).toMatchObject({ ...record, expiresAt: expect.any(String) });
   });
 
   it("frees an abandoned reservation for a retry", async () => {
     const store = env.IDEMPOTENCY_STORE.get(env.IDEMPOTENCY_STORE.idFromName("tenant:store-2"));
-    await store.begin("idem_1", "digest-a");
-    await store.abandon("idem_1", "digest-a");
-    expect(await store.begin("idem_1", "digest-b")).toEqual({ kind: "started" });
+    const reservation = await store.begin("idem_1", "digest-a");
+    if (reservation.kind !== "started") throw new Error("expected reservation");
+    await store.abandonReserved("idem_1", "digest-a", reservation.reservationId);
+    expect(await store.begin("idem_1", "digest-b")).toMatchObject({ kind: "started", reservationId: expect.any(String) });
   });
 
   it("ignores expired records and purges them on its alarm", async () => {
     const stub = env.IDEMPOTENCY_STORE.get(env.IDEMPOTENCY_STORE.idFromName("tenant:store-3"));
-    await stub.begin("idem_live", "digest-live");
-    await stub.complete("idem_live", "digest-live", RESULT, record);
+    const reservation = await stub.begin("idem_live", "digest-live");
+    if (reservation.kind !== "started") throw new Error("expected reservation");
+    await stub.completeReserved("idem_live", "digest-live", reservation.reservationId, RESULT, record);
     await runInDurableObject(stub, async (_instance: IdempotencyStore, state) => {
       const past = Date.now() - 1;
       state.storage.sql.exec("UPDATE idempotency SET expires_at = ?", past);
@@ -54,6 +58,6 @@ describe("IdempotencyStore", () => {
       expect(state.storage.sql.exec("SELECT COUNT(*) AS n FROM receipts").one().n).toBe(0);
     });
     // A purged key is free again.
-    expect(await stub.begin("idem_live", "digest-other")).toEqual({ kind: "started" });
+    expect(await stub.begin("idem_live", "digest-other")).toMatchObject({ kind: "started", reservationId: expect.any(String) });
   });
 });

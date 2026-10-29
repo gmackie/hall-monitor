@@ -12,7 +12,7 @@ Related: [T1 runbook](t1-trusted-telemetry.md), [temporal analytics design](../d
 | `packages/telemetry-sink` | v2 signing/verification (`hall-monitor-telemetry-v2`), ack MAC (`hall-monitor-telemetry-ack-v2`), `sendDeliveryV2` |
 | `apps/worker/src/metrics.ts` | `prepareTelemetryDelivery`: projects the pair **before** completion |
 | `apps/worker/src/store.ts` | outbox + coverage-gap tables, one alarm for cleanup and delivery |
-| `apps/worker/src/app.ts` | passes the projection into `store.complete` |
+| `apps/worker/src/app.ts` | passes the projection and current reservation owner into `store.completeReserved` |
 
 ### Protocol
 
@@ -24,8 +24,8 @@ v2 is a separate protocol, not an extension of v1: its own path (`/internal/v2/t
 
 ### Producer behaviour
 
-1. After the evaluation succeeds and **before** `store.complete`, `prepareTelemetryDelivery` builds the content-free pair, freezes the occurrence timestamp once, assigns the delivery ID and producer revision, and computes the digest of the exact bytes.
-2. `store.complete` writes the result, receipt **and** the outbox row (or, if the outbox is full, a coverage-gap count) in **one `transactionSync`**. A failed completion rolls all of it back; an idempotent replay or a failed evaluation never calls it, so neither adds a row.
+1. After the evaluation succeeds and **before** `store.completeReserved`, `prepareTelemetryDelivery` builds the content-free pair, freezes the occurrence timestamp once, assigns the delivery ID and producer revision, and computes the digest of the exact bytes.
+2. `store.completeReserved` verifies the current unexpired pending reservation owner, then writes the result, receipt **and** the outbox row (or, if the outbox is full, a coverage-gap count) in **one `transactionSync`**. A failed completion rolls all of it back; an idempotent replay or a failed evaluation never calls it, so neither adds a row. Stale or duplicate owners write nothing and the Worker returns a retryable conflict; see [reservation ownership and migration](idempotency-reservations.md).
 3. The existing Durable Object alarm now serves the earliest of: record cleanup, outbox retry/expiry, gap expiry. It is never moved later by delivery work, and re-arms for the next retry rather than the next cleanup. Constructing the object re-arms it, so a row committed just before a crash is still delivered.
 4. Delivery happens in the alarm, after commit and outside the response path. Failure backs off 30 s doubling to 15 min. Every retry re-signs the **same bytes** (same ID and digest) with a fresh transport timestamp. At most 10 deliveries are attempted per alarm; each attempt times out after 5 s.
 5. Enrolment (`HM_TELEMETRY_V2_ENABLED`, tenant grant, source, grade bands) is re-read on **every** attempt. A disabled or revoked tenant sends nothing more, and its queued rows are dropped as `revoked` gaps rather than held.
