@@ -74,7 +74,7 @@ describe("evaluate", () => {
       reasonCodes: [],
       uncertain: false,
       policyRevision: "builtin-1",
-      evaluatorBundleRevision: "base-1.0.0:clef-1.1.0",
+      evaluatorBundleRevision: "base-1.0.1:clef-1.1.0",
       resolverVersion: "resolver-1.0.0",
     });
     expect(result.receipt).toEqual({
@@ -161,7 +161,7 @@ describe("evaluate", () => {
 
   it("treats a missing classifier as unavailable for required moderation", async () => {
     const result = await evaluate(fixture("benign-02"), deps(null));
-    expect(result).toMatchObject({ decision: "hold", receipt: null, evaluatorBundleRevision: "base-1.0.0" });
+    expect(result).toMatchObject({ decision: "hold", receipt: null, evaluatorBundleRevision: "base-1.0.1" });
   });
 
   it("does not fail closed for optional moderation", async () => {

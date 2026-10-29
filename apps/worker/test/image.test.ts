@@ -52,7 +52,7 @@ describe("image content", () => {
     expect(body).not.toContain(IMAGE_MARKER);
     expect(body).not.toContain(SENTINEL);
     const result = EvaluationResult.parse(JSON.parse(body));
-    expect(result).toMatchObject({ decision: "allow", evaluatorBundleRevision: "base-1.0.0:clef-1.1.0" });
+    expect(result).toMatchObject({ decision: "allow", evaluatorBundleRevision: "base-1.0.1:clef-1.1.0" });
     expect(fakeAi.calls.map((entry) => entry.model)).toEqual(["@cf/cloudflare/clef-flash"]);
     expect(fakeAi.calls[0]!.input).toMatchObject({ model: "clef-flash", images: [{ content_type: "image/png", base64: IMAGE_BASE64 }] });
     expect(result.receipt).toMatchObject({ totalGrossUsdNano: "24320", hasUnknownCost: false });

@@ -153,6 +153,9 @@ keeps only a keyed digest of the request. `GET /v1/capabilities` lists `contentT
 
 
 
+The [four-case demonstration](docs/launch/synthetic-demonstration.md) runs locally with scripted
+model responses: `pnpm synthetic-demo --out dist/demo`. It connects to no live service.
+
 The [calibration harness](docs/implementation/calibration-harness.md) creates blinded synthetic
 review packets and scores independently labelled held-out observations. It supplies no human
 approval or live threshold activation.

@@ -119,7 +119,7 @@ describe("POST /v1/evaluations", () => {
     expect(response.status).toBe(200);
     const result = EvaluationResult.parse(await response.json());
     expect(result).toMatchObject({ requestId: request.requestId, decision: "allow", uncertain: false, policyRevision: "builtin-1" });
-    expect(result.evaluatorBundleRevision).toBe("base-1.0.0:clef-1.1.0");
+    expect(result.evaluatorBundleRevision).toBe("base-1.0.1:clef-1.1.0");
     expect(fakeAi.calls.map((entry) => entry.model)).toEqual(["@cf/cloudflare/clef-flash"]);
     const receipt = CostReceipt.parse(result.receipt);
     expect(receipt).toMatchObject({ tenantId: "tenant_educateos", purpose: "moderation.input", hasUnknownCost: false });
@@ -210,7 +210,7 @@ describe("POST /v1/evaluations", () => {
     const result = EvaluationResult.parse(await response.json());
     expect(result).toMatchObject({ decision: "hold", uncertain: true, degraded: { reason: "classifier_unavailable" }, receipt: null });
     expect(result.reasonCodes).toContain("hall_monitor.unavailable");
-    expect(result.evaluatorBundleRevision).toBe("base-1.0.0");
+    expect(result.evaluatorBundleRevision).toBe("base-1.0.1");
   });
 
   it("returns 429 when the tenant's rate limit is exhausted", async () => {
