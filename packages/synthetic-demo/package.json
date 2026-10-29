@@ -1,0 +1,14 @@
+{
+  "name": "@gmacko/hall-monitor-synthetic-demo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Offline fictional walkthroughs through the evaluation core; scripted model scores, no live pilot.",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": {
+    "@gmacko/hall-monitor-clef": "workspace:*", "@gmacko/hall-monitor-contracts": "workspace:*",
+    "@gmacko/hall-monitor-core": "workspace:*", "@gmacko/hall-monitor-costing": "workspace:*",
+    "@gmacko/hall-monitor-evaluators": "workspace:*", "@gmacko/hall-monitor-policy": "workspace:*"
+  },
+  "devDependencies": { "vitest": "catalog:" }
+}

@@ -1,8 +1,8 @@
 # Hall Monitor incident runbook
 
-Fill in the contacts before launch (launch checklist R8). Every step that changes production
-(deploy, rollback, configuration) needs the owner's approval; agents may gather evidence but do
-not deploy. Never paste request content into tickets or chat: use evaluation ids, receipt ids,
+Fill in the contacts before launch (launch checklist R8). Production changes follow the owner's
+authorized delivery scope and enforced repository gates. Real enrollment and human approval
+requirements remain separate from software review. Never paste request content into tickets or chat: use evaluation ids, receipt ids,
 reason codes and log event names. Logs and receipts are content-free by design; keep it that way.
 
 | Role | Name | Contact |

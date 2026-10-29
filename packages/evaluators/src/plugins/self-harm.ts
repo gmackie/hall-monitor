@@ -8,7 +8,7 @@ import { foldForMatching, textOf } from "../text.ts";
  * because a supportive check-in costs little and missing a real disclosure costs a great deal.
  */
 const DISTRESS: readonly RegExp[] = [
-  /\bi (really |just |kind of |sometimes |honestly )?(want|wanna|wish i could|need) (to )?(die|kill myself|end my life|end it all|disappear forever|not wake up|stop existing)\b/,
+  /\bi (really |just |kind of |sometimes |honestly )?(want|wanna|wish i could|need) (to )?(die|kill myself|hurt myself|harm myself|end my life|end it all|disappear forever|not wake up|stop existing)\b/,
   /\bi('m| am|'ve been| have been) (going|planning|thinking about|thinking of) (to )?(kill(ing)? myself|end(ing)? my life|end(ing)? it all|suicide|hurt(ing)? myself)\b/,
   /\bi keep thinking about (suicide|killing myself|ending it|dying|hurting myself)\b/,
   /\bi('ve| have)? (been )?(cut|cutting|hurt|hurting|harm|harming|burn|burning) myself\b/,
@@ -30,7 +30,7 @@ const DISTRESS: readonly RegExp[] = [
  */
 export const selfHarmEvaluator = deterministicEvaluator({
   id: "self-harm",
-  version: "1.0.0",
+  version: "1.0.1",
   supportedKinds: EvaluationKind.options.filter((kind) => kind !== "assessment.evaluator-result"),
   inspect(request) {
     const text = textOf(request);

@@ -107,6 +107,11 @@ describe("harmful content", () => {
 });
 
 describe("self-harm", () => {
+  it("routes explicit wanting or needing to hurt or harm oneself to support", async () => {
+    for (const text of ["I want to hurt myself. Please help me.", "I need to harm myself", "I really want to hurt myself"]) {
+      expect(await codesOf(selfHarmEvaluator, text)).toEqual(["self_harm.disclosure:support"]);
+    }
+  });
   it("routes first-person distress to support in several languages", async () => {
     for (const text of ["I want to die", "i've been cutting myself", "Quiero morir", "je veux mourir", "ich will nicht mehr leben", "我想死"]) {
       expect(await codesOf(selfHarmEvaluator, text)).toEqual(["self_harm.disclosure:support"]);
