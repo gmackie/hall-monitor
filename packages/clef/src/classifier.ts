@@ -12,6 +12,7 @@ import {
   parseClefOutput,
 } from "./clef-protocol.ts";
 import { type ClefTransport, ClefTransportError } from "./transport.ts";
+import { parseClefCalibration, selectClefCalibration, type CalibrationBand } from "./calibration.ts";
 
 /** Version of this plugin; bump when questions, thresholds or severity mapping change. */
 export const CLEF_CLASSIFIER_VERSION = "1.1.0";
@@ -42,6 +43,9 @@ export interface ClefClassifierOptions {
   readonly primaryModel?: string;
   readonly escalationModel?: string;
   readonly thresholds?: { readonly low: number; readonly high: number };
+  /** Explicit server-selected calibration. Invalid/missing applicability never uses placeholder bands.
+   * This low-level option does not approve an artifact or activate it in the Worker. */
+  readonly calibration?: unknown;
   readonly timeoutMs?: number;
   /** Per-call timeout for requests with images. */
   readonly imageTimeoutMs?: number;
@@ -78,6 +82,11 @@ export function createClefClassifier(options: ClefClassifierOptions): EvaluatorP
   const escalationModel = options.escalationModel ?? CLEF_MODEL;
   const { low, high } = options.thresholds ?? UNCALIBRATED_THRESHOLDS;
   if (!(0 <= low && low < high && high <= 1)) throw new RangeError("thresholds must satisfy 0 <= low < high <= 1");
+  const calibrationSelected = options.calibration !== undefined;
+  if (calibrationSelected && options.thresholds !== undefined) throw new RangeError("select calibration or global thresholds");
+  const calibration = parseClefCalibration(options.calibration);
+  const version = !calibrationSelected ? CLEF_CLASSIFIER_VERSION :
+    `${CLEF_CLASSIFIER_VERSION}.cal.${calibration?.revision ?? "invalid"}`;
   const textTimeoutMs = options.timeoutMs ?? DEFAULT_CLEF_TIMEOUT_MS;
   const imageTimeoutMs = options.imageTimeoutMs ?? DEFAULT_CLEF_IMAGE_TIMEOUT_MS;
   const escalationKinds = options.escalationKinds ?? ["interaction.input", "content.candidate"];
@@ -87,7 +96,7 @@ export function createClefClassifier(options: ClefClassifierOptions): EvaluatorP
 
   return {
     id: "clef",
-    version: CLEF_CLASSIFIER_VERSION,
+    version,
     supportedKinds: EvaluationKind.options,
     async evaluate(request, context) {
       let input: ClefInput;
@@ -105,6 +114,11 @@ export function createClefClassifier(options: ClefClassifierOptions): EvaluatorP
         return { findings: [], attempts: [] };
       }
       const attempts: UsageAttempt[] = [];
+      const bandsFor = (model: string): ReadonlyMap<string, CalibrationBand> | undefined => !calibrationSelected
+        ? new Map(questions.map((q) => [q.id, { low, high }]))
+        : calibration === undefined ? undefined : selectClefCalibration(calibration, model, request, context.profile, questions);
+      let bands = bandsFor(primaryModel);
+      if (bands === undefined) return { findings: [], attempts, signals: { classifierUnavailable: true, uncertain: true } };
 
       const call = async (model: string): Promise<CallOutcome> => {
         if (options.authorizeModel !== undefined && !options.authorizeModel(model)) return { kind: "failed", timedOut: false };
@@ -145,7 +159,8 @@ export function createClefClassifier(options: ClefClassifierOptions): EvaluatorP
         }
       };
       const price = (attempt: UsageAttempt) => priceAttempt(options.priceBook, attempt, { at: clock() }).attempt;
-      const ambiguous = (scores: Map<string, number>) => [...scores.values()].some((score) => score >= low && score < high);
+      const ambiguous = (scores: Map<string, number>, selected: ReadonlyMap<string, CalibrationBand>) =>
+        [...scores].some(([id, score]) => score >= selected.get(id)!.low && score < selected.get(id)!.high);
 
       const primary = await call(primaryModel);
       if (primary.kind === "failed") {
@@ -155,19 +170,23 @@ export function createClefClassifier(options: ClefClassifierOptions): EvaluatorP
 
       let scores = primary.scores;
       let fellBack = false;
-      if (ambiguous(scores) && context.profile.escalation.enabled && escalationKinds.includes(request.evaluationKind)) {
-        const escalated = await call(escalationModel);
-        if (escalated.kind === "scored") scores = escalated.scores;
-        else fellBack = true;
+      if (ambiguous(scores, bands) && context.profile.escalation.enabled && escalationKinds.includes(request.evaluationKind)) {
+        const escalationBands = bandsFor(escalationModel);
+        if (escalationBands === undefined) fellBack = true;
+        else {
+          const escalated = await call(escalationModel);
+          if (escalated.kind === "scored") { scores = escalated.scores; bands = escalationBands; }
+          else fellBack = true;
+        }
       }
 
       const findings = questions.flatMap((question): Finding[] => {
         const score = scores.get(question.id)!;
-        return score >= high
+        return score >= bands.get(question.id)!.high
           ? [
               {
                 evaluatorId: "clef",
-                evaluatorVersion: CLEF_CLASSIFIER_VERSION,
+                evaluatorVersion: version,
                 category: question.category,
                 reasonCode: `clef.${question.id}`,
                 severity: severityFor(question, request),
@@ -176,7 +195,7 @@ export function createClefClassifier(options: ClefClassifierOptions): EvaluatorP
             ]
           : [];
       });
-      const signals: EvaluatorSignals = fellBack || ambiguous(scores) ? { uncertain: true } : {};
+      const signals: EvaluatorSignals = fellBack || ambiguous(scores, bands) ? { uncertain: true } : {};
       return { findings, attempts, signals };
     },
   };

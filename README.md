@@ -153,6 +153,10 @@ keeps only a keyed digest of the request. `GET /v1/capabilities` lists `contentT
 
 
 
+The [calibration harness](docs/implementation/calibration-harness.md) creates blinded synthetic
+review packets and scores independently labelled held-out observations. It supplies no human
+approval or live threshold activation.
+
 `pnpm shadow-report` runs the real evaluation core over the frozen synthetic corpus (or
 `--cases file.jsonl`, where every line must carry `"synthetic": true`) and reports the decision
 distribution per profile, grade band and category, agreement with the expected decisions,
