@@ -1,7 +1,7 @@
 {
   "name": "@gmacko/hall-monitor-shadow-report",
   "version": "0.4.0",
-  "description": "Shadow-run reports and policy decision diffs over synthetic Hall Monitor corpora. Synthetic data only.",
+  "description": "Offline shadow reports and calibration tooling over synthetic or licensed Hall Monitor corpora.",
   "type": "module",
   "private": true,
   "exports": { ".": "./src/index.ts" },
@@ -12,6 +12,7 @@
     "@gmacko/hall-monitor-core": "workspace:*",
     "@gmacko/hall-monitor-costing": "workspace:*",
     "@gmacko/hall-monitor-evaluators": "workspace:*",
+    "@gmacko/hall-monitor-noul-registry": "workspace:*",
     "@gmacko/hall-monitor-policy": "workspace:*",
     "@gmacko/hall-monitor-test-fixtures": "workspace:*",
     "zod": "catalog:"

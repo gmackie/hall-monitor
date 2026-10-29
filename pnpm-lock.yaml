@@ -444,6 +444,9 @@ importers:
       '@gmacko/hall-monitor-evaluators':
         specifier: workspace:*
         version: link:../evaluators
+      '@gmacko/hall-monitor-noul-registry':
+        specifier: workspace:*
+        version: link:../noul-registry
       '@gmacko/hall-monitor-policy':
         specifier: workspace:*
         version: link:../policy
