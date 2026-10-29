@@ -23,6 +23,7 @@ import { requestDigest } from "./digest.ts";
 import type { Env } from "./env.ts";
 import { errorResponse, HttpError, json, readJson } from "./http.ts";
 import { log } from "./log.ts";
+import { prepareTelemetryDelivery, scheduleEvaluationMetrics } from "./metrics.ts";
 import { openApiJson } from "./openapi.ts";
 import { replayGuardName } from "./replay.ts";
 
@@ -38,7 +39,7 @@ export const MAX_BATCH_BYTES = 8 * 1024 * 1024;
 export const BATCH_CONCURRENCY = 4;
 
 /** Handles one HTTP request. Every failure becomes a content-free wire error. */
-export async function handle(request: Request, env: Env): Promise<Response> {
+export async function handle(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
   const url = new URL(request.url);
   const route = routeOf(request.method, url.pathname);
   try {
@@ -52,9 +53,9 @@ export async function handle(request: Request, env: Env): Promise<Response> {
       case "capabilities":
         return await capabilities(request, env);
       case "evaluate":
-        return await evaluateOne(request, env);
+        return await evaluateOne(request, env, ctx);
       case "batch":
-        return await evaluateBatch(request, env);
+        return await evaluateBatch(request, env, ctx);
       case "receipt":
         return await readReceipt(request, env, route.evaluationId);
       case "method_not_allowed":
@@ -169,17 +170,17 @@ async function capabilities(request: Request, env: Env): Promise<Response> {
   return json(body);
 }
 
-async function evaluateOne(request: Request, env: Env): Promise<Response> {
+async function evaluateOne(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
   const config = loadConfig(env);
   const identity = await authenticate(request, env, config, SCOPE_EVALUATE);
   const parsed = parseOrThrow(await readJson(request, MAX_EVALUATION_BYTES));
   assertTenant(identity, parsed);
-  const outcome = await runEvaluation(parsed, identity, config, env);
+  const outcome = await runEvaluation(parsed, identity, config, env, ctx);
   if ("error" in outcome) throw outcome.error;
   return json(outcome.result, 200, outcome.replayed ? { "idempotent-replayed": "true" } : {});
 }
 
-async function evaluateBatch(request: Request, env: Env): Promise<Response> {
+async function evaluateBatch(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
   const started = Date.now();
   const config = loadConfig(env);
   const identity = await authenticate(request, env, config, SCOPE_EVALUATE);
@@ -209,7 +210,7 @@ async function evaluateBatch(request: Request, env: Env): Promise<Response> {
   const worker = async () => {
     for (let index = next++; index < requests.length; index = next++) {
       const parsed = requests[index]!;
-      const outcome = await runEvaluation(parsed, identity, config, env);
+      const outcome = await runEvaluation(parsed, identity, config, env, ctx);
       results[index] = "error" in outcome ? { status: "error", requestId: parsed.requestId, error: outcome.error.body } : { status: "ok", result: outcome.result };
     }
   };
@@ -243,7 +244,7 @@ type Outcome = { readonly result: EvaluationResult; readonly replayed: boolean }
  * the same request digest replays the stored result without evaluating (or billing) again, and a
  * reused key with a different digest is a conflict.
  */
-async function runEvaluation(request: EvaluationRequest, identity: ServiceIdentity, config: Config, env: Env): Promise<Outcome> {
+async function runEvaluation(request: EvaluationRequest, identity: ServiceIdentity, config: Config, env: Env, ctx?: ExecutionContext): Promise<Outcome> {
   const started = Date.now();
   const tenant = identity.tenant;
   const fail = (error: HttpError): Outcome => {
@@ -295,6 +296,9 @@ async function runEvaluation(request: EvaluationRequest, identity: ServiceIdenti
     return fail(new HttpError("unavailable", "evaluation failed", { retryable: true }));
   }
 
+  // The v2 delivery is projected before completion so the store commits it with the result and
+  // receipt in one transaction. Disabled (the default), it is null and nothing changes.
+  const telemetry = await prepareTelemetryDelivery(env, tenant, request, result);
   await store.complete(request.idempotencyKey, digest, result, {
     schemaVersion: SCHEMA_VERSION,
     evaluationId: result.evaluationId,
@@ -302,7 +306,7 @@ async function runEvaluation(request: EvaluationRequest, identity: ServiceIdenti
     tenantId: tenant,
     receipt: result.receipt,
     recordedAt: new Date().toISOString(),
-  });
+  }, telemetry ?? undefined);
   log("info", "evaluation.completed", {
     tenant,
     evaluationId: result.evaluationId,
@@ -312,6 +316,9 @@ async function runEvaluation(request: EvaluationRequest, identity: ServiceIdenti
     latencyMs: Date.now() - started,
     ...(result.degraded === undefined ? {} : { degraded: result.degraded.reason }),
   });
+  // Opt-in, content-free event emission. Never called on replay, failure or an
+  // uncommitted evaluation; send is isolated by ctx.waitUntil.
+  scheduleEvaluationMetrics(env, tenant, request, result, ctx);
   return { result, replayed: false };
 }
 

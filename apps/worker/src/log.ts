@@ -15,7 +15,11 @@ export type LogEvent =
   | "config.invalid"
   | "ratelimit.unavailable"
   | "replay_guard.unavailable"
-  | "internal.error";
+  | "internal.error"
+  | "telemetry.delivery_failed"
+  | "telemetry.coverage_gap"
+  | "telemetry.retention_inactive"
+  | "telemetry.outbox_held";
 
 /**
  * The only fields a log line may carry. All are identifiers, codes or counters; there is
@@ -44,6 +48,9 @@ export interface LogFields {
   readonly variable?: "HM_TRUSTED_ISSUERS" | "HM_AUDIENCE" | "HM_POLICY_OVERLAYS" | "HM_TENANT_MODES" | "HM_RETENTION_SECONDS";
   /** An exception's class name, never its message. */
   readonly errorName?: string;
+  /** Why telemetry coverage was lost, or why an attempt failed: fixed codes, never free text. */
+  readonly reason?: "capacity" | "expired" | "revoked" | "error" | "timeout" | "unavailable" | "rejected" | "not_durable" | "invalid_ack" | "mismatched_ack" | "conflict";
+  readonly count?: number;
 }
 
 /** Writes one structured JSON log line. */

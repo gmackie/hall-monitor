@@ -33,6 +33,11 @@ jobs:
       - name: Check the Worker bundles
         run: node scripts/deploy-worker.mjs --dry-run
 
+      # The receiver is stateful and internal-only: bundle it (dry run, never deployed) and check
+      # its config still has no route, workers.dev or extra bindings.
+      - name: Check the telemetry receiver bundle
+        run: node scripts/deploy-telemetry-worker.mjs --dry-run
+
       - name: Report CI result to ForgeGraph
         if: always()
         env:

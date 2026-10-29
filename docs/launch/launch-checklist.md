@@ -17,6 +17,12 @@ training data, and shadow mode must not collect raw student data: Hall Monitor s
 and a student-facing profile with required moderation is never shadowed unless the tenant is
 configured with `allowStudentShadow`, which is reserved for synthetic or staff-only traffic.
 
+For additional proposed student-safety features, also review the
+[architecture and privacy design package](../design/README.md), the
+[zero-retention controls](../privacy/zero-data-retention.md), and the
+[deployment milestones](../validation-and-rollout.md). These new checklist rows do not imply
+their features are implemented.
+
 ## How to fill it in
 
 - **Evidence**: a link or path to the artifact (report JSON, drill record, PR, signed document),
@@ -42,6 +48,8 @@ Policy revisions pinned: `__________`  Resolver: `__________`  Evaluator bundle:
 | S5 | Distress disclosures route to `support` in every profile and language in scope, including during classifier outage and budget exhaustion | | | open | agent |
 | S6 | Accessibility and multilingual review of the coach / hold / block / support product UX | | | open | human only |
 | S7 | Decision diff (`pnpm shadow-report diff`) for every policy revision change since the last signed checklist, each change reviewed | | | open | agent (prepare), human (review) |
+| S8 | Prosocial intervention prompts distinguish victim reports, quoted language and ordinary boundaries; no harmful nudge during urgent disclosures | | | open | human only |
+| S9 | New incident graph/OSINT functionality remains disabled unless separately reviewed and validated on synthetic and approved representative cases | | | open | human only |
 
 ## 2. Privacy
 
@@ -55,6 +63,13 @@ Policy revisions pinned: `__________`  Resolver: `__________`  Evaluator bundle:
 | P6 | Cross-account provider DPAs in place for every account that processes content | | | open | human only |
 | P7 | Safeguarding incidents reach authorized personnel only; routing tested | | | open | human only |
 | P8 | `HM_TENANT_MODES` reviewed: no `allowStudentShadow` for any tenant with learners | | | open | human only |
+| P9 | Cloudflare AI Gateway *whole-log* settings reviewed; under strict privacy profile ordinary Gateway logs disabled; also verify Logpush jobs and destinations separately (request headers do not govern Logpush) | | | open | human only |
+| P10 | Gateway response caching and model-specific prompt caching/other stateful features verified for each approved route; Worker logs, traces and exception reporting independently assessed | | | open | human only |
+| P11 | Under-13 policy: every identified subprocessed payload has a valid COPPA authorization/notice and provider eligibility; OpenAI ZDR approval and project retention status verified before sending under-13 PII | | | open | human only |
+| P12 | FERPA determination, school-official/direct-control/redisclosure terms, age-aware controls, access/correction/inspection and records retention/hold procedures approved | | | open | human only |
+| P13 | Any optional pseudonymous graph and incident evidence store has documented necessity, separate access, expiry, pseudonym-scope policy and human-controlled identity reveal; no durable student reputation dossiers | | | open | human only |
+| P14 | Test logs/Logpush/export sinks with synthetic sentinels and test derived-record erasure and legal holds (cannot prove provider's internal deletion) | | | open | agent (prepare), human (verify) |
+| P15 | Public/social media evidence collection is disabled by default; any opt-in has off-campus student speech review, source permissions, authenticity checks and case-scoped retention | | | open | human only |
 
 ## 3. Economics
 
@@ -96,6 +111,25 @@ Policy revisions pinned: `__________`  Resolver: `__________`  Evaluator bundle:
 | G3 | Override conditions (who may override a decision, how it is recorded) agreed | | | open | human only |
 | G4 | Unresolved risks listed below with owners and dates | | | open | human only |
 | G5 | Written district / co-op approval for this stage | | | open | human only |
+| G6 | Identity and incident disclosure require documented legitimate educational interest and purpose; no AI-only unmasking, sanctions or permanent risk labels | | | open | human only |
+| G7 | Protect personal block/mute and genuine protective reporting from abuse labels; delegated group mute/brigading adversarial fixtures reviewed | | | open | human only |
+| G8 | Any student-facing nudge UX has age, accessibility, cultural/language, help-seeking and chilling-effect review | | | open | human only |
+| G9 | External provider routing has signed allowlist, live retention/config evidence and safe fail-closed path; no implicit third-party fallback | | | open | human only |
+
+## 7. Temporal operations and analytics (optional; required before enabling M9)
+
+| ID | Item | Evidence | Owner | Status | Who |
+|---|---|---|---|---|---|
+| T1 | No student content, principal IDs, conversation/case IDs, free text or sparse sensitive labels in operational analytics; test strict metric schema and every Logpush/export path | | | open | agent (prepare), human (verify) |
+| T2 | District IANA timezone and instructional calendar pinned; fall-back repeated and spring-forward missing local hour cases tested against actual event timestamps | | | open | agent |
+| T3 | Distinguish event occurrence, report, queue, review and action clocks; validate matched denominators, coverage/missing bins, version changes and WAE sampling estimates | | | open | human only |
+| T4 | WAE fixed three-month retention explicitly assessed; any stricter district TTL uses alternative store; no sampled WAE value used as exact incident or billing ledger | | | open | human only |
+| T5 | Explicit trained urgent safeguarding coverage, after-hours escalation and live acknowledgment drill completed; Worker uptime is not a 24/7 human response guarantee | | | open | human only |
+| T6 | Flightdeck role scopes, small cohorts, overlap/differencing, complementary suppression, export and teacher-facing restricted counts reviewed | | | open | human only |
+| T7 | Any U.S. hourly benchmark cites source geography, date, metric event clock and denominator; no externally derived individual risk multiplier | | | open | human only |
+| T8 | Before any T1 pilot, configure **independent** source/collector strict tenant+source+grade grants, distinct 32+ character per-tenant keys, opt-in switch, internal-only service binding and collector validate-only mode; confirm no public route | | | open | human only |
+| T9 | Prove collector response is `persisted:false`, no case/metric storage binding exists, and outages or invalid config cannot affect moderation; replayed evaluations never emit duplicate telemetry | | | open | agent (tests), human (deployment) |
+| T10 | Explicit district approval of student data processing and *no actual historical dashboard* claim; assess 5-minute HMAC replay risk and T2 dedupe/retention requirements | | | open | human only |
 
 ## Unresolved risks
 
