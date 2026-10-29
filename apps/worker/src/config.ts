@@ -1,4 +1,5 @@
 import { EnforcementMode, OpaqueId } from "@gmacko/hall-monitor-contracts";
+import { type GovernanceConfig, parseGovernanceConfig } from "@gmacko/hall-monitor-governance";
 import type { EnforcementOptions } from "@gmacko/hall-monitor-core";
 import { applyOverlay, BUILTIN_PROFILE_REVISION, BUILTIN_PROFILES, PolicyOverlay, type PolicyProfile } from "@gmacko/hall-monitor-policy";
 import { z } from "zod";
@@ -39,6 +40,7 @@ export interface Config {
   readonly overlays: ReadonlyMap<string, ReadonlyMap<string, PolicyProfile>> | undefined;
   /** Enforcement modes by tenant; undefined when `HM_TENANT_MODES` is invalid, so every tenant is enforced. */
   readonly tenantModes: ReadonlyMap<string, TenantMode> | undefined;
+  readonly governance: GovernanceConfig | undefined;
 }
 
 let cached: { readonly key: string; readonly config: Config } | undefined;
@@ -49,7 +51,7 @@ let cached: { readonly key: string; readonly config: Config } | undefined;
  * fails closed.
  */
 export function loadConfig(env: Env): Config {
-  const key = JSON.stringify([env.HM_TRUSTED_ISSUERS, env.HM_AUDIENCE, env.HM_POLICY_OVERLAYS, env.HM_TENANT_MODES]);
+  const key = JSON.stringify([env.HM_TRUSTED_ISSUERS, env.HM_AUDIENCE, env.HM_POLICY_OVERLAYS, env.HM_TENANT_MODES, env.HM_GOVERNANCE]);
   if (cached?.key === key) return cached.config;
 
   const issuers = parseJson(env.HM_TRUSTED_ISSUERS, TrustedIssuers);
@@ -60,12 +62,15 @@ export function loadConfig(env: Env): Config {
 
   const modes = env.HM_TENANT_MODES === undefined || env.HM_TENANT_MODES.trim() === "" ? {} : parseJson(env.HM_TENANT_MODES, TenantModes);
   if (modes === undefined) log("error", "config.invalid", { variable: "HM_TENANT_MODES" });
+  const governance = parseGovernanceConfig(env.HM_GOVERNANCE);
+  if (governance === undefined) log("error", "config.invalid", { variable: "HM_GOVERNANCE" });
 
   const config: Config = {
     issuers,
     audience,
     overlays: overlays === undefined ? undefined : resolveOverlays(overlays),
     tenantModes: modes === undefined ? undefined : resolveTenantModes(modes),
+    governance,
   };
   cached = { key, config };
   return config;

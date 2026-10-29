@@ -49,6 +49,10 @@ export interface GatewayOptions {
   readonly metadata?: Readonly<Record<string, string | number | boolean>>;
   /** Store bodies in gateway logs. Defaults to false; student content must not be retained. */
   readonly collectLogPayload?: boolean;
+  /** Explicitly disable the whole ordinary Gateway log for a governed route. */
+  readonly collectLog?: boolean;
+  /** Bypass Gateway response cache for a governed request. Configuration evidence is still required. */
+  readonly skipCache?: boolean;
   /** Override for {@link DEFAULT_PAYLOAD_LOGGING_HEADER}. */
   readonly payloadLoggingHeader?: string;
 }
@@ -138,7 +142,11 @@ export function gatewayFetchTransport(options: GatewayFetchOptions): ClefTranspo
 }
 
 function payloadHeaders(options: GatewayOptions): Record<string, string> {
-  return { [options.payloadLoggingHeader ?? DEFAULT_PAYLOAD_LOGGING_HEADER]: String(options.collectLogPayload ?? false) };
+  return {
+    [options.payloadLoggingHeader ?? DEFAULT_PAYLOAD_LOGGING_HEADER]: String(options.collectLogPayload ?? false),
+    ...(options.collectLog === undefined ? {} : { "cf-aig-collect-log": String(options.collectLog) }),
+    ...(options.skipCache === undefined ? {} : { "cf-aig-skip-cache": String(options.skipCache) }),
+  };
 }
 
 /** Attaches correlation ids that are safe opaque identifiers; anything else is dropped. */

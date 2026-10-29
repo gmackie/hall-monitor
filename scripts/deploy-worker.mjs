@@ -14,14 +14,14 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
-const SECRETS = ["HM_DIGEST_KEY", "HM_TRUSTED_ISSUERS", "HM_POLICY_OVERLAYS", "HM_TENANT_MODES", "HM_AI_GATEWAY_ID", "HM_DECISION_PACK", "HM_TELEMETRY_ENABLED", "HM_TELEMETRY_TENANTS", "HM_TELEMETRY_V2_ENABLED", "HM_TELEMETRY_V2_TENANTS", "HM_TELEMETRY_V2_RETENTION", "HM_TELEMETRY_OUTBOX_MAX_ROWS", "HM_TELEMETRY_OUTBOX_MAX_BYTES", "HM_TELEMETRY_RETRY_HORIZON_SECONDS"];
+const SECRETS = ["HM_DIGEST_KEY", "HM_TRUSTED_ISSUERS", "HM_POLICY_OVERLAYS", "HM_TENANT_MODES", "HM_AI_GATEWAY_ID", "HM_DECISION_PACK", "HM_GOVERNANCE", "HM_GOVERNANCE_ACCOUNT_ID", "HM_GOVERNANCE_WORKER_NAME", "HM_TELEMETRY_ENABLED", "HM_TELEMETRY_TENANTS", "HM_TELEMETRY_V2_ENABLED", "HM_TELEMETRY_V2_TENANTS", "HM_TELEMETRY_V2_RETENTION", "HM_TELEMETRY_OUTBOX_MAX_ROWS", "HM_TELEMETRY_OUTBOX_MAX_BYTES", "HM_TELEMETRY_RETRY_HORIZON_SECONDS"];
 
 const { values } = parseArgs({ options: { domain: { type: "string", multiple: true }, "dry-run": { type: "boolean" } } });
 
 const secrets = Object.fromEntries(SECRETS.flatMap((name) => (process.env[name] ? [[name, process.env[name]]] : [])));
 const digestKey = secrets.HM_DIGEST_KEY;
 if (digestKey !== undefined && digestKey.length < 32) throw new Error("HM_DIGEST_KEY must be at least 32 characters");
-for (const name of ["HM_TRUSTED_ISSUERS", "HM_POLICY_OVERLAYS", "HM_TENANT_MODES", "HM_DECISION_PACK", "HM_TELEMETRY_TENANTS", "HM_TELEMETRY_V2_TENANTS", "HM_TELEMETRY_V2_RETENTION"]) {
+for (const name of ["HM_TRUSTED_ISSUERS", "HM_POLICY_OVERLAYS", "HM_TENANT_MODES", "HM_DECISION_PACK", "HM_GOVERNANCE", "HM_TELEMETRY_TENANTS", "HM_TELEMETRY_V2_TENANTS", "HM_TELEMETRY_V2_RETENTION"]) {
   if (secrets[name] === undefined) continue;
   try {
     JSON.parse(secrets[name]);

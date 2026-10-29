@@ -50,6 +50,8 @@ export interface ClefClassifierOptions {
   readonly questions?: readonly ClefQuestion[];
   /** Questions for image content; defaults to {@link CLEF_IMAGE_QUESTIONS}. */
   readonly imageQuestions?: readonly ClefQuestion[];
+  /** Server-owned transfer guard, rechecked for each primary/escalation call. Denial is not a billed attempt. */
+  readonly authorizeModel?: (model: string) => boolean;
 }
 
 type CallOutcome =
@@ -105,6 +107,7 @@ export function createClefClassifier(options: ClefClassifierOptions): EvaluatorP
       const attempts: UsageAttempt[] = [];
 
       const call = async (model: string): Promise<CallOutcome> => {
+        if (options.authorizeModel !== undefined && !options.authorizeModel(model)) return { kind: "failed", timedOut: false };
         const attemptIndex = attempts.length;
         try {
           const result = await runWithTimeout(options.transport, model, clefRequestFor(model, input), timeoutMs, context.signal);

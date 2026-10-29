@@ -4,6 +4,13 @@ import { ClefTransportError, gatewayFetchTransport, type WorkersAiBinding, worke
 const signal = new AbortController().signal;
 
 describe("workersAiBindingTransport", () => {
+  it("passes explicit whole-log and cache bypass controls for a governed route", async () => {
+    let seen: Record<string, unknown> | undefined;
+    const ai: WorkersAiBinding = { async run(_model, _input, options) { seen = options; return {}; } };
+    await workersAiBindingTransport(ai, { id: "governed", collectLog: false, skipCache: true }).run("@cf/x", {}, { signal });
+    expect(seen?.extraHeaders).toEqual({ "cf-aig-collect-log-payload": "false", "cf-aig-collect-log": "false", "cf-aig-skip-cache": "true" });
+  });
+
   it("routes through the gateway with payload logging off", async () => {
     const calls: unknown[] = [];
     const ai: WorkersAiBinding = {
