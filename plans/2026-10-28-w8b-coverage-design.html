@@ -1,0 +1,822 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HM-21 / W8b design spike: authoritative producer coverage</title>
+<style>
+  /* Consumes T3 theme tokens when present; system colours otherwise. No scripts, no remote resources. */
+  html { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 0 0 3rem; background: transparent; color: var(--foreground, CanvasText); font: 14px/1.5 var(--font-sans, system-ui, sans-serif); }
+  main { width: 100%; max-width: 1040px; min-width: 0; margin: 0 auto; padding: 0; }
+  h1 { font-size: 1.35rem; margin: 1rem 0 .25rem; }
+  h2 { font-size: 1.05rem; margin: 2rem 0 .5rem; padding-top: .5rem; border-top: 1px solid var(--border, #8884); }
+  h3 { font-size: .92rem; margin: 1rem 0 .25rem; }
+  p, li { max-width: 80ch; }
+  p { margin: .5rem 0; }
+  a { color: var(--accent-surface-foreground, LinkText); }
+  .meta, .muted { color: var(--muted-foreground, GrayText); }
+  :focus-visible { outline: 2px solid var(--ring, Highlight); outline-offset: 3px; }
+  code, pre { font-family: var(--font-mono, Menlo, Consolas, monospace); font-size: .82em; background: var(--code-background, #8882); color: var(--code-foreground, inherit); border-radius: 4px; }
+  code { padding: .05rem .25rem; }
+  pre { padding: .6rem .75rem; overflow-x: auto; line-height: 1.4; }
+  pre code { background: none; padding: 0; }
+  .table-scroll { overflow-x: auto; margin: .5rem 0; }
+  table { width: 100%; border-collapse: collapse; font-size: .86em; }
+  th, td { text-align: left; vertical-align: top; padding: .4rem .5rem; border-bottom: 1px solid var(--border, #8883); }
+  th { font-weight: 600; background: var(--muted, #8881); white-space: nowrap; }
+  td code { white-space: nowrap; }
+
+  .badge, .chip, .tag { display: inline-block; border-radius: 999px; padding: .08rem .5rem; font-size: .7rem; font-weight: 600; white-space: nowrap; vertical-align: middle; }
+  .badge { background: var(--warning-surface, #fff4d6); color: var(--warning-foreground, #7a5200); }
+  .chip.todo { background: var(--muted, #8882); color: var(--muted-foreground, GrayText); }
+  .chip.risk { background: var(--warning-surface, #fff4d6); color: var(--warning-foreground, #7a5200); }
+  .chip.high { background: var(--destructive-surface, #fde8e8); color: var(--destructive, #b3261e); }
+  .chip.ok { background: color-mix(in srgb, var(--success, #1e8e3e) 18%, transparent); color: var(--success, #1e8e3e); }
+  .tag.obs { background: color-mix(in srgb, var(--info, #1a73e8) 16%, transparent); color: var(--info, #1a73e8); }
+  .tag.prop { background: color-mix(in srgb, var(--success, #1e8e3e) 16%, transparent); color: var(--success, #1e8e3e); }
+  .tag.unv { background: var(--warning-surface, #fff4d6); color: var(--warning-foreground, #7a5200); }
+  .stamp { font-family: var(--font-mono, monospace); font-size: .72em; color: var(--muted-foreground, GrayText); white-space: nowrap; }
+
+  .callout { border-left: 3px solid var(--accent, #2458ac); background: var(--accent-surface, #2458ac14); color: var(--accent-surface-foreground, inherit); border-radius: 0 var(--radius, .6rem) var(--radius, .6rem) 0; padding: .65rem .85rem; margin: .75rem 0; }
+  .callout.warn { border-left-color: var(--warning, #b06c00); background: var(--warning-surface, #fff4d6); color: var(--warning-foreground, #5a3f00); }
+  .callout.stop { border-left-color: var(--destructive, #b3261e); background: var(--destructive-surface, #fde8e8); color: var(--destructive, #8c1d18); }
+  .options { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 235px), 1fr)); gap: .75rem; margin: .5rem 0; }
+  .card { border: 1px solid var(--border, #8884); border-radius: var(--radius, .6rem); background: var(--card, #8881); color: var(--card-foreground, inherit); padding: .7rem .8rem; }
+  .card.recommended { border-color: var(--accent, #2458ac); box-shadow: 0 0 0 1px var(--accent, #2458ac); }
+  .card.rejected { opacity: .92; border-style: dashed; }
+  .card h3 { margin-top: 0; }
+  .card ul { margin: .4rem 0 0; padding-left: 1.1rem; }
+  .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: .75rem; }
+  .goal li::marker { content: "✓ "; color: var(--success, #1e8e3e); }
+  .nongoal li::marker { content: "✕ "; color: var(--destructive, #b3261e); }
+
+  details { border: 1px solid var(--border, #8884); border-radius: var(--radius, .6rem); background: var(--card, #8881); padding: .5rem .75rem; margin: .6rem 0; }
+  summary { cursor: pointer; font-weight: 600; }
+
+  figure.diagram { margin: .75rem 0; border: 1px solid var(--border, #8884); border-radius: var(--radius, .6rem); padding: .5rem; overflow-x: auto; background: var(--card, #8881); }
+  figure.diagram svg { display: block; min-width: 760px; width: 100%; height: auto; }
+  figcaption { font-size: .82em; color: var(--muted-foreground, GrayText); margin-top: .3rem; }
+  svg text { fill: currentColor; font: 12px var(--font-sans, system-ui, sans-serif); }
+  svg .lbl { font-size: 11.5px; }
+  svg .hd text { font-weight: 700; }
+  svg circle { fill: currentColor; }
+  svg .box { fill: var(--card, #8881); stroke: currentColor; stroke-width: 1.2; }
+  svg .life { stroke: currentColor; stroke-opacity: .35; stroke-dasharray: 4 4; }
+  svg .msg { stroke: var(--accent, #2458ac); stroke-width: 1.6; fill: none; }
+  svg .ack { stroke: var(--success, #1e8e3e); stroke-width: 1.6; fill: none; stroke-dasharray: 5 3; }
+  svg .txn { fill: var(--accent-surface, #2458ac22); stroke: var(--accent, #2458ac); stroke-width: 1; }
+  svg .bad { fill: var(--destructive-surface, #fde8e8); stroke: var(--destructive, #b3261e); }
+  svg .good { fill: color-mix(in srgb, var(--success, #1e8e3e) 25%, transparent); stroke: var(--success, #1e8e3e); }
+  svg .warnfill { fill: var(--warning-surface, #fff4d6); stroke: var(--warning, #b06c00); }
+  svg .axis { stroke: currentColor; stroke-opacity: .5; }
+
+  .progress { display: flex; gap: 3px; height: 8px; margin: .5rem 0 1rem; }
+  .progress span { flex: 1; border-radius: 3px; background: var(--muted, #8883); }
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal { animation: rise .45s cubic-bezier(.2,.7,.3,1) both; animation-delay: calc(var(--i, 0) * 60ms); }
+    svg .draw { stroke-dasharray: 1200; stroke-dashoffset: 1200; animation: draw 1.2s ease-out forwards; animation-delay: calc(var(--i, 0) * 90ms); }
+    svg .ack.draw { stroke-dasharray: 5 3; stroke-dashoffset: 0; animation: none; }
+    @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+    @keyframes draw { to { stroke-dashoffset: 0; } }
+  }
+  nav.toc { display: flex; flex-wrap: wrap; gap: .25rem .6rem; font-size: .82em; margin: .5rem 0 1rem; }
+</style>
+</head>
+<body>
+<main>
+<aside class="callout stop"><strong>Historical proposal · completeness proof requires revision.</strong><p>The independent review found four concrete counterexamples and a runtime-scope problem. <a href="2026-10-28-w8b-coverage-review.html">Read the review and revised sequence</a>; <a href="2026-10-28-w8b-evidence-model.html">S0a is the executable handoff</a>. Those documents supersede this proposal’s zero derivation, checkpoint regression, frontier, finality and S0 parser instructions. Nothing here authorizes runtime activation.</p><p class="meta">Artifact-only copy from local commit <code>ffcc985fcad9f5ed3cdbac8000f489fd323fb649</code>. The original remains untouched in its executor checkout. Its branch starts at old main <code>9d9fa41</code>; do not merge it. Only this notice, the review attribution and inline surface styling were changed in this copy.</p></aside>
+
+<h1 class="reveal">W8b design spike: authoritative producer coverage <span class="badge">Design only · nothing implemented or tested</span></h1>
+<p class="meta reveal" style="--i:1">2026-10-28 · Hall Monitor (<code>git.forgegraf.com/gmackie/hall-monitor</code>) · program HM-16 · owning issue HM-21 (In Progress, production delivery target; this spike does not complete it) · author: design sub-agent · independent review: REVISE; see the review linked below</p>
+<p class="meta reveal" style="--i:2">Source snapshot: <code>222ee45a9b4fb29f4d99d5393c82c735605ab84a</code> (PR 12 head), tracked tree verified identical to canonical main <code>322734e56743963ffcb6a9a006d73cc8f30a3a82</code> in this run (<code>git diff --exit-code --stat HEAD 322734e…</code> exit 0; snapshot <code>git status --short</code> empty). Every <span class="stamp">@222ee45</span> stamp below means "read at that tree"; it is therefore also true of 322734e.</p>
+
+<nav class="toc" aria-label="Sections">
+  <a href="#summary">Summary</a><a href="#obs">Observations</a><a href="#scope">A · Proof unit</a><a href="#options">B · Options</a><a href="#flow">Data flow</a><a href="#protocol">D · Protocol</a><a href="#empty">C · Empty periods</a><a href="#closure">E · Closure</a><a href="#retention">F · Retention</a><a href="#rates">G · Rates</a><a href="#counter">Counterexamples</a><a href="#verify">Verification</a><a href="#slices">Slicing</a><a href="#phases">Phases</a><a href="#stop">STOP</a><a href="#open">Open</a><a href="#sources">Sources</a>
+</nav>
+
+<h2 id="summary" style="margin-top:.5rem;border-top:0">Recommendation and summary</h2>
+<div class="callout reveal" style="--i:3"><strong>Recommendation:</strong> do not start W8b by "adding a heartbeat". Implement it as a <strong>producer-attested, receiver-verified commit-sequence proof</strong> whose only claim is about <em>successful admitted evaluation completions</em> (scope <code>eval_completions</code>). Build the verifier before the prover: pure model → receiver → producer evidence → checkpoint dispatch → optional cron activation → drills → human-gated rollout. Upstream product submissions, front-door outages and "no school activity" are <strong>not provable from this repository</strong>; they need a separate authoritative integration (below). A verified zero means "the producer's gapless completion ledger shows zero commits for a fully observed window", never "no students were active".</div>
+
+<div class="two">
+  <section class="card"><h3>Why this design (evidence-led)</h3>
+    <ul>
+      <li><span class="tag obs">Observed</span> <code>IdempotencyStore.complete()</code> has exactly one call site and the evaluation result is returned only after it resolves (<code>app.ts:302-323</code> <span class="stamp">@222ee45</span>). It runs in one per-tenant Durable Object inside one <code>transactionSync</code> (<code>store.ts:217</code>). That is a natural serialization point for a <strong>gapless per-stream sequence</strong>.</li>
+      <li><span class="tag obs">Observed</span> Today the unit has <strong>silent holes</strong>: five <code>return null</code> paths in <code>prepareTelemetryDelivery</code> leave no row, no gap, no trace (O2). Any completeness proof must first make every completion classifiable.</li>
+      <li><span class="tag obs">Observed</span> Receiver coverage fields are hard-coded <code>"unavailable"</code>; <code>provisional</code> is a clock heuristic, not evidence (O9).</li>
+    </ul></section>
+  <section class="card"><h3>What the proof can and cannot say</h3>
+    <ul>
+      <li><span class="tag prop">Proposed</span> <strong>Can:</strong> complete non-zero count, verified zero completions, incomplete (with reason class), unobserved, provisional, not expected, withdrawn.</li>
+      <li><span class="tag prop">Proposed</span> <strong>Cannot:</strong> distinguish "no demand" from "front door down / auth rejected / rate limited / evaluation failed" (no commit exists in any of those). Labelled <code>completed_evaluations</code>, never "activity".</li>
+      <li><span class="tag prop">Proposed</span> <strong>Cannot:</strong> detect a receiver-storage rollback or a compromised writer key. Trust model is benign-failure, not adversarial producer.</li>
+    </ul></section>
+</div>
+
+<h3>Minimum extra authoritative integration for any activity or availability claim</h3>
+<p><span class="tag prop">Proposed</span> A second, separately-scoped stream <code>product_submissions</code>: a durable, gapless, product-side counter (EducateOS / PlayTrek own the chokepoint where a student submission is created) per (source, 15-minute UTC bucket, grade band), carried by the same checkpoint algebra with its own streams, epochs and fence, plus a district-approved exposure inventory for expected-nonzero windows. Only then can "submitted but never evaluated" or "no submissions" be stated. Optionally a cheap in-repo precursor, <code>eval_attempts</code> (a ledger of <code>begin()</code> starts in the same DO), would expose evaluations that started and never completed; it is not W8b and not part of this proposal. No estimate of activity or human staffing is permitted by any of these.</p>
+
+<div class="callout warn"><strong>Non-claims.</strong> Nothing here is implemented, run or tested. The existing suite (552 tests / 41 files and 84 drill checks, quoted from the task brief, not re-run) says nothing about this design. No retention duration, privacy or legal approval, dashboard, suppression rule, tenant enrolment or deployment is claimed or implied. Every number named below (fence, tick, caps) is a <em>parameter to be measured and approved</em>, not a recommendation.</div>
+
+<p class="muted">Legend: <span class="tag obs">Observed</span> read from source or run in this spike with the stamp shown · <span class="tag prop">Proposed</span> design, unimplemented · <span class="tag unv">Unverified</span> platform behaviour or assumption that must be proven by a test before it is relied on.</p>
+
+<!-- ============================ OBSERVATIONS ============================ -->
+<h2 id="obs">Observations: what the source actually does</h2>
+<p>All rows <span class="tag obs">Observed</span>. Paths relative to the snapshot; line numbers from this run's reads.</p>
+<div class="table-scroll"><table>
+<thead><tr><th>ID</th><th>Finding</th><th>Evidence <span class="stamp">@222ee45</span></th><th>Implication for W8b</th></tr></thead>
+<tbody>
+<tr><td>O1</td><td><code>complete()</code> is the single chokepoint for returned evaluations. Replay and failed evaluations never reach it (<code>abandon</code> on failure).</td><td><code>apps/worker/src/app.ts:261-270, 291-297, 302</code>; grep: one <code>.complete(</code> call in <code>apps/*/src</code></td><td>A seq assigned inside the completion transaction totally orders the unit and adds nothing for replays/failures.</td></tr>
+<tr><td>O2</td><td><code>prepareTelemetryDelivery</code> returns <code>null</code> with no trace when: v2 off or no collector binding; no grant; event unprojectable (<code>sourceOf</code> null) or grade/source outside the grant; retention policy inactive (log line only); or any exception outside the inner build. Only the inner build failure returns a <code>gap</code>. <code>complete()</code> writes nothing telemetry-related when <code>telemetry</code> is undefined.</td><td><code>apps/worker/src/metrics.ts:107, 111, 113, 117-121, 141-148</code>; <code>apps/worker/src/store.ts:231</code></td><td>E is silently under-counted today in each of these cases. A coverage claim must turn every one into an explicit <em>unobserved</em> range (see "chokepoint classification").</td></tr>
+<tr><td>O3</td><td>Occurrence time (<code>Date.now()</code>), delivery ID, bytes and digest are frozen in the Worker <em>before</em> the DO commit; nothing bounds prepare→commit latency or Worker/DO clock skew.</td><td><code>metrics.ts:108, 112, 124-140</code>; <code>packages/telemetry-contracts/src/index.ts:222-235</code>; <code>app.ts:301-302</code></td><td>"Prepared before the checkpoint, completes after" is real. Closure needs an enforced fence.</td></tr>
+<tr><td>O4</td><td><code>complete()</code>'s <code>UPDATE idempotency … WHERE key AND digest</code> never checks that a row matched; <code>begin()</code> re-reserves a key after a 2-minute pending hold (<code>INSERT OR REPLACE</code>). A slow evaluation can therefore complete twice for one key.</td><td><code>store.ts:24, 189-195, 218-224</code></td><td>The unit is <strong>completion commits</strong>, not distinct requests. Two commits → two seqs → two E. Must be stated, not hidden.</td></tr>
+<tr><td>O5</td><td>Transport identity is only a random delivery ID; the v2 envelope has exactly four keys, so it cannot carry a stream, epoch or seq without a new schema or signed transport attributes. No checkpoint or source inventory exists.</td><td><code>contracts/src/index.ts:170, 199-215</code> (4-key check at 205); <code>store.ts:144-153</code></td><td>Sequence must travel as signed transport attributes bound to the frozen v2 bytes (not inside the digest, which is computed asynchronously in the Worker).</td></tr>
+<tr><td>O6</td><td>Producer gaps are <code>(UTC hour, reason, lost, expires_at)</code> only; no grade/modality/seq. They are read locally by <code>telemetryState()</code> and never transmitted (only outbox rows are sent: single <code>sendDeliveryV2</code> call site).</td><td><code>store.ts:156-162, 252-266, 375-385, 477</code>; grep of <code>telemetry_gaps</code> users</td><td>A gap taints every finer period of its hour (4 quarter buckets). Gaps need to reach the receiver, and need seq membership to prove accounting.</td></tr>
+<tr><td>O7</td><td>The producer alarm goes idle when no work is pending; a never-contacted tenant has no Durable Object state, no alarm. The producer has no <code>scheduled()</code> handler and <code>wrangler.jsonc</code> has no <code>triggers</code>; the receiver deploy gate forbids <code>triggers</code>.</td><td><code>store.ts:274-299, 520-531</code>; <code>apps/worker/src/index.ts</code>; <code>apps/worker/wrangler.jsonc</code>; <code>scripts/deploy-telemetry-worker.mjs:34</code></td><td>Nothing wakes a zero-traffic tenant. Verified zero requires a new, durable, bounded wake mechanism.</td></tr>
+<tr><td>O8</td><td>Receiver dedupe key is <code>sha256("…delivery-key-v2\n"+tenant+"\n"+deliveryId)</code>; <code>deliveries</code> has no stream/seq; one transaction does dedupe + <code>evaluated</code>/<code>candidate</code> upsert. Rollup PK is bucket × source × grade × modality × producerRevision × configRevision × calendarRevision.</td><td><code>apps/telemetry-worker/src/index.ts:153</code>; <code>…/store.ts:190-196, 209-230, 289-356</code></td><td>Seq ownership can live in the existing short-lived dedupe row (no new per-message table).</td></tr>
+<tr><td>O9</td><td><code>completeness</code> and <code>producerCoverage</code> are literal <code>"unavailable"</code> in types and reads. <code>provisional</code> = "now &lt; bucket end + 24 h + 5 min", a time heuristic with no producer evidence.</td><td><code>…/store.ts:90, 101, 389, 406, 428</code>; <code>…/retention.ts:14, 69-71</code></td><td>Keep as the default; add a <em>derived</em> state only when verified evidence exists. Never default to anything but unavailable.</td></tr>
+<tr><td>O10</td><td>Accepted occurrence window: ≤ 24 h old, ≤ 5 min in the receiver's future; producer retry horizon default 6 h, max 12 h. Age check precedes dedupe lookup.</td><td><code>contracts/src/index.ts:164-168</code>; <code>…/store.ts:274-275</code>; <code>metrics.ts:137</code></td><td>Bounds how long a missing seq can stay pending (≤ 12 h) and how long seq ownership must be remembered (dedupe horizon).</td></tr>
+<tr><td>O11</td><td>Retention policy is exactly 8 keys; only dedupe ≤ rollup ≤ gap is enforced. Tenant config requires <code>schemaVersion === 1</code> and exact key sets. Intervals sit on 15-minute boundaries, may not overlap, may have gaps (occurrence in a gap is refused). A bucket straddling a local hour/offset change is refused.</td><td><code>contracts/src/index.ts:346-349, 378, 387-390</code>; <code>tenant-config.ts:50, 88-89, 117-118, 134</code>; <code>time.ts:65-87</code>; <code>…/index.ts:136-146</code></td><td>Adding a coverage field is a schema/compat event. Effective-dated intervals already give "expected windows"; they are server-owned.</td></tr>
+<tr><td>O12</td><td>One per-tenant <code>signingKey</code> signs requests (domain v2) and MACs acks (domain ack-v2). Writer and the only authentication path share it.</td><td><code>telemetry-sink/src/index.ts:226-277</code>; <code>contracts/src/index.ts:22-27, 154-155</code></td><td>New messages need new domains; acks must not become a read channel; any future reader needs a different credential.</td></tr>
+<tr><td>O13</td><td>E is emitted for <strong>all four</strong> <code>EvaluationKind</code>s (including model output and evaluator results), degraded evaluations included; F excludes degraded/uncertain. The metric catalogue defines E as "eligible content submissions evaluated".</td><td><code>metrics.ts:42-81</code> (70-71); <code>packages/contracts/src/primitives.ts:49-54</code>; <code>docs/design/temporal-metrics.md:9</code></td><td>Unit-definition gap (see Open Q1/Q2). Coverage proves completeness of the <em>emitted</em> unit, not of "eligible" in the catalogue sense.</td></tr>
+<tr><td>O14</td><td>Design docs say a zero "can legitimately" be established "by a heartbeat and exposure inventory", and require a coverage table; W8a states coverage is unavailable.</td><td><code>docs/design/temporal-metrics.md:48, 68-70</code>; <code>temporal-analytics.md:85</code>; <code>docs/implementation/t2-durable-telemetry.md:192-194</code></td><td>The "heartbeat" sentence is unsafe as written: a heartbeat proves nothing about completions. This proposal replaces it with the ledger rule and leaves exposure inventory as the separate scope.</td></tr>
+<tr><td>O15</td><td>The producer's nested <code>transactionSync</code> is never used; all call sites are flat. <span class="tag unv">Unverified</span> whether nesting gives savepoint semantics.</td><td>grep of <code>transactionSync</code>: <code>store.ts:217, 426, 439, 502</code> (producer), receiver <code>184, 289, 456, 517</code></td><td>The coverage write must not be able to fail the moderation commit nor leave partial evidence (see STOP 1).</td></tr>
+<tr><td>O16</td><td>Test seams exist: producer <code>protected</code> hooks (<code>producerGrants</code>, <code>collector</code>, <code>firstAttemptDelayMs</code>, <code>deliveryTimeoutMs</code>, <code>afterCompletionWrites</code>) and a module-level <code>probe</code>; receiver has a clock/alarm/<code>failIngest</code> seam. (The brief names <code>apps/worker/test/controls.ts</code>; that file does not exist. The producer controls are <code>apps/worker/test/collector.ts</code>, the receiver's are <code>apps/telemetry-worker/test/controls.ts</code>.)</td><td><code>apps/worker/test/entry.ts:20-34</code>; <code>…/collector.ts:26-52</code>; <code>apps/telemetry-worker/test/controls.ts</code></td><td>Atomicity, restart and clock scenarios in the matrix are testable with existing patterns.</td></tr>
+<tr><td>O17</td><td>Per receiver row, <code>candidate</code> increments only together with <code>evaluated</code>, so F ≤ E holds by construction; the offline <code>flagRatePerThousand</code> returns null at E = 0 and throws on F &gt; E.</td><td><code>…/store.ts:330-339</code>; <code>packages/temporal-analytics/src/aggregate.ts:88-96</code></td><td>The rate gate can reuse these semantics and add coverage preconditions.</td></tr>
+</tbody></table></div>
+
+<!-- ============================ NAIVE ============================ -->
+<h2 id="naive">Why the obvious proofs fail</h2>
+<div class="table-scroll"><table>
+<thead><tr><th>Naive proof</th><th>Counterexample</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td>Receiver <code>ingest_health</code> is fresh / receiver answers 200</td><td>Producer is down or disabled; another tenant's or an earlier delivery keeps health fresh. Health describes the receiver (O9).</td><td>Rejected: "local collector health is never producer evidence".</td></tr>
+<tr><td>Empty rollup or "no row" ⇒ zero</td><td>No row is also what a lost, refused, expired or never-sent delivery looks like.</td><td>Rejected: zero needs an explicit proof object, absence is only <em>unobserved</em>.</td></tr>
+<tr><td>Periodic producer heartbeat ⇒ window observed</td><td>Heartbeat proves the alarm ran, not that completions were counted; a late heartbeat after an outage retroactively "covers" the outage.</td><td>Rejected as sole evidence. Kept only as the <em>armed chain</em> that bounds how far zero may extend, never bridging gaps.</td></tr>
+<tr><td>Hourly time-only watermark</td><td>Request prepared 10:14:59.9 (bucket 10:00), committed 10:15:00.4 after a checkpoint sealed 10:00 (O3).</td><td>Rejected: needs an enforced prepare→commit fence and an accounting frontier.</td></tr>
+<tr><td>Producer sends per-bucket counts; receiver compares equality</td><td>One duplicate with a fresh ID plus one lost delivery net to equal counts; a storage restore that forgets earlier commits is invisible to a count.</td><td>Considered as Design B below; weaker than sequence membership.</td></tr>
+<tr><td>Cumulative "sealed since epoch start" checkpoint</td><td>Disabled for 3 h with zero traffic, re-enabled; one late checkpoint would declare those 3 h verified zero.</td><td>Rejected: each claim carries an <code>armedSince</code> that resets whenever observation lapses.</td></tr>
+</tbody></table></div>
+
+<!-- ============================ A: SCOPE ============================ -->
+<h2 id="scope">A · Proof unit, trust and states <span class="tag prop">Proposed</span></h2>
+<h3>Observation scope</h3>
+<ul>
+  <li><strong>Scope id</strong> <code>eval_completions</code>. Unit: one <em>completion commit</em> by the tenant's <code>IdempotencyStore</code> (one per evaluation that returned a result through <code>complete()</code>; O1, O4). E and F in the receiver are projections of these commits (O17).</li>
+  <li><strong>Out of scope (separate coverage scopes, each with its own proof):</strong> <code>product_submissions</code> (upstream), reports/cases (R, I, Q, V, P, C are different units per <code>temporal-metrics.md:9-18</code>), <code>eval_attempts</code>.</li>
+  <li><strong>Declared outage semantics</strong> (answers brief A):
+    <ul>
+      <li>Worker / DO / front-door outage, auth rejection, rate limit, evaluation failure: <em>not observable</em> in this scope (no commit exists). A verified zero can coexist with an outage and must carry the label "completed evaluations".</li>
+      <li>Uninstrumented completion (old Worker version after a deploy, rollback below the W8b revision): <em>observable</em> if the Worker still emits v2 to a coverage-mode tenant (receiver taints the hour, see compat table) or if the optional <strong>receipts witness</strong> is built (the <code>receipts</code> table is written by every <code>complete()</code> of any code version, so a count of receipt rows with no matching ledger entry inside a window would expose an uninstrumented commit; <code>store.ts:225-230</code>); otherwise <em>must remain unavailable</em> and rollback below the W8b revision is an operational gate. <span class="tag unv">Unverified</span> receipts witness: JSON1 availability for <code>recordedAt</code>, and receipt TTL (<code>HM_RETENTION_SECONDS</code>, default 24 h) at least as long as the seal delay.</li>
+      <li>Invalid or absent coverage/enrolment/retention setting, or a disabled interval: observable <em>only when traffic occurs</em> (each completion records a <code>disabled</code> range while a stream exists); with zero traffic it is correctly a non-observation, never a zero, because no checkpoint is emitted while disarmed.</li>
+    </ul></li>
+</ul>
+
+<h3>Identities and inventory</h3>
+<div class="table-scroll"><table>
+<thead><tr><th>Name</th><th>Meaning</th><th>Owner / source of truth</th></tr></thead>
+<tbody>
+<tr><td><code>tenant</code></td><td>Authenticated tenant (existing).</td><td>Producer token; receiver grant.</td></tr>
+<tr><td><code>streamId</code></td><td>Opaque server-owned label of one expected producer (regex like <code>producerRevision</code>). Today each tenant has exactly one producer (<code>tenant:&lt;tenant&gt;</code> DO, <code>app.ts:374</code>), so one stream; the roster is a list so multiple producers are expressible.</td><td><strong>Receiver config</strong> <code>coverage.expectedStreams</code>, effective-dated. A producer cannot add itself.</td></tr>
+<tr><td><code>epoch</code></td><td><code>ep_&lt;32 hex&gt;</code> random, minted in the DO on activation/reset/seq overflow/operator rotation. Protected transport state only: never an analytics dimension; the receiver stores <code>sha256(domain+tenant+epoch)</code>.</td><td>Producer DO storage.</td></tr>
+<tr><td><code>seq</code></td><td>Positive safe integer, gapless within an epoch, assigned inside the completion transaction. <em>Every</em> completion while a stream exists consumes one: a delivery, or a member of a range.</td><td>Producer DO.</td></tr>
+<tr><td><code>producerRevision</code></td><td>Existing server-approved release dimension. Independent of epoch; changes with deploys.</td><td>Producer enrolment; receiver per-interval approval.</td></tr>
+</tbody></table></div>
+
+<h3>State vocabulary (per stream × 15-minute UTC bucket)</h3>
+<div class="table-scroll"><table>
+<thead><tr><th>State</th><th>Meaning</th><th>Count shown</th><th>Rate allowed</th></tr></thead>
+<tbody>
+<tr><td><code>not_expected</code></td><td>Bucket is outside every effective roster interval, outside the retention approval window, or below a revocation floor.</td><td>none</td><td>no</td></tr>
+<tr><td><code>unobserved</code></td><td>Expected, but no verified span covers the bucket's fenced window. Includes never-activated, producer silent, epoch break, disabled/late heartbeat.</td><td>stored count if any, flagged lower bound</td><td>no</td></tr>
+<tr><td><code>provisional</code></td><td>Covered up to but not including the fenced window, or accounting not caught up.</td><td>lower bound</td><td>no</td></tr>
+<tr><td><code>incomplete</code></td><td>Overlapped by a range (gap or unobserved reason), contradiction, late correction or epoch overlap. Reason class kept.</td><td>lower bound</td><td>no</td></tr>
+<tr><td><code>complete</code> → <code>verified_zero</code> | <code>complete_nonzero</code></td><td>Verified span ⊇ [bucket start − F, bucket end + F], accounting verified, no overlapping range. <code>verified_zero</code> = complete with no rollup row.</td><td>exact</td><td>if E &gt; 0 and cohort rules (G)</td></tr>
+<tr><td><code>withdrawn</code></td><td>Revoked or purged. Equivalent to "no data"; never zero.</td><td>none</td><td>no</td></tr>
+</tbody></table></div>
+<p>A cohort over several streams or buckets is <code>complete</code> only if every member is. Otherwise its reported state is the worst member by this precedence: <code>withdrawn</code>, <code>unobserved</code>, <code>incomplete</code>, <code>provisional</code> (<code>not_expected</code> buckets are excluded from the cohort, not counted as complete). All streams expected for a bucket must be <code>complete</code> for the tenant bucket to be.</p>
+
+<h3>Proof objects (definitions)</h3>
+<ul>
+  <li><strong>Commit time</strong> of a completion = the producer logical clock inside the completion transaction. <strong>Fence F:</strong> a delivery is produced only if <code>|commit time − occurredAt| ≤ F</code>; otherwise the completion consumes its seq as a <code>fence</code> range (taints its occurrence hour and its commit hour). So any completion with occurrence in bucket <em>b</em> has commit time in <code>[b.start − F, b.end + F]</code>.</li>
+  <li><strong>Accounted frontier</strong> <code>(through, seq)</code>: <code>seq</code> is the largest S such that every seq ≤ S is either acked (row deleted on a verified durable ack) or inside a producer range, <em>and</em> S's commit time ≤ <code>through</code>. Consequence (head-of-line blocking): one delivery still retrying holds the frontier, so buckets stay <code>provisional</code> for up to the retry horizon (6 h default, 12 h cap) before the row becomes a range.</li>
+  <li><strong>Armed chain:</strong> consecutive armed observations (completions or ticks) no more than <code>maxTickGapSeconds</code> apart with no off observation between; <code>armedSince</code> is its start. Anything before <code>armedSince</code> is never claimed.</li>
+  <li><strong>Presence:</strong> the receiver holds a <code>(epoch, seq)</code> for every seq in a claimed interval, or a range covers it. The receiver tracks a contiguous watermark <code>verified_n</code> (highest N with every seq ≤ N present or covered), advanced inside the delivery and checkpoint transactions, so verification does not depend on old dedupe rows surviving.</li>
+  <li><strong>Verified span:</strong> a checkpoint that passes presence, merged into <code>(armedSince, through, seq)</code>. Bucket <em>b</em> is sealable iff <code>armedSince ≤ b.start − F</code>, <code>b.end + F ≤ through</code>, no range overlaps <em>b</em>'s hour, and no taint remains.</li>
+  <li><strong>Producer values are never trusted as counts.</strong> A checkpoint carries only a frontier and declared losses, both derived from durable DO state in one synchronous pass. E and F always come from the receiver's own rollups; the checkpoint can only <em>qualify</em> them. A lying producer can make data less complete; it can make it complete only by also forging matching deliveries, which needs the writer key (out of scope, X7).</li>
+</ul>
+
+<!-- ============================ B: OPTIONS ============================ -->
+<h2 id="options">B · Durable evidence: designs compared <span class="tag prop">Proposed</span></h2>
+<div class="options">
+  <section class="card recommended"><h3>A · Commit-sequence progress with verified checkpoints <span class="badge">Recommended</span></h3>
+    <ul>
+      <li>Gapless <code>(epoch, seq)</code> per stream, assigned in the completion transaction; carried as signed transport attributes.</li>
+      <li>Every seq is <em>accounted</em>: acked, or in a producer range (gap/unobserved).</li>
+      <li>Checkpoint = <code>accounted(through, seq)</code>, <code>armedSince</code>, unreported ranges. Receiver <strong>verifies presence</strong> of every seq in the claimed range, then merges a span.</li>
+      <li>Detects loss, duplicates, forged/foreign seqs, restore/regression, epoch overlap.</li>
+      <li>Cost: new signed attributes (v3 route), seq index on the existing dedupe row, ~3 receiver tables, alarm ticks.</li>
+    </ul></section>
+  <section class="card"><h3>B · Durable per-bucket inventory reconciliation</h3>
+    <ul>
+      <li>Producer keeps per-bucket×dims commit counters in the completion transaction; checkpoints send counts for closed buckets; receiver compares equality.</li>
+      <li>No wire change to deliveries; naturally idempotent and order-free.</li>
+      <li><strong>Weaker:</strong> equality can hold with a duplicate-ID delivery masking a loss; cannot see a restore that forgot earlier commits; per-bucket×dims counts in every checkpoint are large; epochs are invisible to the receiver's rollups (cannot attribute a mismatch to an epoch).</li>
+      <li>Useful later as <em>defence in depth</em>, not as the proof.</li>
+    </ul></section>
+  <section class="card rejected"><h3>C · Heartbeat / silence detection</h3>
+    <ul>
+      <li>Receiver notes the last contact; "healthy" if recent.</li>
+      <li>Proves nothing about completions, retroactively blesses outages, cannot find lost deliveries (naive table above).</li>
+      <li><strong>Rejected.</strong></li>
+    </ul></section>
+  <section class="card rejected"><h3>D · Upstream product submission counters</h3>
+    <ul>
+      <li>The only way to claim "no submissions" or "evaluation failed to run".</li>
+      <li>Requires EducateOS/PlayTrek code and agreements outside this repo.</li>
+      <li><strong>Separate scope</strong> (<code>product_submissions</code>); the same algebra applies.</li>
+    </ul></section>
+</div>
+
+<h3>Why A holds up under the required adversities <span class="tag prop">Proposed</span> (argument, to be mechanised in Phase 0 model tests)</h3>
+<div class="table-scroll"><table>
+<thead><tr><th>Adversity</th><th>Why a false <code>complete</code> cannot result</th><th>Where it is enforced</th></tr></thead>
+<tbody>
+<tr><td>Concurrent commits</td><td>The per-tenant DO serialises <code>complete()</code>; seq and logical commit time are assigned in the same <code>transactionSync</code>, so seq order = commit-time order. A rolled-back commit does not burn a seq.</td><td>Producer txn</td></tr>
+<tr><td>Duplicate delivery IDs / retries</td><td>Receiver dedupes by delivery key; the key owns exactly one <code>(epoch, seq)</code>; same key with different seq or digest is a conflict that taints. A retry re-signs the same bytes with the same attributes.</td><td>Receiver txn</td></tr>
+<tr><td>Partial batches / lost acks</td><td>Producer clears a row only on a verified durable ack. A lost ack leaves the row; the retry is a <code>deduplicated</code> ack. If the row expires first, the seq becomes a range: the receiver may hold the count, but the bucket is <code>incomplete</code> (never an over-claim).</td><td>Producer + receiver</td></tr>
+<tr><td>Out-of-order delivery / progress</td><td>Spans are merged as a lattice (max of accounted time/seq, union of ranges); applying checkpoints and deliveries in any order converges. A checkpoint whose seqs are not yet present at the receiver is <em>rejected</em> (<code>409 inconsistent</code>), because the producer only claims seqs whose acks it already holds.</td><td>Receiver txn</td></tr>
+<tr><td>Gaps</td><td>A seq in a range is accounted but taints every bucket in its hour span. A gap that appears after a seal downgrades the bucket (monotone toward less complete) and bumps <code>coverageRevision</code>.</td><td>Receiver derive</td></tr>
+<tr><td>Cold start / restart</td><td>Epoch, <code>next_seq</code>, logical clock high-water, armed chain are persisted SQL, never memory. Restart cannot extend a chain over a gap longer than <code>maxTickGapSeconds</code>.</td><td>Producer</td></tr>
+<tr><td>Storage restore / rollback at producer</td><td>Re-issued seqs collide with receiver-owned <code>(epoch, seq)</code> or fall below its <code>verified_n</code> → <code>seq_conflict</code> / regression → taint from the earliest affected hour; recovery requires a new epoch (operator <code>epochGeneration</code>).</td><td>Receiver</td></tr>
+<tr><td>Prepared-before / sealed-after</td><td>DO rejects delivery of any commit with <code>|logical now − occurredAt| &gt; F</code> (records a <code>fence</code> range instead); a seal needs bucket end + F ≤ accounted time. A violation can only <em>downgrade</em>, never silently change a sealed count.</td><td>Producer + receiver</td></tr>
+</tbody></table></div>
+<p class="muted">Proof sketch for Phase 0 to mechanise: if the receiver reports bucket <em>b</em> complete for stream <em>s</em>, then every commit with occurrence in <em>b</em> has logical time in [bs − F, be + F] (fence), that interval lies inside a verified armed span, every seq with logical time ≤ accounted time is present (delivery) or declared (range), no declared range overlaps <em>b</em>, hence the receiver's E for <em>b</em> equals the number of such commits. Out of the proof: compromised producer, receiver storage rollback, and anything outside <code>eval_completions</code>.</p>
+
+<!-- ============================ FLOW ============================ -->
+<h2 id="flow">Data flow and sequence <span class="tag prop">Proposed</span></h2>
+<figure class="diagram">
+<svg viewBox="0 0 900 610" role="img" aria-labelledby="seqt seqd">
+  <title id="seqt">Proposed W8b sequence</title>
+  <desc id="seqd">Worker prepares and commits; the producer Durable Object assigns an epoch and sequence in one transaction; the alarm sends v3 deliveries and checkpoints; the receiver Durable Object counts, verifies presence and merges a coverage span; acknowledgments carry no coverage data.</desc>
+  <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+  <g class="hd">
+    <rect class="box" x="20" y="8" width="140" height="34" rx="6"/><text x="90" y="30" text-anchor="middle">Worker (prepare)</text>
+    <rect class="box" x="200" y="8" width="140" height="34" rx="6"/><text x="270" y="30" text-anchor="middle">Producer DO</text>
+    <rect class="box" x="380" y="8" width="140" height="34" rx="6"/><text x="450" y="30" text-anchor="middle">Sender (alarm)</text>
+    <rect class="box" x="560" y="8" width="140" height="34" rx="6"/><text x="630" y="30" text-anchor="middle">Receiver Worker</text>
+    <rect class="box" x="740" y="8" width="140" height="34" rx="6"/><text x="810" y="30" text-anchor="middle">Aggregate DO</text>
+  </g>
+  <line class="life" x1="90" y1="42" x2="90" y2="600"/><line class="life" x1="270" y1="42" x2="270" y2="600"/><line class="life" x1="450" y1="42" x2="450" y2="600"/><line class="life" x1="630" y1="42" x2="630" y2="600"/><line class="life" x1="810" y1="42" x2="810" y2="600"/>
+
+  <path class="msg draw" style="--i:0" d="M90 72 h40 v18 h-40" marker-end="url(#ah)"/><text class="lbl" x="136" y="86">1 prepare: project pair · freeze occurredAt · id · digest · classify (delivery | unobserved reason)</text>
+  <path class="msg draw" style="--i:1" d="M90 120 H268" marker-end="url(#ah)"/><text class="lbl" x="96" y="114">2 complete(result, receipt, delivery | observation)</text>
+  <rect class="txn" x="205" y="132" width="330" height="42" rx="4"/><text class="lbl" x="213" y="148">3 ONE txn: result + receipt · fence check ·</text><text class="lbl" x="213" y="164">seq++ · outbox(epoch,seq) or range · armed chain</text>
+  <path class="msg draw" style="--i:2" d="M270 200 H448" marker-end="url(#ah)"/><text class="lbl" x="290" y="194">4 alarm: row due / tick</text>
+  <path class="msg draw" style="--i:3" d="M450 240 H628" marker-end="url(#ah)"/><text class="lbl" x="458" y="234">5 POST /v3/telemetry (v2 bytes + signed epoch,seq)</text>
+  <path class="msg draw" style="--i:4" d="M630 280 H808" marker-end="url(#ah)"/><text class="lbl" x="640" y="274">6 ingest(+epoch,seq)</text>
+  <rect class="txn" x="705" y="290" width="195" height="30" rx="4"/><text class="lbl" x="712" y="309">ONE txn: dedupe+seq idx+rollup</text>
+  <path class="ack draw" d="M808 340 H632" marker-end="url(#ah)"/><text class="lbl" x="660" y="334">7 ack v3 (after commit)</text>
+  <path class="ack draw" d="M628 360 H452" marker-end="url(#ah)"/><text class="lbl" x="470" y="354">7' relayed only if MAC verifies</text>
+  <path class="msg draw" style="--i:5" d="M450 396 h-40 v18 h40" marker-end="url(#ah)"/><text class="lbl" x="404" y="410" text-anchor="end">8 delete row only on verified ack</text>
+  <path class="msg draw" style="--i:6" d="M270 450 H448" marker-end="url(#ah)"/><text class="lbl" x="276" y="444">9 tick: armed? build checkpoint</text>
+  <path class="msg draw" style="--i:7" d="M450 490 H628" marker-end="url(#ah)"/><text class="lbl" x="458" y="484">10 POST /v3/checkpoint</text>
+  <path class="msg draw" style="--i:8" d="M630 530 H808" marker-end="url(#ah)"/><text class="lbl" x="640" y="524">11 verify + merge</text>
+  <rect class="txn" x="600" y="540" width="298" height="30" rx="4"/><text class="lbl" x="606" y="559">presence ⊆ deliveries ∪ ranges · span merge (ONE txn)</text>
+  <path class="ack draw" d="M628 590 H452" marker-end="url(#ah)"/><text class="lbl" x="470" y="584">12 ack applied (no coverage data returned)</text>
+</svg>
+<figcaption>Solid = signed request, dashed = durable ack. Shaded boxes are single atomic transactions. Hand-built SVG; Mermaid source below.</figcaption>
+</figure>
+<details class="mermaid-source"><summary>Diagram source (Mermaid)</summary><pre>sequenceDiagram
+  participant W as Worker (prepare)
+  participant P as Producer DO
+  participant S as Sender (alarm)
+  participant R as Receiver Worker
+  participant A as Aggregate DO
+  W-&gt;&gt;W: 1 prepare, freeze occurredAt/id/digest, classify
+  W-&gt;&gt;P: 2 complete(result, receipt, delivery or observation)
+  Note over P: 3 ONE txn: result+receipt, fence, seq++, outbox(epoch,seq) or range
+  P-&gt;&gt;S: 4 alarm (row due or tick)
+  S-&gt;&gt;R: 5 POST /internal/v3/telemetry (v2 bytes + signed epoch,seq)
+  R-&gt;&gt;A: 6 ingest(deliveryKey,digest,epoch,seq)
+  Note over A: ONE txn: dedupe + seq index + rollup
+  A--&gt;&gt;R: 7 committed or deduplicated
+  R--&gt;&gt;S: 7 ack v3 (MAC over tenant,status,id,digest,epoch,seq)
+  Note over S: 8 delete outbox row only on verified ack
+  P-&gt;&gt;S: 9 tick (armed): build checkpoint
+  S-&gt;&gt;R: 10 POST /internal/v3/checkpoint
+  R-&gt;&gt;A: 11 verify presence, merge span
+  R--&gt;&gt;S: 12 applied (no coverage data)</pre></details>
+
+<!-- ============================ D: PROTOCOL ============================ -->
+<h2 id="protocol">D · Wire protocol, DTOs and domain separation <span class="tag prop">Proposed</span></h2>
+<h3>Versions and compatibility (explicit)</h3>
+<div class="table-scroll"><table>
+<thead><tr><th>Surface</th><th>v1 (T1)</th><th>v2 (W6/W7/W8a) <span class="stamp">unchanged</span></th><th>v3 (proposed)</th></tr></thead>
+<tbody>
+<tr><td>Route</td><td><code>/internal/v1/telemetry</code></td><td><code>/internal/v2/telemetry</code></td><td><code>/internal/v3/telemetry</code> (delivery), <code>/internal/v3/checkpoint</code></td></tr>
+<tr><td>Body</td><td>batch ≤ 16 events</td><td>exactly 4-key delivery</td><td><strong>identical v2 bytes</strong> (same parser, same digest) + signed headers <code>x-hm-telemetry-stream</code>, <code>-epoch</code>, <code>-seq</code></td></tr>
+<tr><td>Signature domain</td><td><code>hall-monitor-telemetry-v1</code></td><td><code>hall-monitor-telemetry-v2</code>; ack <code>hall-monitor-telemetry-ack-v2</code></td><td><code>hall-monitor-telemetry-v3</code>, <code>…-ack-v3</code>, <code>hall-monitor-telemetry-checkpoint-v1</code>, <code>…-checkpoint-ack-v1</code></td></tr>
+<tr><td>Receiver effect</td><td>validate and discard (<code>202 persisted:false</code>)</td><td>rollups; completeness <code>unavailable</code></td><td>rollups + coverage evidence; completeness <em>derived</em></td></tr>
+<tr><td>Enable</td><td><code>HM_TELEMETRY_ACCEPT=validate_only</code></td><td><code>HM_TELEMETRY_V2_ACCEPT=aggregate</code></td><td>same switch <strong>and</strong> config <code>schemaVersion: 2</code> with a <code>coverage</code> block <strong>and</strong> a policy carrying <code>coverageSeconds</code></td></tr>
+<tr><td>Cross-version</td><td colspan="3">No signature verifies across versions or message types (domain strings differ and are part of the MAC input). A v1 <code>202</code> or a v2 ack is never a v3 ack. A v2 delivery for a tenant in coverage mode is <strong>counted and taints its UTC hour</strong> for all expected streams (<code>legacy_v2</code>): it is evidence of an uninstrumented or pre-W8b producer. Rows queued before W8b carry no epoch/seq and keep going over v2.</td></tr>
+</tbody></table></div>
+
+<h3>Authentication inputs (all HMAC-SHA-256 under the tenant writer key, fresh timestamp ±300 s)</h3>
+<pre><code>delivery v3  : "hall-monitor-telemetry-v3\n" + tenant + "\n" + streamId + "\n" + epoch + "\n" + seq + "\n" + timestamp + "\n" + body
+ack v3       : "hall-monitor-telemetry-ack-v3\n" + tenant + "\n" + status + "\n" + deliveryId + "\n" + digest + "\n" + epoch + "\n" + seq
+checkpoint   : "hall-monitor-telemetry-checkpoint-v1\n" + tenant + "\n" + timestamp + "\n" + body
+ckpt ack     : "hall-monitor-telemetry-checkpoint-ack-v1\n" + tenant + "\n" + streamId + "\n" + epoch + "\n" + ckSeq + "\n" + digest</code></pre>
+<ul>
+  <li><strong>Stable retry identity:</strong> delivery = (delivery ID, digest, epoch, seq); checkpoint = (epoch, <code>ckSeq</code>, digest). Retries re-send the stored bytes and attributes, re-signed with a fresh timestamp.</li>
+  <li><strong>Ack meaning:</strong> delivery ack = "committed in the receiver DO (output-gated)". Checkpoint ack <code>applied</code> = "merged into receiver coverage state"; it never states completeness. <span class="tag unv">Unverified</span> assumption inherited from W7: the DO output gate holds the response until the write is durable.</li>
+  <li><strong>Writer keys never read:</strong> acks and checkpoint acks echo no receiver state (no watermark, counts or spans). No reader route exists; a future W9 reader needs a distinct credential and must not accept writer-domain MACs. A separate checkpoint key is optional hardening (blast radius), not a trust boundary: the producer holds both.</li>
+  <li><strong>Seq grammar:</strong> <code>^[1-9][0-9]{0,15}$</code> and <code>Number.isSafeInteger</code>; no leading zeros, signs, whitespace or repeated headers. Producer rolls to a new epoch before <code>MAX_SAFE_INTEGER − 1</code>.</li>
+</ul>
+
+<h3>Checkpoint DTO (strict; unknown fields invalidate the whole message)</h3>
+<pre><code>{
+  "schemaVersion": 1,
+  "streamId": "p1",
+  "epoch": "ep_0123456789abcdef0123456789abcdef",
+  "ckSeq": 17,                                   // monotone per epoch; ack binding only
+  "epochStart": "2026-11-02T14:00:00Z",          // UTC, 15-min grid, rounded UP
+  "armedSince": "2026-11-02T14:15:00Z",          // start of the CURRENT unbroken armed chain, rounded UP
+  "observedAt": "2026-11-02T16:30:03Z",          // producer logical clock, floored to seconds; validation only, never stored
+  "accounted": { "through": "2026-11-02T16:15:00Z", "seq": 412 },  // through: 15-min grid, rounded DOWN
+  "fenceSeconds": 90,                            // illustrative value only (STOP 2)                            // F used; receiver requires >= server minFenceSeconds
+  "producerRevision": "r12",
+  "ranges": [                                    // unreported ranges, <= 32 (coarser coalescing is conservative)
+    { "from": 380, "to": 381, "reason": "expired", "hourFrom": "2026-11-02T13:00:00Z", "hourTo": "2026-11-02T13:00:00Z", "lost": 2 }
+  ]
+}</code></pre>
+<p>Times that reach storage are on the 15-minute grid and rounded in the conservative direction, so neither a sub-bucket commit time nor a precise completion rate is retained (consistent with <code>retention.ts:41-47</code>). Range <code>reason</code> is a closed enum: <code>capacity expired revoked error conflict</code> (existing W6 reasons), plus <code>disabled unprojectable grant_mismatch fence coalesced</code> from the producer and, receiver-derived only, <code>legacy_v2 inconsistent seq_conflict regression overlap</code>. <code>disabled</code> covers the v2 flag off, no collector binding, an absent or invalid grant, and an invalid coverage setting while a stream exists. A retention policy that is not in force is recorded as <code>disabled</code> only for the short time a stream still exists before the alarm purges it (this is the same coarse, bounded evidence W8a already leaves for withdrawn rows); after the purge nothing is recorded, so "collect nothing without an approved policy" is preserved.</p>
+
+<h3>Checkpoint handling: replay, conflict, stale, tombstones</h3>
+<ul>
+  <li><strong>Same <code>(epoch, ckSeq)</code>, same digest:</strong> idempotent <code>deduplicated</code> ack; merge is monotone so re-applying changes nothing.</li>
+  <li><strong>Same <code>(epoch, ckSeq)</code>, different digest:</strong> <code>409</code>, an <code>inconsistent</code> range over the claimed span, nothing else changes; the producer drops the checkpoint and must mint a new epoch.</li>
+  <li><strong>Lower <code>ckSeq</code> or older frontier than already held:</strong> accepted as a no-op (merge takes the max); never a downgrade of valid state. <code>ckSeq</code> exists for ack binding and conflict detection, not ordering.</li>
+  <li><strong>Presence failure</strong> (a claimed seq is neither delivered nor in a range) ⇒ <code>409 inconsistent</code>: the producer only claims seqs whose acks it holds, so this means a producer restore, a bug or forgery.</li>
+  <li><strong>Stale / future:</strong> <code>observedAt</code> outside [now − dedupe horizon, now + 5 min] ⇒ <code>422</code>, no taint (a re-signed old checkpoint cannot extend or restore a span). Left edges below <code>revoked_floor</code>, outside the tenant's effective interval or retention window are clipped to nothing, not stored.</li>
+  <li><strong>Tombstones:</strong> reuse the existing <code>revoked_floor</code> and dedupe horizon (<code>retention.ts:14</code>); no new tombstone table.</li>
+</ul>
+
+<h3>Receiver configuration (server-owned) <span class="tag prop">Proposed</span></h3>
+<pre><code>"&lt;tenant&gt;": {
+  "schemaVersion": 2,                      // 1 still parses; it has no coverage block and stays "unavailable"
+  "configRevision": "…", "source": "educateos", "state": "active",
+  "retention": { …existing 8 keys…, "coverageSeconds": N },   // 9-key form REQUIRED when "coverage" is present
+  "intervals": [ …unchanged… ],
+  "coverage": {
+    "minFenceSeconds": N, "maxTickGapSeconds": N,
+    "expectedStreams": [ { "streamId": "p1", "from": "…15-min UTC…", "to": "…15-min UTC…" } ]   // non-overlapping per stream
+  }
+}</code></pre>
+<p>Retention parser rule: exactly the 8 legacy keys (valid for non-coverage tenants) or exactly 9 keys including <code>coverageSeconds</code>, with <code>dedupe ≤ rollup ≤ coverageSeconds ≤ gapSeconds</code> (and the existing minimums). Anything else invalidates the whole setting; <strong>no default duration</strong>, no inference from <code>gapSeconds</code>.</p>
+
+<h3>Producer configuration</h3>
+<pre><code>HM_TELEMETRY_COVERAGE = { "&lt;tenant&gt;": { "schemaVersion": 1, "streamId": "p1",
+  "fenceSeconds": N, "tickSeconds": N, "maxTickGapSeconds": N, "epochGeneration": 0 } }</code></pre>
+<p>Absent or invalid ⇒ coverage is off (v2 behaviour unchanged). <code>epochGeneration</code> is the operator's lever to force a new epoch after a restore or rollback. The producer also requires the 9-key retention policy; otherwise it is <code>off(retention)</code>.</p>
+
+<!-- ============================ STORAGE ============================ -->
+<h2 id="storage">Durable state and transaction boundaries <span class="tag prop">Proposed</span> <span class="tag unv">schemas unverified</span></h2>
+<div class="two">
+<section class="card"><h3>Producer (<code>IdempotencyStore</code>)</h3>
+<pre><code>cov_stream (id=1 CHECK, stream_id, epoch, next_seq,
+  t0, clock_hi, armed_since NULL, armed_last NULL, ck_seq)
+telemetry_outbox + (epoch NULL, seq NULL, committed_at)
+cov_range (seq_from PK, seq_to, reason, hour_from, hour_to,
+  lost, committed_at, reported 0/1, expires_at)
+cov_checkpoint (ck_seq PK, payload, next_attempt_at,
+  deadline_at, attempts)      -- at most 2 rows; digest computed at send</code></pre>
+<ul>
+<li><strong>Completion txn (single <code>transactionSync</code>):</strong> idempotency update, receipt, then if a stream exists (or is created by an armed observation): logical clock = max(now, <code>clock_hi</code>); fence check; <code>next_seq++</code>; outbox row with epoch/seq/<code>committed_at</code> <em>or</em> a range (coalescing an adjacent same-reason/hour run); armed-chain update; <code>afterCompletionWrites()</code> stays last.</li>
+<li><strong>Digest never computed inside the txn</strong> (it is async): delivery bytes/digest are frozen in prepare as today; checkpoint bytes are built synchronously from state, and hashed at send time.</li>
+<li>Inert unless <code>HM_TELEMETRY_COVERAGE</code> is valid <em>and</em> a stream exists or is being created: no table is written for a never-enrolled tenant.</li>
+<li>Bounds: ≤ 2 checkpoint rows, ≤ 256 range rows per epoch (coalesce to <code>coalesced</code> beyond), outbox bounds unchanged (500 rows / 1 MiB).</li>
+</ul></section>
+<section class="card"><h3>Receiver (<code>TelemetryAggregateStore</code>)</h3>
+<pre><code>deliveries + (epoch_hash NULL, seq NULL)   UNIQUE(epoch_hash, seq)
+  -- existing short-lived dedupe row; no new per-message table
+cov_stream (stream_id, epoch_hash, t0, verified_n,
+  coverage_revision, last_ck, last_ck_digest, expires_at)
+cov_span   (stream_id, epoch_hash, armed_since, accounted_t,
+  accounted_n, expires_at)    -- merged per armed_since
+cov_range  (stream_id|NULL, epoch_hash, seq_from, seq_to,
+  reason, hour_from, hour_to, lost, expires_at)</code></pre>
+<ul>
+<li><strong>Delivery txn:</strong> existing dedupe + rollup, plus unique <code>(epoch, seq)</code>; a first-seen delivery whose seq ≤ <code>verified_n</code> and is not inside a range is a <code>seq_conflict</code> (nothing counted, taint); a first-seen delivery into an already sealed bucket is counted, the bucket is downgraded (<code>fence</code>), <code>coverage_revision++</code>.</li>
+<li><strong>Checkpoint txn:</strong> validate window, fence and ranges; insert ranges; advance <code>verified_n</code> across newly covered seqs; require <code>accounted.seq ≤ verified_n</code> (presence is the set union of deliveries and ranges, so a seq both delivered and declared lost is fine, and the range still taints); on success merge the span and bump <code>coverage_revision</code>; on failure record an <code>inconsistent</code> range over the claimed span and answer <code>409</code>.</li>
+<li><strong>No new per-message ledger.</strong> The seq lives on the existing short-lived dedupe row, bounded by <code>HM_TELEMETRY_MAX_DEDUPE_ROWS</code> and the same expiry; <code>(epoch, seq)</code> is protected transport state like the delivery key, never a rollup dimension, never in a read or log, and the receiver stores only <code>sha256</code> of the epoch.</li>
+<li>Epoch count per stream is capped (e.g. 4 alive); beyond it ⇒ <code>503 capacity</code>.</li>
+<li>No per-bucket row is written for "zero": <code>verified_zero</code> is <em>derived</em> from span ∧ no rollup ∧ no range. Absence of a span is never zero.</li>
+</ul></section>
+</div>
+
+<h3>Chokepoint classification (closes O2) <span class="tag prop">Proposed</span></h3>
+<p><code>prepareTelemetryDelivery</code> is replaced by (or wrapped in) a pure function returning <code>{ kind: "delivery", … } | { kind: "unobserved", reason }</code> with <code>reason ∈ {disabled, unprojectable, grant_mismatch, error}</code> for every current <code>return null</code>: <code>disabled</code> = v2 flag off, no collector binding, no grant (not enrolled), invalid coverage setting, or retention policy not in force; <code>unprojectable</code> = unknown source product; <code>grant_mismatch</code> = grade band or source outside the grant; <code>error</code> = the outer catch. The reasons are the same strings as the range enum, so the classification is the range. The Worker passes it to <code>complete()</code> <em>always</em>; the DO ignores it unless a stream already exists (never-enrolled tenants pay nothing and get no table). While a stream exists, an <code>unobserved</code> observation consumes a seq as a range and resets the armed chain. This is what makes "disabled mid-bucket", "invalid setting" and "uninstrumented-by-config" observable whenever there is traffic.</p>
+
+<!-- ============================ C: EMPTY ============================ -->
+<h2 id="empty">C · Empty, zero-traffic and never-contacted tenants <span class="tag prop">Proposed</span></h2>
+<div class="callout"><strong>Rule:</strong> a bucket is <code>verified_zero</code> only if a receiver-held span, produced by an unbroken armed chain, covers its fenced window and accounting is verified, and the stream's commit sequence did not move. A late heartbeat can never extend a chain backwards or across a gap.</div>
+<figure class="diagram">
+<svg viewBox="0 0 900 270" role="img" aria-labelledby="ct ctd">
+  <title id="ct">Armed chain and sealed windows</title>
+  <desc id="ctd">Ticks every bucket build an armed chain. A gap longer than the maximum tick gap breaks the chain; a late tick starts a new chain and does not cover the interval between. Sealed zero covers armedSince plus F up to accounted time minus F.</desc>
+  <line class="axis" x1="30" y1="40" x2="880" y2="40"/>
+  <g class="lbl"><text x="30" y="20">time →  (buckets B1…B10, each 15 min)</text></g>
+  <g class="axis"><line x1="30" y1="36" x2="30" y2="44"/><line x1="115" y1="36" x2="115" y2="44"/><line x1="200" y1="36" x2="200" y2="44"/><line x1="285" y1="36" x2="285" y2="44"/><line x1="370" y1="36" x2="370" y2="44"/><line x1="455" y1="36" x2="455" y2="44"/><line x1="540" y1="36" x2="540" y2="44"/><line x1="625" y1="36" x2="625" y2="44"/><line x1="710" y1="36" x2="710" y2="44"/><line x1="795" y1="36" x2="795" y2="44"/><line x1="880" y1="36" x2="880" y2="44"/></g>
+  <text class="lbl" x="34" y="62">ticks</text>
+  <g><circle cx="60" cy="58" r="4"/><circle cx="145" cy="58" r="4"/><circle cx="230" cy="58" r="4"/><circle cx="315" cy="58" r="4"/><circle cx="400" cy="58" r="4"/><circle cx="740" cy="58" r="4"/><circle cx="825" cy="58" r="4"/></g>
+  <text class="lbl" x="470" y="62">no ticks: alarm/cron missed, or disarmed</text>
+  <text class="lbl" x="34" y="100">armed chain</text>
+  <rect class="good" x="60" y="108" width="340" height="14" rx="3"/><text class="lbl" x="66" y="119">chain 1: armedSince = tick 1 … last tick</text>
+  <rect class="warnfill" x="400" y="108" width="340" height="14" rx="3"/><text class="lbl" x="408" y="119">gap &gt; maxTickGap: chain broken, nothing is bridged</text>
+  <rect class="good" x="740" y="108" width="85" height="14" rx="3"/><text class="lbl" x="745" y="119">chain 2</text>
+  <text class="lbl" x="34" y="156">fenced window needs [bucket start − F, bucket end + F] ⊆ chain and ≤ accounted time</text>
+  <text class="lbl" x="34" y="176">sealable</text>
+  <rect class="good" x="95" y="184" width="280" height="14" rx="3"/><text class="lbl" x="101" y="195">complete: zero or non-zero (nothing declared)</text>
+  <text class="lbl" x="34" y="226">state</text>
+  <rect class="bad" x="400" y="234" width="340" height="16" rx="3"/><text class="lbl" x="408" y="246">unobserved: a late heartbeat does not retroactively prove zero</text>
+  <rect class="warnfill" x="740" y="234" width="140" height="16" rx="3"/><text class="lbl" x="746" y="246">provisional until armedSince + F</text>
+</svg>
+<figcaption>Illustrative geometry only; F and the tick gap are parameters to be measured. Text alternative: sealed windows are exactly the buckets whose fenced window lies inside one unbroken armed chain and at or below the accounted frontier.</figcaption>
+</figure>
+
+<div class="table-scroll"><table>
+<thead><tr><th>Question (brief C)</th><th>Proposed answer</th></tr></thead>
+<tbody>
+<tr><td>How is a zero-traffic tenant activated?</td><td>Two routes, independently shippable. <strong>(1) First contact:</strong> the first armed completion creates the stream (<code>epoch</code>, <code>t0</code>) and arms the alarm; earlier windows stay <code>unobserved</code>. <strong>(2) Cron (optional, Phase 4):</strong> a producer <code>scheduled()</code> handler iterates the tenants in <code>HM_TELEMETRY_COVERAGE</code> and calls <code>coverageTick()</code> on each DO (creating it if needed). Cron also acts as a watchdog that re-arms a lost alarm. Both are idempotent.</td></tr>
+<tr><td>How do expected intervals and the wakeup schedule become durable?</td><td>Expected intervals are the receiver's effective-dated <code>coverage.expectedStreams</code> ∩ config intervals ∩ retention window (server-owned, already durable by secret). The wake schedule is the producer alarm: <code>#nextWake()</code> gains "next tick time while armed" and "checkpoint due"; <code>cov_stream</code> persists the chain so a restart resumes the schedule. A cold DO with no state has no obligation and no claim.</td></tr>
+<tr><td>What stops it?</td><td>Approval end, revocation, de-enrolment or invalid setting: the alarm's existing <code>#refreshPolicy</code> false-path withdraws queued rows and (new) purges <code>cov_stream</code>, <code>cov_checkpoint</code>, <code>cov_range</code>, stops ticking and goes idle. Read-time: no checkpoint can be built while the policy is inactive (and the receiver refuses with <code>retention_unapproved</code>). Re-enrolment starts a new epoch, so completeness cannot resume across the lapse.</td></tr>
+<tr><td>Unobserved hour vs verified E = 0</td><td>Both have no rollup row. Only the second has a verified span plus clean accounting. The receiver never writes a zero rollup; the derived read distinguishes them.</td></tr>
+<tr><td>Late heartbeat</td><td>Armed chain restarts (<code>armed_since = now</code>) whenever the previous armed observation is older than <code>maxTickGapSeconds</code> or an off observation intervened. Receiver also requires a span's <code>armedSince</code> ≥ epoch start, ≥ its own config/retention/revocation floor, and consistent with earlier checkpoints of the same chain.</td></tr>
+<tr><td>Cost/risk</td><td>An armed tenant wakes its DO every <code>tickSeconds</code> (e.g. 96/day at 15 min). <span class="tag unv">Unverified</span> platform cost, cron subrequest limits for large rosters, and alarm reliability. Mitigate by making the tick period a measured parameter and by failing safe (missed ticks only reduce coverage).</td></tr>
+</tbody></table></div>
+
+<h3>Producer stream state transitions</h3>
+<div class="table-scroll"><table>
+<thead><tr><th>From</th><th>Event</th><th>To</th><th>Effect on claims</th></tr></thead>
+<tbody>
+<tr><td><code>inactive</code> (no row)</td><td>armed completion or armed tick</td><td><code>armed</code></td><td>new epoch; <code>t0</code> = logical now (rounded up); <code>armed_since</code> = now. Nothing earlier is ever claimed.</td></tr>
+<tr><td><code>armed</code></td><td>armed observation within <code>maxTickGapSeconds</code></td><td><code>armed</code></td><td>chain extended.</td></tr>
+<tr><td><code>armed</code></td><td>armed observation after a longer gap</td><td><code>armed</code> (new chain)</td><td><code>armed_since</code> = now; the gap is unobserved forever.</td></tr>
+<tr><td><code>armed</code></td><td>off observation (<code>disabled</code> in any of its senses, <code>unprojectable</code>, <code>grant_mismatch</code>, <code>error</code>)</td><td><code>off(reason)</code></td><td>each completion records a range; chain cleared; no checkpoint is sent.</td></tr>
+<tr><td><code>off(reason)</code></td><td>armed observation</td><td><code>armed</code> (new chain)</td><td>previous off period stays tainted (if commits) or unobserved (if none).</td></tr>
+<tr><td>any</td><td>approval ended / revoked / de-enrolled</td><td><code>inactive</code> (purged)</td><td>queued rows → <code>revoked</code> gaps (existing); coverage state deleted; ticks stop.</td></tr>
+<tr><td>any</td><td>missing/corrupt stream state, <code>epochGeneration</code> bump, seq near overflow</td><td>new epoch</td><td>receiver records an epoch break interval as <code>unobserved</code>.</td></tr>
+</tbody></table></div>
+
+<!-- ============================ E: CLOSURE ============================ -->
+<h2 id="closure">E · Clocks, closure, finality and corrections <span class="tag prop">Proposed</span></h2>
+<div class="table-scroll"><table>
+<thead><tr><th>Clock</th><th>Defined by</th><th>Used for</th></tr></thead>
+<tbody>
+<tr><td>Occurrence</td><td>Worker <code>Date.now()</code> at prepare (O3), frozen into the bytes.</td><td>Bucket and trusted local dimensions (unchanged W8a). Never used to seal.</td></tr>
+<tr><td>Producer logical</td><td>DO: <code>max(Date.now(), clock_hi)</code>, persisted; non-decreasing even if the platform clock steps back.</td><td>Commit time, fence, armed chain, checkpoint times. seq order = logical order.</td></tr>
+<tr><td>Receiver ingress</td><td>Receiver <code>now()</code>.</td><td>Admission window (24 h / +5 min), expiry, health. For coverage: <code>observedAt</code> must be within [now − dedupe horizon (24 h + 5 min), now + 5 min]; a bucket is reported <code>complete</code> only once <code>bucket end ≤ receiver now</code> (a runaway producer clock cannot seal the future).</td></tr>
+</tbody></table></div>
+<ul>
+  <li><strong>Finality.</strong> A bucket is <em>final</em> when sealed (verified span ⊇ fenced window). This is earlier than the W8a <code>provisional</code> flag (bucket end + 24 h 5 min), which is retained and renamed <code>lateWindowOpen</code> in reads; the two answer different questions.</li>
+  <li><strong>Fence F.</strong> Enforced at commit: <code>|logical now − occurredAt| &gt; F</code> ⇒ no delivery, a <code>fence</code> range over the occurrence hour and the commit hour. F must exceed measured prepare→commit latency plus cross-machine clock skew; no value is proposed here (STOP 2). A too-small F costs availability (downgrades), never correctness.</li>
+  <li><strong>Request prepared before a checkpoint, completes after:</strong> its seq is larger than the checkpoint's <code>accounted.seq</code>; its commit time exceeds accounted time, so it cannot land in a sealed bucket unless the fence was violated, in which case it is a <code>fence</code> range that downgrades.</li>
+  <li><strong>Event admitted up to five minutes ahead (receiver future skew):</strong> counted by W7 rules; for coverage the producer fence is the only time authority and the receiver-clock guard above prevents premature <code>complete</code>.</li>
+  <li><strong>Config / revision change mid-window:</strong> intervals are 15-minute aligned (O11), so a bucket never straddles config or calendar revisions. A <code>producerRevision</code> change mid-bucket yields two rollup rows for one bucket; coverage is per stream-bucket, so both are sealed together. A delayed old revision after a deploy is refused (<code>403</code>) and expires into a gap range.</li>
+  <li><strong>Old and new producers overlapping:</strong> same stream ⇒ same DO ⇒ no overlap. Two epochs both claiming an interval ⇒ receiver records <code>overlap</code> and downgrades both. Different expected streams are independent and must all be complete.</li>
+  <li><strong>DST and odd zones:</strong> coverage is per UTC quarter-hour; a local hour instance = its 4 aligned buckets (fall-back repeats produce two instances with different offsets; spring-forward's absent hour has no buckets and is not "missing"). <code>:30</code>/<code>:45</code> zones align to the grid (<code>time.ts</code> already refuses straddling buckets). A local hour is <code>complete</code> only if all 4 buckets are; never prorated.</li>
+</ul>
+
+<h3>Which corrections invalidate an earlier completeness assertion, and how the receiver learns</h3>
+<div class="table-scroll"><table>
+<thead><tr><th>Correction</th><th>Learned via</th><th>Effect</th><th>Monotone?</th></tr></thead>
+<tbody>
+<tr><td>Range arriving after a seal (e.g. fence violator, retry-horizon expiry that raced a checkpoint)</td><td>Next checkpoint carries the range</td><td>Overlapped buckets → <code>incomplete</code>; <code>coverage_revision++</code></td><td>downgrade only</td></tr>
+<tr><td>First-seen delivery whose occurrence bucket is already sealed</td><td>Delivery path</td><td>Counted (it is real), bucket → <code>incomplete(fence)</code></td><td>downgrade only</td></tr>
+<tr><td><code>seq_conflict</code> / seq regression / epoch overlap / digest conflict / <code>config_conflict</code></td><td>Delivery or checkpoint</td><td>Affected hour span → <code>incomplete</code> with a reason; stream needs a new epoch</td><td>downgrade only</td></tr>
+<tr><td><code>legacy_v2</code> delivery for a coverage tenant</td><td>v2 route</td><td>Hour tainted for all expected streams</td><td>downgrade only</td></tr>
+<tr><td>Revocation, approval lapse, evidence TTL</td><td>Receiver config / own alarm</td><td>→ <code>withdrawn</code> / <code>unavailable</code>; never complete again</td><td>terminal</td></tr>
+<tr><td>Anything that would upgrade <code>incomplete</code> → <code>complete</code></td><td>—</td><td><strong>Not permitted.</strong> New data in a new epoch can only complete <em>future</em> buckets.</td><td>—</td></tr>
+</tbody></table></div>
+<p>Consumers (future W9) must read <code>coverage_revision</code> together with the rollup <code>revision</code>; a changed value invalidates any earlier assertion they cached. Receiver-side state transitions:</p>
+<div class="table-scroll"><table>
+<thead><tr><th>Bucket state</th><th>→ Next</th><th>Trigger</th></tr></thead>
+<tbody>
+<tr><td><code>not_expected</code></td><td><code>unobserved</code></td><td>config interval / retention window starts covering it</td></tr>
+<tr><td><code>unobserved</code></td><td><code>provisional</code></td><td>verified span touches the fenced window but accounting/frontier not yet past it</td></tr>
+<tr><td><code>unobserved</code>, <code>provisional</code></td><td><code>complete</code></td><td>verified span ⊇ fenced window, presence verified, no overlapping range, bucket ended by receiver clock</td></tr>
+<tr><td><code>unobserved</code>, <code>provisional</code>, <code>complete</code></td><td><code>incomplete</code></td><td>any correction row above</td></tr>
+<tr><td>any</td><td><code>withdrawn</code></td><td>revocation / purge / expiry</td></tr>
+<tr><td><code>incomplete</code>, <code>withdrawn</code></td><td>(none)</td><td>terminal for that bucket</td></tr>
+</tbody></table></div>
+
+<!-- ============================ F: RETENTION ============================ -->
+<h2 id="retention">F · Retention, expiry and revocation matrix <span class="tag prop">Proposed</span></h2>
+<p>Invariant <strong>I-R</strong>: positive evidence must not outlive negative evidence, and evidence must not expire before the rollup it qualifies: <code>dedupe ≤ rollup ≤ coverage ≤ gap</code> (per bucket, measured from bucket end / hour end). Violating the order makes the whole policy invalid. Expiries are written to rows (as in W8a), so a later lengthening or a restart never revives anything (long-short-long ends at the short deadline).</p>
+<div class="table-scroll"><table>
+<thead><tr><th>State</th><th>Where</th><th>TTL origin</th><th>Why that field is (or is not) semantically right</th><th>Revocation / lapse</th></tr></thead>
+<tbody>
+<tr><td>idempotency, receipts</td><td>producer</td><td><code>HM_RETENTION_SECONDS</code> (existing)</td><td>unchanged</td><td>unchanged</td></tr>
+<tr><td><code>telemetry_outbox</code> incl. epoch/seq</td><td>producer</td><td>retry horizon deadline (existing)</td><td>transient transport state; deleted on ack, gap or withdrawal</td><td>withdrawn as <code>revoked</code> gap/range</td></tr>
+<tr><td><code>telemetry_gaps</code></td><td>producer</td><td><code>gapSeconds</code> (existing)</td><td>covers gap markers as approved</td><td>kept to TTL</td></tr>
+<tr><td><code>cov_range</code> (seq-level)</td><td>producer</td><td><code>gapSeconds</code> from end of its last hour</td><td>negative evidence = gap marker ✔ <em>reuse is semantically sound</em></td><td>purged with stream on lapse (receiver keeps its copy)</td></tr>
+<tr><td><code>cov_stream</code>, <code>cov_checkpoint</code></td><td>producer</td><td>life of the active enrolment; checkpoint ≤ 2 rows, dropped on ack/supersede/withdrawal</td><td>identity and counters, no content; not "evidence retention"</td><td>purged on lapse/revocation; new epoch on re-enrol</td></tr>
+<tr><td><code>deliveries.epoch_hash, seq</code></td><td>receiver</td><td><code>dedupeSeconds</code> (existing row)</td><td>same short-lived protected transport state</td><td>kept to dedupe horizon (as W8a)</td></tr>
+<tr><td><code>cov_range</code></td><td>receiver</td><td><code>gapSeconds</code> from hour end</td><td>negative evidence ✔ reuse sound</td><td>deleted on revoke; floor tombstone</td></tr>
+<tr><td><code>cov_span</code></td><td>receiver</td><td><strong>new <code>coverageSeconds</code></strong> from bucket end; span left edge trimmed persistently</td><td><strong>Not</strong> a gap marker and not a rollup: it asserts completeness and zero. <code>gapSeconds</code> would also be too long a life for positive claims. Needs its own explicit approval, no default.</td><td>deleted on revoke; <code>revoked_floor</code> blocks new spans below it</td></tr>
+<tr><td><code>cov_stream</code></td><td>receiver</td><td>until it has no live span/delivery/range</td><td>holds <code>verified_n</code>, hashed epoch</td><td>deleted on revoke</td></tr>
+<tr><td>derived completeness</td><td>read time</td><td>min(rollup, span, range presence)</td><td>read-time filter excludes expired rows before the alarm runs (as W8a)</td><td>→ <code>unavailable</code>, never complete</td></tr>
+</tbody></table></div>
+<ul>
+  <li><strong>Long-short-long:</strong> shortening trims <code>cov_span</code> left edges and rolls <code>cov_range</code> expiries down in the same statement style as <code>#applyPolicy</code>; lengthening does nothing to stored rows.</li>
+  <li><strong>Alarm deletion / restart:</strong> receiver <code>#nextExpiry()</code> and producer <code>#nextWake()</code> gain the new tables; constructors purge expired rows and re-arm, then go idle when empty.</li>
+  <li><strong>Re-enrolment / revocation:</strong> revocation deletes spans/ranges/<code>cov_stream</code> with the rollups; the existing floor tombstone also blocks spans below it; a producer re-enrolling mints a new epoch, so a stale replay cannot restore a count (stale occurrence) or completeness (no span).</li>
+  <li><strong>Approval lapse:</strong> stops admission of new spans/ranges (<code>403 retention_unapproved</code>); stored evidence lives to its own TTL, like rollups.</li>
+  <li><span class="tag unv">Unverified / out of scope</span> provider-internal recovery copies and any export path (none exists; the deploy gate forbids it).</li>
+</ul>
+
+<!-- ============================ G: RATES ============================ -->
+<h2 id="rates">G · Exposure and rate semantics <span class="tag prop">Proposed</span></h2>
+<pre><code>rate(cohort) = { value: number } | { value: null, why: "no_exposure" | "unobserved" | "provisional" | "incomplete"
+                                    | "revision_mixed" | "invalid_counts" | "not_expected" }
+cohort = set of buckets × exactly one (source, gradeBand, modality, producerRevision, configRevision, calendarRevision)
+         × the full set of streams expected for those buckets</code></pre>
+<ol>
+  <li>E and F come from the <em>same</em> rollup rows, so source, grade, modality, release, config, calendar and time match by construction (O17).</li>
+  <li>E = 0 ⇒ <code>null</code> (<code>no_exposure</code>), even when the cohort is <code>verified_zero</code>. A verified zero is reported as a count, not a rate.</li>
+  <li>F &gt; E ⇒ <code>invalid_counts</code>; never clamped or reported.</li>
+  <li>Any bucket not <code>complete</code> for every expected stream ⇒ withheld with the reason. Optional "complete-instances-only" mode must show the excluded count and is never the default.</li>
+  <li>Never add numerators or denominators across <code>producerRevision</code>, <code>configRevision</code> or <code>calendarRevision</code> (policy drift rule 7 in <code>temporal-metrics.md</code>); report per revision.</li>
+  <li>168-cell displays sum matched local-hour instances (167/169-hour weeks) and need every instance <code>complete</code>.</li>
+  <li><span class="tag obs">Observed</span> caveat that coverage cannot fix (O13): E includes degraded evaluations and all four kinds, F excludes degraded/uncertain. The ratio is "candidate flags per completed evaluation", not per eligible submission; surfacing degraded share is a product decision (Open Q2).</li>
+</ol>
+<p>Nothing here designs a dashboard, cohort suppression or differencing control (W9) and no privacy approval is claimed. Visibility of verified-zero hours at 15-minute grain is itself new information and needs W9 review.</p>
+
+<!-- ============================ COUNTEREXAMPLES ============================ -->
+<h2 id="counter">Counterexample catalogue</h2>
+<div class="table-scroll"><table>
+<thead><tr><th>#</th><th>Counterexample</th><th>Outcome with the proposed design</th><th>Residual</th></tr></thead>
+<tbody>
+<tr><td>X1</td><td>Silent <code>null</code> from prepare (e.g. educator profile ⇒ <code>adult</code> not in grant)</td><td>Range <code>grant_mismatch</code>; buckets <code>incomplete</code></td><td>None for classified reasons</td></tr>
+<tr><td>X2</td><td>Delivery committed at receiver, ack lost, row expires</td><td>Range <code>expired</code>; count present, bucket <code>incomplete</code></td><td>Lower availability only</td></tr>
+<tr><td>X3</td><td>Same delivery ID, different bytes</td><td><code>409</code>, <code>conflict</code> range, nothing changes</td><td>—</td></tr>
+<tr><td>X4</td><td>Same <code>(epoch, seq)</code> from a different delivery ID</td><td><code>seq_conflict</code>; hour tainted; epoch must rotate</td><td>—</td></tr>
+<tr><td>X5</td><td>Producer storage restored to an earlier snapshot</td><td>Collisions / regression ⇒ taint; operator bumps <code>epochGeneration</code></td><td>Restore with no later contact before dedupe expiry is detected only by regression of <code>accounted.seq</code> vs <code>verified_n</code></td></tr>
+<tr><td>X6</td><td>Receiver storage rolled back after acks</td><td><strong>Not detectable</strong>; relies on platform durability</td><td>Acknowledged residual risk</td></tr>
+<tr><td>X7</td><td>Writer key stolen</td><td>Attacker can forge deliveries and checkpoints</td><td>Out of scope (benign-failure model)</td></tr>
+<tr><td>X8</td><td>Old Worker version still emitting v2 after deploy</td><td>Counted + hour tainted <code>legacy_v2</code>; or <code>403</code> if its revision is not approved ⇒ expiry range</td><td>Old version that cannot reach the receiver is invisible (receipts witness only)</td></tr>
+<tr><td>X9</td><td>Two completions for one idempotency key after the 2-min hold</td><td>Two seqs, E counted twice (O4)</td><td>By definition of the unit; documented</td></tr>
+<tr><td>X10</td><td>Pre-W8b queued rows delivered later</td><td>v2 delivery, counted, hour tainted for coverage tenants</td><td>—</td></tr>
+<tr><td>X11</td><td>Front door down for 30 min</td><td>Verified zero may be reported; label is "completed evaluations"</td><td>Cannot be distinguished from no demand (needs <code>product_submissions</code>)</td></tr>
+<tr><td>X12</td><td>DO clock steps backwards</td><td>Logical clock holds at <code>clock_hi</code>; fence uses it</td><td>—</td></tr>
+<tr><td>X13</td><td>Producer clock 4 min ahead of receiver</td><td>W7 accepts occurrence; producer fence rejects if skew &gt; F; receiver will not seal before its own bucket end</td><td>F must budget skew</td></tr>
+<tr><td>X14</td><td>Coarse hourly gap at 13:00–14:00</td><td>All four quarter buckets of that hour <code>incomplete</code>; neighbours unaffected</td><td>Over-taint by design</td></tr>
+<tr><td>X15</td><td>Policy shortened then lengthened</td><td>Rows keep the short deadline; nothing revives</td><td>—</td></tr>
+<tr><td>X16</td><td>Gap range expires before the span it taints</td><td>Impossible: parser enforces <code>coverage ≤ gap</code></td><td>—</td></tr>
+<tr><td>X17</td><td>Coverage write fails inside the completion txn</td><td>Must neither fail moderation nor leave partial evidence (STOP 1)</td><td><span class="tag unv">Unverified</span> savepoint semantics</td></tr>
+<tr><td>X18</td><td>Epoch flood by a keyed writer</td><td>Per-stream epoch cap ⇒ <code>503 capacity</code></td><td>Benign-failure model</td></tr>
+<tr><td>X19</td><td>Seq reaches 2^53 − 1</td><td>Producer rotates epoch earlier; receiver rejects out-of-grammar values</td><td>—</td></tr>
+<tr><td>X20</td><td>Spring-forward: 02:00 local does not exist</td><td>No buckets, not "missing"; week has 167 hours</td><td>—</td></tr>
+</tbody></table></div>
+
+<!-- ============================ VERIFICATION ============================ -->
+<h2 id="verify">Verification matrix (to be executed during implementation; none run) <span class="tag unv">Not run</span></h2>
+<p>Layers: <strong>M</strong> pure model (Phase 0) · <strong>R</strong> receiver (Phase 1) · <strong>P</strong> producer evidence (Phase 2) · <strong>D</strong> dispatch/ticks (Phase 3) · <strong>C</strong> cron (Phase 4) · <strong>E</strong> end-to-end synthetic drill (Phase 5).</p>
+<div class="table-scroll"><table>
+<thead><tr><th>ID</th><th>Scenario</th><th>Expected</th><th>Layer</th></tr></thead>
+<tbody>
+<tr><th colspan="4">A · Atomicity, replay, restart</th></tr>
+<tr><td>V-A1</td><td>Inject commit failure at <code>afterCompletionWrites</code></td><td>Idempotency, receipt, outbox/range, <code>next_seq</code>, chain all roll back together; no seq burned</td><td>P</td></tr>
+<tr><td>V-A2</td><td>Idempotent replay</td><td>No seq, no row</td><td>P</td></tr>
+<tr><td>V-A3</td><td>Failed evaluation (<code>abandon</code>)</td><td>No seq, no row</td><td>P</td></tr>
+<tr><td>V-A4</td><td>Restart (new object) mid-stream</td><td>Same epoch, <code>next_seq</code> continues, chain extended only within <code>maxTickGapSeconds</code></td><td>P/D</td></tr>
+<tr><td>V-A5</td><td>Stream state missing but receiver knows an epoch</td><td>New epoch; receiver break interval <code>unobserved</code>; in-flight old-epoch rows still accepted</td><td>P/R</td></tr>
+<tr><td>V-A6</td><td>Failing coverage statement inside completion</td><td>Moderation result unchanged <em>and</em> no partial evidence, else STOP 1</td><td>P</td></tr>
+<tr><td>V-A7</td><td>No coverage secret</td><td>W8a outbox suite passes unchanged; no new table created</td><td>P</td></tr>
+<tr><td>V-A8</td><td>Two completions for one key</td><td>Two seqs; documented count</td><td>P</td></tr>
+<tr><th colspan="4">B · Zero, never-activated, silent, disabled</th></tr>
+<tr><td>V-B1</td><td>Fully observed zero-traffic window</td><td><code>verified_zero</code> for all expected streams, no rollup row written</td><td>M/R/D</td></tr>
+<tr><td>V-B2</td><td>Never-activated tenant</td><td><code>unobserved</code>; never zero</td><td>M/R</td></tr>
+<tr><td>V-B3</td><td>Producer silent, receiver healthy and fresh health</td><td><code>unobserved</code></td><td>R</td></tr>
+<tr><td>V-B4</td><td>Disabled mid-bucket with traffic, then re-enabled</td><td>Range <code>disabled</code>; that bucket <code>incomplete</code>; later buckets <code>complete</code> only after new chain + F</td><td>P/D/E</td></tr>
+<tr><td>V-B5</td><td>Disabled with zero traffic, late checkpoint after re-enable</td><td>Disabled interval stays <code>unobserved</code></td><td>D/E</td></tr>
+<tr><td>V-B6</td><td>Cron-activated never-contacted tenant</td><td>First <code>complete</code> bucket only after <code>armedSince</code> + F + bucket</td><td>C/E</td></tr>
+<tr><td>V-B7</td><td>Approval lapses</td><td>Ticks stop, alarm idle, state purged, no checkpoint accepted; re-enrol = new epoch</td><td>D/E</td></tr>
+<tr><td>V-B8</td><td>Invalid coverage setting</td><td>Range <code>disabled</code> when there is traffic; nothing when silent (and no checkpoint, so no zero)</td><td>P</td></tr>
+<tr><th colspan="4">C · Producers, acks, ordering, epochs</th></tr>
+<tr><td>V-C1</td><td>Two expected streams, one missing</td><td>Tenant bucket not complete</td><td>M/R</td></tr>
+<tr><td>V-C2</td><td>Stale checkpoint (&gt; 24 h) or lower <code>accounted</code> after a higher one</td><td>Rejected / idempotent no-op; no downgrade of valid state</td><td>R</td></tr>
+<tr><td>V-C3</td><td>Lost ack, retry</td><td><code>deduplicated</code> ack, counted once, row cleared once</td><td>P/R/E</td></tr>
+<tr><td>V-C4</td><td>Forged, mismatched, wrong-epoch/seq, T1 <code>202</code>, v2-ack-for-v3</td><td>Row retained</td><td>P</td></tr>
+<tr><td>V-C5</td><td>Same ID, different digest</td><td><code>409</code>, <code>conflict</code> range, nothing changes</td><td>R</td></tr>
+<tr><td>V-C6</td><td>Same <code>(epoch, seq)</code>, different ID</td><td><code>seq_conflict</code>, taint, nothing counted</td><td>R</td></tr>
+<tr><td>V-C7</td><td>Checkpoint before its deliveries; reordered deliveries</td><td>Early checkpoint <code>409 inconsistent</code>; reordered deliveries converge</td><td>R/E</td></tr>
+<tr><td>V-C8</td><td><code>accounted.seq &lt; verified_n</code></td><td>Regression ⇒ taint, new epoch required</td><td>R</td></tr>
+<tr><td>V-C9</td><td>Epoch change</td><td>Break interval <code>unobserved</code>; no completeness across it</td><td>R</td></tr>
+<tr><td>V-C10</td><td>Pre-W8b (no epoch) delivery for a coverage tenant</td><td>Counted over v2, hour tainted <code>legacy_v2</code> for all expected streams</td><td>R</td></tr>
+<tr><td>V-C11</td><td>Two epochs claim the same interval</td><td><code>overlap</code>, both downgraded</td><td>R</td></tr>
+<tr><td>V-C12</td><td>Epoch flood</td><td>Cap ⇒ <code>503</code></td><td>R</td></tr>
+<tr><th colspan="4">D · Gaps</th></tr>
+<tr><td>V-D1</td><td>Outbox capacity / bytes saturation</td><td>Range <code>capacity</code>; buckets <code>incomplete</code></td><td>P/E</td></tr>
+<tr><td>V-D2</td><td>Retry-horizon expiry</td><td>Range <code>expired</code></td><td>P</td></tr>
+<tr><td>V-D3</td><td>Each classified null (O2) and the inner build error</td><td>Each lands in exactly one of <code>disabled</code>, <code>unprojectable</code>, <code>grant_mismatch</code>, <code>error</code>; none is silent</td><td>P</td></tr>
+<tr><td>V-D4</td><td>Revocation / lapse withdrawal</td><td>Ranges <code>revoked</code>; stream purged</td><td>P/D</td></tr>
+<tr><td>V-D5</td><td>Conflict gap</td><td>Range <code>conflict</code></td><td>P</td></tr>
+<tr><td>V-D6</td><td>Hourly gap 13:00–14:00</td><td>Exactly the 4 quarter buckets 13:00, 13:15, 13:30, 13:45 are <code>incomplete</code></td><td>M/R</td></tr>
+<tr><td>V-D7</td><td>No <code>complete</code> after an unresolved gap, including after gap evidence TTL</td><td>Never; parser prevents range expiring before span</td><td>M/R</td></tr>
+<tr><th colspan="4">E · Closure, time, DST</th></tr>
+<tr><td>V-E1</td><td>Prepared before / completes after a seal</td><td><code>fence</code> range, downgrade, <code>coverage_revision</code> bumped</td><td>P/R/E</td></tr>
+<tr><td>V-E2</td><td>Occurrence 4 min ahead of receiver</td><td>Counted; not sealed before bucket end by receiver clock</td><td>R</td></tr>
+<tr><td>V-E3</td><td>Config / calendar revision change at an interval edge; <code>producerRevision</code> change mid-bucket</td><td>Never straddles; two rollup rows, one sealed bucket</td><td>R</td></tr>
+<tr><td>V-E4</td><td>Delayed old revision after deploy</td><td><code>403</code>, expiry range</td><td>R/P</td></tr>
+<tr><td>V-E5</td><td>Producer clock skew ±; platform clock regression</td><td>Fence enforced; logical clock monotone; future <code>observedAt</code> refused</td><td>P/R</td></tr>
+<tr><td>V-E6</td><td>Late delivery into a sealed bucket</td><td>Counted, downgraded, revision bumped</td><td>R</td></tr>
+<tr><td>V-E7</td><td>Detroit/Los Angeles both fall-back folds; spring-forward</td><td>Two distinct local-hour instances sealed independently; absent hour not missing</td><td>M/R</td></tr>
+<tr><td>V-E8</td><td>Asia/Kolkata (:30) and Asia/Kathmandu (:45)</td><td>Local hour = 4 aligned buckets; partial coverage never prorated</td><td>M/R</td></tr>
+<tr><th colspan="4">F · Retention, revocation</th></tr>
+<tr><td>V-F1</td><td>Policy shortens, then lengthens</td><td>Rows keep short deadline; neither count nor completeness returns</td><td>R</td></tr>
+<tr><td>V-F2</td><td>Approval lapses</td><td>No new evidence; stored evidence to its TTL</td><td>R/D</td></tr>
+<tr><td>V-F3</td><td>Read-time expiry before the alarm</td><td>Expired span ⇒ <code>unavailable</code>; expired rollup ⇒ absent</td><td>R</td></tr>
+<tr><td>V-F4</td><td>Alarm deletion, restart</td><td>Expired rows gone, alarm re-armed then idle</td><td>R/P</td></tr>
+<tr><td>V-F5</td><td>Revocation then re-enrolment</td><td>Spans/ranges/rollups purged; floor blocks purged buckets; new epoch</td><td>R/E</td></tr>
+<tr><td>V-F6</td><td>Stale replay after expiry / revocation</td><td><code>422 stale_occurrence</code>; no count, no completeness</td><td>R</td></tr>
+<tr><td>V-F7</td><td>Policy ordering and 8/9-key compat</td><td><code>coverage &lt; rollup</code> or <code>gap &lt; coverage</code> invalid; 8-key valid only without coverage</td><td>M</td></tr>
+<tr><th colspan="4">G · Security and privacy</th></tr>
+<tr><td>V-G1</td><td>Cross-tenant key / stream / checkpoint</td><td>Rejected with indistinguishable codes</td><td>R</td></tr>
+<tr><td>V-G2</td><td>Source, grade, revision, stream spoofing</td><td><code>403</code>; nothing stored</td><td>R</td></tr>
+<tr><td>V-G3</td><td>Unknown fields/headers, oversized, malformed seq (leading zero, sign, &gt; 2^53 − 1, duplicate header)</td><td>Rejected, nothing stored</td><td>M/R</td></tr>
+<tr><td>V-G4</td><td>Safe-integer overflow in seq and counters</td><td>Producer rotates epoch; receiver refuses; counters guarded</td><td>M/P/R</td></tr>
+<tr><td>V-G5</td><td>Storage / log / report dump</td><td>No sentinel text, source/request/evaluation IDs, tokens, raw delivery ID or raw epoch at receiver (hashed)</td><td>R/P/E</td></tr>
+<tr><td>V-G6</td><td>Domain separation negative tests</td><td>delivery sig ≠ checkpoint sig; v2 ≠ v3; ack-v3 ≠ ack-v2; acks carry no state</td><td>M/R</td></tr>
+<tr><td>V-G7</td><td>Logs</td><td>Fixed event names and reason codes only</td><td>P/R</td></tr>
+<tr><th colspan="4">H · Exposure and rates</th></tr>
+<tr><td>V-H1</td><td>Matched non-zero E/F, complete cohort</td><td>Numeric rate with cohort provenance</td><td>M</td></tr>
+<tr><td>V-H2</td><td>E = 0 (including verified zero)</td><td><code>null</code>, <code>no_exposure</code></td><td>M</td></tr>
+<tr><td>V-H3</td><td>F &gt; E</td><td><code>invalid_counts</code></td><td>M</td></tr>
+<tr><td>V-H4</td><td>Incomplete / unobserved / provisional / mismatched revision cohort</td><td>Withheld with reason</td><td>M</td></tr>
+<tr><td>V-H5</td><td>Multiple expected producers</td><td>All must be complete</td><td>M/R</td></tr>
+<tr><td>V-H6</td><td>Mixed releases</td><td>Reported per revision, never summed</td><td>M</td></tr>
+</tbody></table></div>
+<p><strong>Future code gates</strong> (from the brief; not run in this spike): <code>pnpm install --frozen-lockfile</code>; <code>pnpm lint</code>; <code>pnpm test</code>; <code>pnpm rollback-drill --out &lt;existing-dir&gt;/rollback-drill.json</code>; <code>node scripts/deploy-worker.mjs --dry-run</code>; <code>node scripts/deploy-telemetry-worker.mjs --dry-run</code>; <code>git diff --check</code>. Baseline per brief: 552 tests in 41 files, 84 standalone drill checks (<code>package.json</code> defines <code>rollback-drill</code> as <code>node scripts/rollback-drill.mjs</code>).</p>
+
+<!-- ============================ SLICES ============================ -->
+<h2 id="slices">Implementation slicing: smallest reviewable path</h2>
+<p>Reordered from the candidate list on source evidence: <strong>the receiver (verifier) goes before the producer (prover)</strong> so the proof rule is fixed and tested with synthetic checkpoints first; producer evidence is split from checkpoint dispatch because evidence touches the hot completion path (O1, O15) while dispatch adds alarm cost; cron activation is separate and optional; drills accompany each PR and are consolidated last. Rejected: one PR containing producer evidence plus dispatch (too large, mixes hot-path risk with alarm cost), and "contracts only" without a pure model (the algebra is where holes appear).</p>
+<div class="progress" role="img" aria-label="Seven slices, none started"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+<div class="table-scroll"><table>
+<thead><tr><th>PR</th><th>Content</th><th>Prerequisites</th><th>Acceptance gate</th><th>Safe off by default?</th><th>Still unavailable after</th><th>Effort (qualitative)</th></tr></thead>
+<tbody>
+<tr><td><strong>S0</strong> proof contracts + pure model</td><td>Strict parsers (stream/epoch/seq grammar, checkpoint, ack, range reasons, 9-key retention with ordering, coverage config), pure <code>deriveBucketCoverage</code> / <code>applyCheckpoint</code> / cohort gate / <code>rate()</code> and model tests of the lattice and sketch proof.</td><td>None. Decide E unit (Open Q1) and parameter names.</td><td>V-F7, V-G3/G4/G6 (parsers), V-H*, V-B1/B2, V-D6/D7, V-E7/E8, V-C1 pass in the model; lint/test/format clean.</td><td><strong>Yes, fully inert</strong>: nothing imports it at runtime.</td><td>Everything (no runtime change).</td><td>S–M. Lowest uncertainty; highest value (finds proof holes cheaply).</td></tr>
+<tr><td><strong>S1</strong> receiver verifier</td><td>v3 delivery + checkpoint routes, tables/migration, seq index on dedupe rows, presence verification, span/range/regression/overlap handling, derived reads, retention/revocation integration, config schema 2 parse. <code>completeness</code> only leaves <code>unavailable</code> for a tenant with valid coverage config <em>and</em> verified spans.</td><td>S0 merged. Receiver stays undeployed.</td><td>V-C2…C12, V-D*, V-E2…E8, V-F*, V-G* on the real DO with synthetic checkpoint builders; v1/v2 suites unchanged.</td><td><strong>Yes</strong>: needs <code>aggregate</code> accept, schema-2 config with <code>coverage</code>, 9-key policy; receiver not deployed; no reader route.</td><td>No producer exists: real completeness still unavailable.</td><td>L. Most new state; migration of existing tables is the main risk.</td></tr>
+<tr><td><strong>S2</strong> producer evidence (no dispatch)</td><td>Classification replacing silent <code>null</code>; <code>complete()</code> extension (epoch, seq, fence, ranges, chain) in the same txn; outbox columns; v3 delivery signing + ack handling; withdrawal/purge.</td><td>S1 merged; STOP 1 and STOP 2 cleared by test/measurement.</td><td>V-A1…A8, V-B8, V-C3/C4/C5, V-D1…D5, V-E1/E4/E5, V-G4/G7. With no secret: W8a outbox suite byte-for-byte unchanged (V-A7).</td><td><strong>Yes</strong> (inert without <code>HM_TELEMETRY_COVERAGE</code>), but it edits the shared hot path: requires the regression gate and a fault-injection test.</td><td>No checkpoints sent: still no <code>complete</code>.</td><td>M–L. Hot path + platform-semantics risk (O15).</td></tr>
+<tr><td><strong>S3</strong> checkpoint dispatch + armed chain + ticks</td><td>Checkpoint build/outbox/send/ack, alarm tick scheduling in <code>#nextWake</code>, chain rules, lapse handling.</td><td>S2 merged.</td><td>V-A4/A5, V-B1/B4/B5/B7, V-C2/C7/C9, V-E5/E6, V-F2/F4 across producer+receiver with a fake binding.</td><td><strong>Yes</strong> (same secret).</td><td>Only tenants contacted by traffic can be activated; never-contacted tenants stay <code>unobserved</code>.</td><td>M–L. Alarm cost/reliability unmeasured.</td></tr>
+<tr><td><strong>S4</strong> cron activation (optional)</td><td><code>scheduled()</code> handler, <code>triggers.crons</code>, roster fan-out, watchdog.</td><td>S3 merged; explicit decision to add a trigger (receiver gate keeps forbidding it).</td><td>V-B6 and re-arm of a lost alarm.</td><td><strong>No longer purely inert</strong>: a trigger deploys with the Worker; handler must no-op when the roster is empty.</td><td>If skipped: zero-traffic never-contacted tenants never get a verified zero.</td><td>S–M. Limits unverified (subrequests, cost).</td></tr>
+<tr><td><strong>S5</strong> synthetic end-to-end drills</td><td>Two-sided harness with controllable clocks and fault injection; scenario script registered beside <code>rollback-drill</code>; fixtures only.</td><td>S3 (and S4 if used).</td><td>Every V-row marked E; drill JSON artefact produced; no network, no secrets.</td><td>Yes (test-only).</td><td>Real-world behaviour.</td><td>M.</td></tr>
+<tr><td><strong>S6</strong> operational rollout (human gates)</td><td>Approved retention numbers including <code>coverageSeconds</code>, fence/tick parameters from measurement, privacy/legal review of verified-zero visibility, receiver deployment, first tenant enrolment, runbook, rollback.</td><td>S0…S5 and all human approvals.</td><td>Operator-supplied approval references (never invented here); production health evidence per HM-21 delivery rules.</td><td>Not applicable: this is the enabling step.</td><td>W9 reporting, suppression, differencing controls, upstream coverage scope.</td><td>Unknown: dominated by approvals.</td></tr>
+</tbody></table></div>
+<p class="muted">Uncertainty: S0 and S5 are well understood. S1–S3 depend on platform behaviours that have not been proven in this repo (nested transaction/savepoint semantics, DO output-gate durability, alarm and cron reliability and cost, JSON1 for the optional receipts witness). Treat estimates as ordering, not schedule.</p>
+
+<!-- ============================ PHASES ============================ -->
+<h2 id="phases">Overview, goals and phased tasks</h2>
+<div class="two">
+  <section class="card"><h3>Goals</h3><ul class="goal">
+    <li>Define exactly what completeness means and prove it for <code>eval_completions</code>.</li>
+    <li>Make unobserved, incomplete, provisional, complete and verified zero distinguishable and durable.</li>
+    <li>Keep v1 and v2 unchanged and default-off; fail closed without approvals.</li>
+    <li>Keep protected transport identities out of analytics; keep retention explicit with no default.</li>
+  </ul></section>
+  <section class="card"><h3>Non-goals</h3><ul class="nongoal">
+    <li>Estimating school activity, staffing or service availability.</li>
+    <li>Upstream product submission coverage, reports, cases, reviews (R, I, Q, V, P, C).</li>
+    <li>Dashboards, suppression, differencing limits (W9) or any privacy/legal approval.</li>
+    <li>Deployment, enrolment, issue closure, or any change in this spike.</li>
+    <li>Defending against a compromised producer or a rolled-back receiver.</li>
+  </ul></section>
+</div>
+<p>Status for every task below is "Not started": this document is a proposal. Paths marked <em>(new)</em> do not exist in the snapshot.</p>
+
+<h3>Phase 0 — Proof contracts and pure model (S0)</h3>
+<div class="table-scroll"><table>
+<thead><tr><th>Task</th><th>Files</th><th>Verification</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>Strict parsers: stream/epoch/seq, checkpoint, ack, range reasons, producer/receiver coverage config</td><td><code>packages/telemetry-contracts/src/coverage.ts</code> (new)</td><td>V-G3, V-G4, V-G6</td><td><span class="chip todo">Not started</span></td></tr>
+<tr><td>9-key retention policy with <code>dedupe ≤ rollup ≤ coverage ≤ gap</code>, 8-key legacy accepted only without coverage</td><td><code>packages/telemetry-contracts/src/index.ts</code> (extend)</td><td>V-F7</td><td><span class="chip todo">Not started</span></td></tr>
+<tr><td>Pure derive/apply/cohort/rate model + lattice and sketch-proof tests</td><td><code>packages/telemetry-coverage/</code> (new)</td><td>V-B1, V-B2, V-C1, V-D6, V-D7, V-E7, V-E8, V-H1…H6</td><td><span class="chip todo">Not started</span></td></tr>
+<tr><td>Correct the unsafe "heartbeat" sentence and mark the new scope names in docs</td><td><code>docs/design/temporal-metrics.md</code>, <code>docs/implementation/t2-durable-telemetry.md</code></td><td>Doc review</td><td><span class="chip todo">Not started</span></td></tr>
+</tbody></table></div>
+
+<h3>Phase 1 — Receiver verifier (S1)</h3>
+<div class="table-scroll"><table>
+<thead><tr><th>Task</th><th>Files</th><th>Verification</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>v3 routes, auth domains, strict parse, fixed codes</td><td><code>apps/telemetry-worker/src/index.ts</code>, <code>packages/telemetry-sink/src/index.ts</code></td><td>V-C4…C6, V-G1…G3, V-G6</td><td><span class="chip todo">Not started</span></td></tr>
+<tr><td>Tables, migration, seq index, presence check, span/range merge</td><td><code>apps/telemetry-worker/src/store.ts</code>, <code>…/coverage.ts</code> (new)</td><td>V-C2, V-C7…C12, V-D6, V-E6</td><td><span class="chip todo">Not started</span></td></tr>
+<tr><td>Config schema 2, expected streams, minimums</td><td><code>apps/telemetry-worker/src/tenant-config.ts</code></td><td>V-C1, V-F7</td><td><span class="chip todo">Not started</span></td></tr>
+<tr><td>Retention, revocation, read-time filtering, alarm integration</td><td><code>…/store.ts</code>, <code>…/retention.ts</code></td><td>V-F1…F6</td><td><span class="chip todo">Not started</span></td></tr>
+<tr><td>Derived completeness in internal reads (no route)</td><td><code>…/store.ts</code></td><td>V-B1…B3, V-E2…E4, V-E7, V-E8</td><td><span class="chip todo">Not started</span></td></tr>
+</tbody></table></div>
+
+<h3>Phase 2 — Producer evidence (S2)</h3>
+<div class="table-scroll"><table>
+<thead><tr><th>Task</th><th>Files</th><th>Verification</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>Replace silent <code>null</code> with classified observation</td><td><code>apps/worker/src/metrics.ts</code>, <code>apps/worker/src/app.ts</code></td><td>V-D3</td><td><span class="chip todo">Not started</span></td></tr>
+<tr><td>Transactional epoch/seq/fence/range/chain in <code>complete()</code>; outbox columns</td><td><code>apps/worker/src/store.ts</code></td><td>V-A1…A8, V-D1, V-D2, V-D5, V-E1, V-E5</td><td><span class="chip todo">Not started</span></td></tr>
+<tr><td>v3 delivery signing, ack handling, v2 fallback for rows without epoch</td><td><code>packages/telemetry-sink/src/index.ts</code>, <code>apps/worker/src/store.ts</code></td><td>V-C3, V-C4, V-C10</td><td><span class="chip todo">Not started</span></td></tr>
+<tr><td>Producer coverage setting + env type</td><td><code>apps/worker/src/env.ts</code>, <code>scripts/deploy-worker.mjs</code></td><td>V-A7, V-B8</td><td><span class="chip todo">Not started</span></td></tr>
+</tbody></table></div>
+
+<h3>Phase 3 — Checkpoint dispatch (S3)</h3>
+<div class="table-scroll"><table>
+<thead><tr><th>Task</th><th>Files</th><th>Verification</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>Checkpoint build/outbox/send/ack, range reporting</td><td><code>apps/worker/src/store.ts</code>, <code>packages/telemetry-sink/src/index.ts</code></td><td>V-C2, V-C7, V-G6</td><td><span class="chip todo">Not started</span></td></tr>
+<tr><td>Armed chain, tick scheduling in <code>#nextWake</code>, lapse purge</td><td><code>apps/worker/src/store.ts</code></td><td>V-A4, V-B1, V-B4, V-B5, V-B7, V-F2, V-F4</td><td><span class="chip todo">Not started</span></td></tr>
+</tbody></table></div>
+
+<h3>Phase 4 — Cron activation, optional (S4)</h3>
+<div class="table-scroll"><table>
+<thead><tr><th>Task</th><th>Files</th><th>Verification</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><code>scheduled()</code> roster fan-out and watchdog</td><td><code>apps/worker/src/index.ts</code>, <code>apps/worker/wrangler.jsonc</code></td><td>V-B6; lost-alarm re-arm</td><td><span class="chip todo">Not started</span></td></tr>
+<tr><td>Decide roster size limits and tick cost</td><td>docs</td><td>Measured, not assumed</td><td><span class="chip todo">Not started</span></td></tr>
+</tbody></table></div>
+
+<h3>Phase 5 — Synthetic drills (S5)</h3>
+<div class="table-scroll"><table>
+<thead><tr><th>Task</th><th>Files</th><th>Verification</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>Two-sided harness with controllable clocks and fault injection</td><td><code>scripts/coverage-drill.mjs</code> (new), <code>apps/*/test/</code></td><td>All E-layer rows</td><td><span class="chip todo">Not started</span></td></tr>
+</tbody></table></div>
+
+<h3>Phase 6 — Operational rollout (S6, human gates)</h3>
+<div class="table-scroll"><table>
+<thead><tr><th>Task</th><th>Files</th><th>Verification</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>Obtain approvals and parameters; deploy; enrol; verify</td><td>none in code; runbook under <code>docs/launch/</code></td><td>Operator-supplied approval references and ForgeGraph production evidence</td><td><span class="chip todo">Blocked on humans</span></td></tr>
+</tbody></table></div>
+
+<!-- ============================ RISKS ============================ -->
+<h2 id="risks">Risks and mitigations</h2>
+<div class="table-scroll"><table>
+<thead><tr><th>Risk</th><th>Level</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>Coverage code in <code>complete()</code> couples analytics failure to moderation</td><td><span class="chip high">High</span></td><td>STOP 1; fault-injection test V-A6; inert default; keep the hot path to flat SQL with no async work</td></tr>
+<tr><td>Fence mis-set causes frequent downgrades (availability) or hides skew</td><td><span class="chip risk">Medium</span></td><td>Measure prepare→commit and skew first; fence violations are counted and visible; no default value</td></tr>
+<tr><td>Alarm/cron cost and reliability for large rosters</td><td><span class="chip risk">Medium</span></td><td>Tick period is a parameter; missed ticks only reduce coverage; cron is optional (S4)</td></tr>
+<tr><td>Receiver migration of dedupe table breaks W7/W8a tests</td><td><span class="chip risk">Medium</span></td><td>Additive nullable columns (as W8a did); existing suites unchanged in the gate</td></tr>
+<tr><td>Reviewers read "verified zero" as "no activity"</td><td><span class="chip high">High</span></td><td>Label is "completed evaluations"; rate always null at E = 0; docs replace the unsafe heartbeat sentence (O14)</td></tr>
+<tr><td>Verified-zero visibility at 15-minute grain is new disclosure</td><td><span class="chip risk">Medium</span></td><td>No read route in S0–S5; W9 review before any exposure</td></tr>
+</tbody></table></div>
+
+<!-- ============================ STOP ============================ -->
+<h2 id="stop">STOP conditions for implementers</h2>
+<div class="callout stop"><ol>
+  <li><strong>Transaction semantics.</strong> If the Workers test pool cannot demonstrate that a failing coverage statement either rolls back only the coverage portion (savepoint) or is structurally impossible (single INSERT…SELECT, no constraint that can throw), stop S2. Do not let analytics failure fail the moderation commit, and do not accept partial evidence.</li>
+  <li><strong>Fence and tick values.</strong> Do not choose F, tick or max gap without measured prepare→commit latency and clock-skew data and an operator decision. No defaults in code.</li>
+  <li><strong>Digest placement.</strong> Never move seq inside the digest-bound v2 bytes; digests are async and the frozen-bytes property (O3, O5) must hold.</li>
+  <li><strong>Read leakage.</strong> If any design needs an ack or checkpoint response to carry coverage, counts or watermark, stop: it would turn the writer key into a reader.</li>
+  <li><strong>Approvals.</strong> If implementation needs a retention duration, privacy or legal approval reference, stop and request it. Never invent an approval reference or a default duration.</li>
+  <li><strong>Unavailable by default.</strong> If a change would make <code>completeness</code> anything other than <code>"unavailable"</code> without a verified span, stop.</li>
+  <li><strong>Heartbeat as evidence.</strong> Do not treat receiver health, last-contact time or a producer tick alone as coverage.</li>
+  <li><strong>Evidence order.</strong> If code lets a range or span expire in a way that violates <code>dedupe ≤ rollup ≤ coverage ≤ gap</code>, stop.</li>
+  <li><strong>Compatibility.</strong> Any change to v1/v2 behaviour for a non-coverage tenant, or a failing W8a suite, stops the slice.</li>
+  <li><strong>Witness.</strong> If the receipts witness cannot be verified, do not claim detection of uninstrumented completions; keep rollback below the W8b revision an operational gate.</li>
+</ol></div>
+
+<!-- ============================ OPEN ============================ -->
+<h2 id="open">Unsolved proof obligations and open decisions</h2>
+<div class="table-scroll"><table>
+<thead><tr><th>#</th><th>Item</th><th>Owner</th></tr></thead>
+<tbody>
+<tr><td>Q1</td><td>Is the unit "any completed evaluation of any of the four kinds" (O13) acceptable for E, or must eligibility be narrowed (e.g. exclude <code>interaction.output</code>, <code>assessment.evaluator-result</code>)? This changes what E means, not the proof.</td><td>Product / metrics owner</td></tr>
+<tr><td>Q2</td><td>Degraded and uncertain evaluations are in E but never in F. Report degraded share, or define a separate eligible denominator?</td><td>Product / safeguarding</td></tr>
+<tr><td>Q3</td><td>Retention numbers including the new <code>coverageSeconds</code>; privacy/legal approval of storing and showing verified-zero hours at 15-minute grain.</td><td>District privacy officer / counsel (human gate)</td></tr>
+<tr><td>Q4</td><td>Fence, tick period, max tick gap, caps: measurement plan and owners.</td><td>Engineering (measure) + operator (approve)</td></tr>
+<tr><td>Q5</td><td>Accept cron (S4), or live with first-contact activation only?</td><td>Operator</td></tr>
+<tr><td>Q6</td><td>Build the receipts witness for uninstrumented completions, or rely on operational rollback gate?</td><td>Engineering</td></tr>
+<tr><td>Q7</td><td>Separate checkpoint key (blast radius) or same writer key under a new domain (fewer secrets)?</td><td>Security lead</td></tr>
+<tr><td>Q8</td><td>Authoritative upstream integration (<code>product_submissions</code>) scope, owners and timeline; required before any activity or availability claim.</td><td>EducateOS / PlayTrek owners</td></tr>
+<tr><td>U1</td><td><span class="tag unv">Unverified</span> nested <code>transactionSync</code>/savepoint behaviour (O15); DO output-gate durability for acks; alarm and cron reliability, cost, subrequest limits; JSON1 availability; Asia/Lord_Howe-style 30-minute DST shifts under <code>localTimeBucket</code>.</td><td>Engineering spikes inside S1/S2</td></tr>
+<tr><td>U2</td><td>Receiver-storage rollback and compromised-producer scenarios are explicitly out of the proof.</td><td>Accepted residual risk</td></tr>
+<tr><td>U3</td><td>Mechanised proof of the "2F" frontier reasoning is not needed in this design because the producer only claims <code>accounted</code> seqs it holds acks for; Phase 0 must confirm this with the model rather than assume it.</td><td>Engineering (S0)</td></tr>
+</tbody></table></div>
+
+<!-- ============================ SOURCES ============================ -->
+<h2 id="sources">Sources and stamps</h2>
+<p>All reads were done in <code>/Volumes/dev/.worktrees/hall-monitor/hm-21-rollback-drill-cases</code> at <code>222ee45a9b4fb29f4d99d5393c82c735605ab84a</code>, tree-identical to canonical main <code>322734e56743963ffcb6a9a006d73cc8f30a3a82</code>; the working tree was clean before and after (no source was modified). Not read (outside the stated order): <code>docs/design/temporal-capacity-and-operations.md</code>, <code>packages/temporal-analytics/src/{capacity,queue}.ts</code>, the full test files beyond titles and the seam files named in O16.</p>
+<ul>
+  <li><code>docs/implementation/t2-durable-telemetry.md</code> (Bounds and coverage gaps, W7, W8a, Coverage boundary, Still open) <span class="stamp">@222ee45</span></li>
+  <li><code>docs/design/temporal-metrics.md</code>, <code>temporal-analytics.md</code>, <code>temporal-events-and-api.md</code>, <code>temporal-implementation-plan.md</code> <span class="stamp">@222ee45</span></li>
+  <li><code>apps/worker/src/{app,metrics,store,env,index}.ts</code>, <code>apps/worker/wrangler.jsonc</code>, <code>apps/worker/test/{entry,collector}.ts</code>, test titles of <code>outbox.test.ts</code> <span class="stamp">@222ee45</span></li>
+  <li><code>packages/telemetry-contracts/src/index.ts</code>, <code>packages/telemetry-sink/src/index.ts</code> <span class="stamp">@222ee45</span></li>
+  <li><code>apps/telemetry-worker/src/{index,store,time,retention,tenant-config}.ts</code>, <code>wrangler.jsonc</code>, <code>test/controls.ts</code>, test titles of <code>aggregate.test.ts</code>, <code>time-retention.test.ts</code>; <code>scripts/deploy-telemetry-worker.mjs:34</code> <span class="stamp">@222ee45</span></li>
+  <li><code>packages/temporal-analytics/src/{events,bucket,aggregate}.ts</code>; <code>packages/contracts/src/primitives.ts:49-54</code> <span class="stamp">@222ee45</span></li>
+</ul>
+<p class="muted">Every <span class="tag prop">Proposed</span> item is a sketch. Table and DTO shapes are illustrative and have not been compiled, migrated, linted or run. This document completes no part of HM-21.</p>
+
+</main>
+</body>
+</html>

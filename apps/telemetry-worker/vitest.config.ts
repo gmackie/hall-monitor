@@ -9,6 +9,8 @@ export default defineWorkersProject({
     include: ["test/**/*.test.ts"],
     poolOptions: {
       workers: {
+        // Serialize files in this runtime; storage remains isolated between tests.
+        singleWorker: true,
         main: "./test/entry.ts",
         wrangler: { configPath: "./test/wrangler.test.jsonc" },
       },
