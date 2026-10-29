@@ -1,0 +1,13 @@
+{
+  "name": "@gmacko/hall-monitor-telemetry-coverage",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Experimental synthetic telemetry evidence model; no runtime coverage claims.",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": {
+    "@gmacko/hall-monitor-telemetry-contracts": "workspace:*"
+  },
+  "devDependencies": { "vitest": "catalog:" },
+  "scripts": { "test": "vitest run" }
+}
