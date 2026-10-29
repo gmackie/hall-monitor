@@ -33,7 +33,10 @@ long→short→long and short→long policies, and revocation/re-enrollment.
 
 All 720 orders of three deliveries, an identical retry and two checkpoints converge. Conflicting
 IDs/digests/sequences, separate scopes, serialization and the 65th-variant boundary are explicit
-cases. No exported function declares completeness, verified zero, rates or a final frontier.
+cases. The S0a exports declare no completeness, verified zero, rates or final frontier. The later
+[qualified logical-cut experiment](w8b-as-of-experiment.md) adds a proposed conditional count
+model with explicit scope/cut and no finality or runtime approval. It does not complete S0b or
+authorize receiver/producer integration.
 
 ## S0b obligations before runtime work
 

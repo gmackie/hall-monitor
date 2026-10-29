@@ -1,7 +1,7 @@
 # Experimental telemetry evidence
 
 HM-21 / W8b S0a. This private, Node-only package records synthetic delivery and checkpoint facts.
-It has **no runtime importer**, database, network transport or coverage classifier. The receiver
+It has **no runtime importer**, database, network transport or approved coverage classifier. The receiver
 continues to report coverage as unavailable. Nothing here enables collection or admits a tenant.
 
 `parseCoverageRetentionPolicy` accepts the existing eight explicit policy fields plus required
@@ -26,6 +26,15 @@ late completions. C1–C4 show that the rejected proposal can mistake expired no
 mistake benign checkpoint delay for rollback, confuse a sequence prefix with a time prefix, and
 claim finality before a historical fence violator completes. Passing these tests falsifies those
 rules; it does not prove a replacement coverage algorithm.
+
+The proposed logical-cut experiment (`createProposedAsOf`, `applyProposedAsOfFact`,
+`readProposedAsOf` and validity transitions) adds a conditional single-stream count model. Under
+explicit source and durability assumptions, it counts the complete committed prefix at a named
+checkpoint, including matching occurrence buckets from that same cut. Missing facts, conflicts,
+expiry, revocation and capacity withhold results. A returned `scoped-as-of-model` result is always
+`final: false` and `runtimeApproved: false`; it proves no wall-time frontier, district census or
+final activity total. See [the experiment](../../docs/implementation/w8b-as-of-experiment.md) for
+the assumptions, reachable exact/zero fixtures and unresolved production aggregate algorithm.
 
 Run `pnpm --dir packages/telemetry-coverage exec vitest run` after a frozen workspace install.
 See [the model note](../../docs/implementation/w8b-evidence-model.md) for verification and the S0b
