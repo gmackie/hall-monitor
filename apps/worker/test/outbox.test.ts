@@ -144,11 +144,13 @@ describe("W6 transactional telemetry outbox", () => {
 
     // Called on the object itself so the injected exception stays inside the test: an exception
     // crossing the RPC boundary makes the runner's storage teardown fail, which is unrelated.
+    const reservation = await stub().begin("idem_atomic", "digest-a");
+    expect(reservation).toMatchObject({ kind: "started", reservationId: expect.any(String) });
+    if (reservation.kind !== "started") throw new Error("expected reservation");
     await runInDurableObject(stub(), async (store: IdempotencyStore) => {
-      expect(await store.begin("idem_atomic", "digest-a")).toEqual({ kind: "started" });
       probe.failCompletion = true;
       // Every write (result, receipt, outbox row) ran before the injected failure.
-      await expect(store.complete("idem_atomic", "digest-a", result, record, telemetry!)).rejects.toThrow("injected commit failure");
+      await expect(store.completeReserved("idem_atomic", "digest-a", reservation.reservationId, result, record, telemetry!)).rejects.toThrow("injected commit failure");
     });
     expect(await outboxRows()).toHaveLength(0);
     expect(await rows("SELECT * FROM receipts")).toHaveLength(0);
@@ -157,7 +159,7 @@ describe("W6 transactional telemetry outbox", () => {
 
     // The same completion, once the fault is gone, commits all three together.
     probe.failCompletion = false;
-    await runInDurableObject(stub(), (store: IdempotencyStore) => store.complete("idem_atomic", "digest-a", result, record, telemetry!));
+    await runInDurableObject(stub(), (store: IdempotencyStore) => store.completeReserved("idem_atomic", "digest-a", reservation.reservationId, result, record, telemetry!));
     expect(await outboxRows()).toHaveLength(1);
     expect(await rows("SELECT * FROM receipts")).toHaveLength(1);
     expect(await rows("SELECT * FROM idempotency WHERE state = 'done'")).toHaveLength(1);
