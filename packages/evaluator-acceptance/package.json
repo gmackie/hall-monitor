@@ -1,0 +1,10 @@
+{
+  "name": "@gmacko/hall-monitor-evaluator-acceptance",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@gmacko/hall-monitor-contracts": "workspace:*" },
+  "devDependencies": { "vitest": "catalog:" },
+  "scripts": { "test": "vitest run" }
+}

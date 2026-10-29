@@ -42,6 +42,16 @@ export const BATCH_CONCURRENCY = 4;
 
 /** Handles one HTTP request. Every failure becomes a content-free wire error. */
 export async function handle(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
+  const response = await handleRoute(request, env, ctx);
+  // Fixed operational metadata only, never caller input or secret values. It binds smoke evidence
+  // to the serving release and conservatively distinguishes an unbound default-off deployment.
+  if (/^[a-f0-9]{40}$/.test(env.FG_COMMIT_HASH ?? "")) response.headers.set("x-hm-revision", env.FG_COMMIT_HASH!);
+  response.headers.set("x-hm-telemetry-posture", env.HM_TELEMETRY_ENABLED !== "true" &&
+    env.HM_TELEMETRY_V2_ENABLED !== "true" && env.METRICS_COLLECTOR === undefined ? "unbound-disabled" : "configured");
+  return response;
+}
+
+async function handleRoute(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
   const url = new URL(request.url);
   const route = routeOf(request.method, url.pathname);
   try {
