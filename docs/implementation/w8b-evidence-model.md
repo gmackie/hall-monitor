@@ -60,7 +60,16 @@ the obligations are resolved and reviewed; receiver verification must precede pr
 
 ## Verification
 
-Validation results and source revision will be recorded after the required gates run. Commands:
+Validation on source commit `3bafdb3` (29 October 2026), followed only by this evidence-note update:
+frozen install passed; 79 focused model tests, 9 unchanged legacy retention tests and all 631
+workspace tests in 44 files passed. Lint passed. The standalone drill preserved 84/84 checks.
+Evaluator and receiver bundles passed at 928.23 KiB and 53.64 KiB. Whitespace, runtime import
+audit and the existing-source comparison passed. The lockfile gained only the new importer
+with its workspace link and catalog Vitest entry. No required local check was skipped. Canonical
+CI and revision-bound approval are pending publication and are not implied by these local gates.
+No deploy, enrollment, live throughput test or platform durability experiment was run.
+
+Commands:
 
 ```sh
 pnpm install --frozen-lockfile
