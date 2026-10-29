@@ -1,0 +1,10 @@
+{
+  "name": "@gmacko/hall-monitor-incident-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Bounded pure synthetic case hypotheses; no identity resolution, disclosure or production store.",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@gmacko/hall-monitor-safety-events": "workspace:*" },
+  "devDependencies": { "vitest": "catalog:" }
+}

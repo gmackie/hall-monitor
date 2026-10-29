@@ -1,0 +1,10 @@
+{
+  "name": "@gmacko/hall-monitor-safety-events",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Synthetic restricted source-action contracts; no deployed ingress or case store.",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@gmacko/hall-monitor-contracts": "workspace:*", "zod": "catalog:" },
+  "devDependencies": { "vitest": "catalog:" }
+}
