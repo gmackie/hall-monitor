@@ -15,6 +15,7 @@
     "@gmacko/hall-monitor-core": "workspace:*",
     "@gmacko/hall-monitor-costing": "workspace:*",
     "@gmacko/hall-monitor-evaluators": "workspace:*",
+    "@gmacko/hall-monitor-noul-registry": "workspace:*",
     "@gmacko/hall-monitor-policy": "workspace:*",
     "zod": "catalog:",
     "@gmacko/hall-monitor-telemetry-contracts": "workspace:*",

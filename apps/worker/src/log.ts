@@ -45,7 +45,7 @@ export interface LogFields {
   readonly errors?: number;
   readonly violations?: number;
   readonly profileId?: string;
-  readonly variable?: "HM_TRUSTED_ISSUERS" | "HM_AUDIENCE" | "HM_POLICY_OVERLAYS" | "HM_TENANT_MODES" | "HM_RETENTION_SECONDS";
+  readonly variable?: "HM_TRUSTED_ISSUERS" | "HM_AUDIENCE" | "HM_POLICY_OVERLAYS" | "HM_TENANT_MODES" | "HM_RETENTION_SECONDS" | "HM_DECISION_PACK";
   /** An exception's class name, never its message. */
   readonly errorName?: string;
   /** Why telemetry coverage was lost, or why an attempt failed: fixed codes, never free text. */

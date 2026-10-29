@@ -64,6 +64,8 @@ export interface Env {
   readonly HM_TENANT_MODES?: string;
   /** AI Gateway id to route Clef calls through. */
   readonly HM_AI_GATEWAY_ID?: string;
+  /** Strict `{ id, version, digest }` pin into installed packs. Absent selects the source-pinned baseline. */
+  readonly HM_DECISION_PACK?: string;
   /**
    * Secret (set with `wrangler secret put`, at least 32 characters) that keys the request digests
    * stored for idempotency. Without it, evaluations fail closed.
