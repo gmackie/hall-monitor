@@ -76,6 +76,14 @@ it("denied governance keeps deterministic distress support reachable", async () 
   expect(EvaluationResult.parse(await response.json()).decision).toBe("support"); expect(fakeAi.calls).toHaveLength(0);
 });
 
+it("a shadow override cannot turn a governed denial into an unmoderated allow", async () => {
+  const s = setup(); s.c.tenants.tenant_synthetic!.revoked = true;
+  s.env.HM_TENANT_MODES = JSON.stringify({ tenant_synthetic: { mode: "shadow", allowStudentShadow: true } });
+  const response = await post(s);
+  const result = EvaluationResult.parse(await response.json());
+  expect(result.decision).toBe("hold"); expect(result.shadow).toBeUndefined(); expect(fakeAi.calls).toHaveLength(0);
+});
+
 it("refuses a forged signature and a signed cross-tenant eligibility attempt", async () => {
   const s = setup();
   const forged = await mintToken("rogue", { tenant: "tenant_synthetic", claims: { hm_governance: s.context } });

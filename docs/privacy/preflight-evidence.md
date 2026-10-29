@@ -64,6 +64,9 @@ policy, approval, agreement, route, data class and eligibility. A malformed expl
 all model transfers and reports `governanceConfig:false` in authenticated readiness. Missing
 configuration means no new enrollment; unenrolled tenants retain existing behavior. The readiness
 check validates configuration shape, not a human sign-off or every per-request authorization.
+Governed enrollments always enforce decisions, including synthetic enrollments. Existing shadow
+overrides cannot convert a denied hold into allow. Malformed governance also forces enforcement.
+Use the offline evaluation harness for shadow comparisons of a governed candidate.
 
 An enrolled source must place a strict `hm_governance` extension in its existing service JWT:
 

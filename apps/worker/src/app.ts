@@ -290,7 +290,10 @@ async function runEvaluation(request: EvaluationRequest, identity: ServiceIdenti
       priceBook: PRICE_BOOK_CLOUDFLARE_2026_10_20,
       clock: () => new Date(),
       ids: { evaluationId: () => newId("eval"), receiptId: () => newId("rcpt") },
-      enforcement: enforcementFor(config, tenant, (profile) => log("warn", "shadow.refused", { tenant, profileId: profile.id })),
+      // Enrollment cannot turn denied classification into an allow through an old shadow override.
+      enforcement: config.governance === undefined || Object.hasOwn(config.governance.tenants, tenant)
+        ? { mode: "enforce" }
+        : enforcementFor(config, tenant, (profile) => log("warn", "shadow.refused", { tenant, profileId: profile.id })),
     });
   } catch (error) {
     await store.abandon(request.idempotencyKey, digest);
