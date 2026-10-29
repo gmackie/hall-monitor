@@ -1,3 +1,10 @@
+/**
+ * Product decision, 2026-10-29: one unit per unique committed evaluation, all four kinds,
+ * including degraded results. Replays, rejections and uncommitted attempts add no unit.
+ * Naming membership does not approve this experimental model for runtime coverage.
+ */
+export const EVALUATED_VOLUME_MEMBERSHIP_REVISION = "all-committed-evaluations-v1";
+
 /** S0b hypothesis only. Logical cuts are not time-prefix/frontier or final-bucket claims. */
 export interface ProposedAsOfScope {
   readonly tenant: string; readonly streamId: string; readonly epoch: string; readonly membershipRevision: string;

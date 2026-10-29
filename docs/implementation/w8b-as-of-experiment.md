@@ -22,9 +22,10 @@ unknown, not evidence of restore and not permission to reconstruct zero.
 This explicitly changes the proposed *claim*, not the denominator to delivered work. Within the
 declared source cut, every committed completion must be present before any exact result. Dropped,
 unprojectable, invalid-setting and degraded completions cannot be skipped from sequence assignment.
-The experiment uses an `all-committed-fixture-1` membership revision; product owners still need to
-confirm whether the actual E scope includes all four evaluation kinds/degraded outcomes. The
-fixture must not become production policy by default.
+The owner confirmed E membership on 2026-10-29: every unique committed evaluation across all four
+kinds, including degraded results. The experiment now names `all-committed-evaluations-v1`; see
+[evaluated volume](evaluated-volume.md) for exclusions and real-store verification. This settles
+product membership only; no production sequence, census or coverage claim follows from the name.
 
 ## Conditional argument and reachability
 
@@ -72,7 +73,8 @@ Additional unresolved obligations:
 - Durable checkpoint creation/output-gate acknowledgments and undetectable source/receiver restore.
 - A complete expected-stream and epoch census for the whole requested interval, activation history,
   configuration changes and instrumentation gaps. Combining a partial census cannot make district E.
-- Approved membership, clock precision, retry/evidence retention, loss taint and epoch/revocation history.
+- Bind the confirmed membership to production sequences/census; approve clock precision, retry/evidence
+  retention, loss taint and epoch/revocation history.
 - Bounded durable identity/conflict tombstones and cross-cut correction/disclosure policy.
 - Independent review of the qualified claim and source/provider platform evidence.
 

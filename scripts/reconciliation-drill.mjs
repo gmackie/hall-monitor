@@ -33,7 +33,9 @@ try {
 }
 const commit = revision.status === 0 ? revision.stdout.trim() : "unknown";
 const sourceTreeDirty = status.status !== 0 || status.stdout.length > 0;
-const passed = exit === 0 && checks.length === 4 && checks.every((check) => check.status === "passed");
+// Four delivery/failure traces plus the ten evaluated-volume membership regressions. A partial
+// or empty run must not produce passing evidence.
+const passed = exit === 0 && checks.length === 14 && checks.every((check) => check.status === "passed");
 const record = { schemaVersion: 1, drill: "hall-monitor-telemetry-reconciliation", mode: "synthetic",
   harness: "workerd (vitest-pool-workers)", ranAt, commit, sourceTreeDirty, passed,
   producerCoverage: "unavailable", productionAcceptance: false, checks };

@@ -1,7 +1,8 @@
 # Synthetic evaluator-to-receiver reconciliation (HM-27 / W16)
 
 Run `pnpm reconciliation-drill --out dist/reconciliation-drill.json` after a frozen install.
-The record includes the commit, dirty-source flag and four trace outcomes; it never copies raw
+The record includes the commit, dirty-source flag and 14 outcomes (four failure/delivery traces
+and ten evaluated-volume membership regressions); it never copies raw
 test errors or input content. A missing, failed or skipped trace fails the command. These tests
 also run in `pnpm test`, including canonical CI. For a focused run without an artifact use
 `pnpm --dir apps/worker exec vitest run test/reconciliation.test.ts`.
@@ -13,8 +14,11 @@ clock offset are controlled fixtures. No successful durable acknowledgment is fa
 
 The independent source ledger is fixed before evaluating or inspecting delivered payloads:
 one benign completion, one harassment candidate and one degraded classifier-outage completion.
-Expected E=3/F=1 includes the degraded completion. This is the declared scope of this fixture,
-not approval of the product's final denominator membership.
+Expected E=3/F=1 includes the degraded completion. The owner confirmed all-kind/degraded
+committed membership on 29 October; see [evaluated volume](../implementation/evaluated-volume.md).
+The added regressions exercise all four supported kinds with both healthy and degraded results,
+replay/conflict/rejection exclusions, and a batch with an already committed item plus a failed
+item. They preserve receiver coverage unavailable; membership alone proves no completeness.
 
 The reconciliation trace proves:
 
