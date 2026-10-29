@@ -12,7 +12,7 @@ import { selfHarmEvaluator } from "./plugins/self-harm.ts";
  * Revision of the default bundle. Bump it whenever any plugin's version changes, so results can
  * be traced to the exact evaluators that produced them.
  */
-export const EVALUATOR_BUNDLE_REVISION = "base-1.0.0";
+export const EVALUATOR_BUNDLE_REVISION = "base-1.0.1";
 
 /** The deterministic base bundle: no provider calls, no cost, same input gives the same findings. */
 export const defaultBundle: EvaluatorBundle = Object.freeze({
