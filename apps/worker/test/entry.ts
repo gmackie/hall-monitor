@@ -7,6 +7,8 @@ import { binding, currentGrants, currentRetention, probe } from "./collector.ts"
 import { fakeAi } from "./fake-ai.ts";
 
 export { TokenReplayGuard } from "../src/index.ts";
+// The reconciliation drill connects both real stores inside this test-only Worker.
+export { TelemetryAggregateStore } from "../../telemetry-worker/test/entry.ts";
 
 /**
  * The real store with only its documented seams pointed at the test controls: which tenants are
