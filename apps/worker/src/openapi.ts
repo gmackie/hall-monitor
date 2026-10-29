@@ -80,6 +80,19 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       return [name, schema];
     }),
   );
+  const evaluation = {
+    requestBody: { required: true, content: { "application/json": { schema: ref("EvaluationRequest") } } },
+    responses: {
+      "200": {
+        ...jsonBody("EvaluationResult", "The evaluation result."),
+        headers: { "idempotent-replayed": { description: "`true` when the stored result was replayed.", schema: { type: "string", enum: ["true"] } } },
+      },
+      "404": error("The pinned policy revision is not available to this tenant (`policy_not_found`)."),
+      "409": error("The idempotency key was used for a different request or governance authority, or the same request is in flight (`idempotency_conflict`)."),
+      ...EVALUATION_ERRORS,
+      "403": error("The token lacks the `evaluate` scope, the tenant differs, or signed governance authority/enrollment is missing or no longer valid (`forbidden`)."),
+    },
+  };
 
   return {
     openapi: "3.1.0",
@@ -98,17 +111,17 @@ export function buildOpenApiDocument(): Record<string, unknown> {
           operationId: "evaluate",
           summary: "Evaluate one request",
           description:
-            "Requires the `evaluate` scope. Idempotent by `idempotencyKey`: repeating a completed request replays the stored result without re-evaluating or re-billing (response header `idempotent-replayed: true`); reusing a key for a different request is `409 idempotency_conflict`.",
-          requestBody: { required: true, content: { "application/json": { schema: ref("EvaluationRequest") } } },
-          responses: {
-            "200": {
-              ...jsonBody("EvaluationResult", "The evaluation result."),
-              headers: { "idempotent-replayed": { description: "`true` when the stored result was replayed.", schema: { type: "string", enum: ["true"] } } },
-            },
-            "404": error("The pinned policy revision is not available to this tenant (`policy_not_found`)."),
-            "409": error("The idempotency key was used for a different request, or the same request is in flight (`idempotency_conflict`)."),
-            ...EVALUATION_ERRORS,
-          },
+            "Requires the `evaluate` scope. Idempotent by `idempotencyKey`: repeating a completed request replays the stored result without re-evaluating or re-billing (response header `idempotent-replayed: true`); reusing a key for a different request is `409 idempotency_conflict`. Signed governance claims require enrollment. Clients requiring governance must use `/v1/evaluations:governed` so older deployments cannot ignore the requirement.",
+          ...evaluation,
+        },
+      },
+      "/v1/evaluations:governed": {
+        post: {
+          operationId: "evaluateGoverned",
+          summary: "Evaluate one request with required signed governance",
+          description:
+            "Requires `evaluate`, a signed `hm_governance` JWT extension and receiver-owned tenant enrollment. Uses the existing EvaluationRequest/Result schemas. Per-transfer checks enforce eligibility, purpose, approvals and provider route; denied classification retains deterministic support and policy fail-closed behavior. Governed idempotency binds issuer and stable governance claims, excludes token freshness timestamps, and rechecks current authority before replay. A legacy result cannot replay as governed. Older deployments return 404; clients must never fall back to the legacy route.",
+          ...evaluation,
         },
       },
       "/v1/evaluations:batch": {

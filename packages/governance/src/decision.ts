@@ -1,7 +1,7 @@
 import type { EvaluationKind, Product } from "@gmacko/hall-monitor-contracts";
 import { type GovernanceConfig, type GovernanceContext, observationsAllow } from "./policy.ts";
 
-export type GovernanceDenial = "invalid_config" | "revoked" | "approval_expired" | "eligibility_missing" |
+export type GovernanceDenial = "invalid_config" | "enrollment_missing" | "revoked" | "approval_expired" | "eligibility_missing" |
   "eligibility_expired" | "source_mismatch" | "purpose_denied" | "data_denied" | "evidence_invalid" | "route_denied";
 export type GovernanceDecision = { readonly allowed: true; readonly governed: boolean } | { readonly allowed: false; readonly reason: GovernanceDenial };
 
@@ -26,7 +26,7 @@ export function authorizeModelTransfer(config: GovernanceConfig | undefined, r: 
   const deny = (reason: GovernanceDenial): GovernanceDecision => ({ allowed: false, reason });
   if (config === undefined) return deny("invalid_config");
   const e = Object.hasOwn(config.tenants, r.tenant) ? config.tenants[r.tenant] : undefined;
-  if (e === undefined) return { allowed: true, governed: false };
+  if (e === undefined) return r.context === undefined ? { allowed: true, governed: false } : deny("enrollment_missing");
   if (e.revoked) return deny("revoked");
   if (!Number.isFinite(r.now) || r.now < e.approvedFrom || r.now >= e.approvedUntil) return deny("approval_expired");
   const c = r.context;

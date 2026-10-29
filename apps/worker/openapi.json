@@ -22,7 +22,7 @@
       "post": {
         "operationId": "evaluate",
         "summary": "Evaluate one request",
-        "description": "Requires the `evaluate` scope. Idempotent by `idempotencyKey`: repeating a completed request replays the stored result without re-evaluating or re-billing (response header `idempotent-replayed: true`); reusing a key for a different request is `409 idempotency_conflict`.",
+        "description": "Requires the `evaluate` scope. Idempotent by `idempotencyKey`: repeating a completed request replays the stored result without re-evaluating or re-billing (response header `idempotent-replayed: true`); reusing a key for a different request is `409 idempotency_conflict`. Signed governance claims require enrollment. Clients requiring governance must use `/v1/evaluations:governed` so older deployments cannot ignore the requirement.",
         "requestBody": {
           "required": true,
           "content": {
@@ -76,7 +76,7 @@
             }
           },
           "403": {
-            "description": "The token lacks the `evaluate` scope, or `source.tenantId` is not the token's tenant (`forbidden`).",
+            "description": "The token lacks the `evaluate` scope, the tenant differs, or signed governance authority/enrollment is missing or no longer valid (`forbidden`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -96,7 +96,127 @@
             }
           },
           "409": {
-            "description": "The idempotency key was used for a different request, or the same request is in flight (`idempotency_conflict`).",
+            "description": "The idempotency key was used for a different request or governance authority, or the same request is in flight (`idempotency_conflict`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The body exceeds the size limit (`invalid_request`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The tenant's request rate was exceeded (`rate_limited`); honor `Retry-After`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service misconfigured or a dependency failed (`unavailable`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/evaluations:governed": {
+      "post": {
+        "operationId": "evaluateGoverned",
+        "summary": "Evaluate one request with required signed governance",
+        "description": "Requires `evaluate`, a signed `hm_governance` JWT extension and receiver-owned tenant enrollment. Uses the existing EvaluationRequest/Result schemas. Per-transfer checks enforce eligibility, purpose, approvals and provider route; denied classification retains deterministic support and policy fail-closed behavior. Governed idempotency binds issuer and stable governance claims, excludes token freshness timestamps, and rechecks current authority before replay. A legacy result cannot replay as governed. Older deployments return 404; clients must never fall back to the legacy route.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvaluationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The evaluation result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationResult"
+                }
+              }
+            },
+            "headers": {
+              "idempotent-replayed": {
+                "description": "`true` when the stored result was replayed.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body or unsupported schema version (`invalid_request`, `unsupported_schema`). Messages name fields, never values.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or already-used service token (`unauthorized`, not retryable with the same token).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the `evaluate` scope, the tenant differs, or signed governance authority/enrollment is missing or no longer valid (`forbidden`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The pinned policy revision is not available to this tenant (`policy_not_found`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The idempotency key was used for a different request or governance authority, or the same request is in flight (`idempotency_conflict`).",
             "content": {
               "application/json": {
                 "schema": {
