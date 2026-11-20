@@ -25,6 +25,11 @@ const GRANTS = JSON.stringify({
 const V1_KEY = "synthetic-v1-receiver-key-0123456789-abcdefghi";
 const V1_GRANTS = JSON.stringify({ [TENANT]: { source: "educateos", gradeBands: ["g9_12"], signingKey: V1_KEY } });
 
+// Calendar fixtures stay ahead of the runtime wall clock. The object clock is offset below,
+// but workerd schedules alarms using real time; a historical expiry would fire during the test
+// and keep re-arming before its synthetic clock reaches that expiry.
+const fixtureYear = new Date().getUTCFullYear() + 1;
+
 const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
 
 function evaluated(occurredAt: string, over: Partial<TemporalMetricEvent> = {}): TemporalMetricEvent {
@@ -406,7 +411,7 @@ describe("W7 stored shape", () => {
   });
 
   it("buckets to 15 UTC minutes and keeps release identity as a bounded dimension", async () => {
-    const base = Date.UTC(2026, 9, 28, 18, 0, 0);
+    const base = Date.UTC(fixtureYear, 9, 28, 18, 0, 0);
     controls.clockOffsetMs = base + 3600_000 - Date.now();
     const at = (min: number, sec = 0, ms = 0) => new Date(base + min * 60_000 + sec * 1000 + ms).toISOString();
     for (const [occurredAt, revision] of [
@@ -419,13 +424,16 @@ describe("W7 stored shape", () => {
   });
 
   it("separates the two 1:30 a.m. hours of a fall-back night as distinct UTC instants", async () => {
-    // Detroit 2026-11-01: 01:30 EDT = 05:30Z and 01:30 EST = 06:30Z. Neither may fold into the other.
-    controls.clockOffsetMs = Date.UTC(2026, 10, 1, 7, 0, 0) - Date.now();
-    for (const iso of ["2026-11-01T05:30:00.000Z", "2026-11-01T06:30:00.000Z", "2026-11-01T05:45:00.000Z"]) {
+    // Detroit falls back on November's first Sunday: 01:30 EDT = 05:30Z and
+    // 01:30 EST = 06:30Z. Neither may fold into the other.
+    const day = 1 + (7 - new Date(Date.UTC(fixtureYear, 10, 1)).getUTCDay()) % 7;
+    const at = (hour: number, minute: number) => new Date(Date.UTC(fixtureYear, 10, day, hour, minute)).toISOString();
+    controls.clockOffsetMs = Date.UTC(fixtureYear, 10, day, 7, 0, 0) - Date.now();
+    for (const iso of [at(5, 30), at(6, 30), at(5, 45)]) {
       await send(await delivery({ occurredAt: iso }));
     }
     expect((await stub().rollups()).map((r) => r.bucketStart)).toEqual([
-      "2026-11-01T05:30:00.000Z", "2026-11-01T05:45:00.000Z", "2026-11-01T06:30:00.000Z",
+      at(5, 30), at(5, 45), at(6, 30),
     ]);
   });
 
@@ -433,9 +441,9 @@ describe("W7 stored shape", () => {
     const logs = vi.spyOn(console, "log");
     const warns = vi.spyOn(console, "warn");
     const errors = vi.spyOn(console, "error");
-    const occurredMs = Date.UTC(2026, 9, 28, 18, 7, 31, 456);
+    const occurredMs = Date.UTC(fixtureYear, 9, 28, 18, 7, 31, 456);
     const b = await delivery({ pair: true, occurredAt: new Date(occurredMs).toISOString() });
-    controls.clockOffsetMs = Date.UTC(2026, 9, 28, 18, 30, 0) - Date.now();
+    controls.clockOffsetMs = Date.UTC(fixtureYear, 9, 28, 18, 30, 0) - Date.now();
     await send(b);
     await post(b);
     await post(await delivery({ revision: "rev-c" })); // forbidden

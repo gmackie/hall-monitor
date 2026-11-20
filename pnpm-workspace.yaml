@@ -5,7 +5,7 @@ packages:
 catalog:
   '@cloudflare/vitest-pool-workers': 0.12.21
   '@cloudflare/workers-types': 5.20261018.1
-  wrangler: ^4.72.0
+  wrangler: ^4.165.0
   typescript: ^5.9.3
   vitest: ^3.2.6
   zod: ^4.1.12
@@ -14,3 +14,9 @@ allowBuilds:
   esbuild: false
   sharp: false
   workerd: false
+
+minimumReleaseAgeExclude:
+  - '@cloudflare/kv-asset-handler@0.5.1'
+  - '@cloudflare/workers-utils@0.55.0'
+  - miniflare@5.20261118.0-beta
+  - wrangler@4.165.0

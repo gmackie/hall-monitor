@@ -254,10 +254,17 @@ describe("W8a retention: expiry, replay safety and read-time exclusion", () => {
   });
 
   it("re-arms cleanup after a restart that finds only rollups, and deletes what expired while the object was away", async () => {
-    const e = shortEnv();
-    at("2026-10-28T18:10:00Z");
-    await send(await delivery("2026-10-28T17:00:00.000Z"), e);
-    at("2026-10-29T17:31:00Z");
+    // This test checks a real storage alarm, which workerd schedules against the wall clock, not
+    // the offset test clock. Its timeline therefore stays ahead of today: a past re-armed expiry
+    // would fire at once and leave no alarm to observe.
+    const year = new Date().getUTCFullYear() + 1;
+    const d = (rest: string) => `${year}-${rest}`;
+    const e = receiverEnv(fixedConfig({
+      retention: SHORT, intervals: [fixedInterval({ from: d("01-01T00:00:00Z"), to: `${year + 1}-01-01T00:00:00Z` })],
+    }));
+    at(d("10-28T18:10:00Z"));
+    await send(await delivery(d("10-28T17:00:00.000Z")), e);
+    at(d("10-29T17:31:00Z"));
     await alarm(); // dedupe and health are gone; only the rollup (expiring 21:15) remains
     expect(await count("deliveries")).toBe(0);
     await runInDurableObject(stub(), async (_i, state) => {
@@ -268,10 +275,10 @@ describe("W8a retention: expiry, replay safety and read-time exclusion", () => {
       expect(await state.storage.getAlarm()).not.toBeNull();
     });
     // Restarting after the expiry deletes the rollup immediately, with no alarm having fired.
-    at("2026-10-29T21:16:00Z");
+    at(d("10-29T21:16:00Z"));
     expect(await count("rollups")).toBe(1);
     await runInDurableObject(stub(), async (_i, state) => {
-      class Aged extends Store { protected override now() { return Date.parse("2026-10-29T21:16:00Z"); } }
+      class Aged extends Store { protected override now() { return Date.parse(d("10-29T21:16:00Z")); } }
       new Aged(state, env);
       await state.blockConcurrencyWhile(async () => {});
     });
