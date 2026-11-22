@@ -49,6 +49,14 @@ export interface Env {
   readonly HM_TELEMETRY_OUTBOX_MAX_BYTES?: string;
   /** Seconds after the occurrence a delivery may still be retried; capped at 12 hours. */
   readonly HM_TELEMETRY_RETRY_HORIZON_SECONDS?: string;
+  /**
+   * The active config-release pointer (key `active`: `{ releaseId, digest }`), written by the admin
+   * console (HM-34). With CONFIG_RELEASES, a verified release replaces HM_POLICY_OVERLAYS and, when
+   * it carries them, HM_TENANT_MODES. Absent, the Worker reads only its secrets.
+   */
+  readonly CONFIG_POINTER?: KVNamespace;
+  /** Immutable config releases, `releases/<digest>.json`. */
+  readonly CONFIG_RELEASES?: R2Bucket;
   /** Per-tenant request limiter. Without it, no rate limit is applied. */
   readonly TENANT_RATE_LIMITER?: RateLimiter;
   /** JSON list of trusted issuers: `[{ iss, jwks: { keys }, audiences? }]`. */

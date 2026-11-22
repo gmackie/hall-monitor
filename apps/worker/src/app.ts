@@ -36,6 +36,7 @@ import {
   type ServiceIdentity,
   verifyServiceToken,
 } from "./auth.ts";
+import { refreshConfigRelease } from "./config-release.ts";
 import { type Config, enforcementFor, loadConfig, lookupPolicy, tenantProfiles } from "./config.ts";
 import { requestDigest } from "./digest.ts";
 import type { Env } from "./env.ts";
@@ -70,6 +71,8 @@ export async function handle(request: Request, env: Env, ctx?: ExecutionContext)
 }
 
 async function handleRoute(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
+  // Never throws; at most one KV read a minute per isolate, and R2 only when the pointer moves.
+  await refreshConfigRelease(env);
   const url = new URL(request.url);
   const route = routeOf(request.method, url.pathname);
   try {

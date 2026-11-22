@@ -1,9 +1,12 @@
 import { AccessError, accessSettings, AccessUnconfigured, fetchAccessJwks, type JwksSource, verifyAccessToken } from "./access.ts";
 import { adminRoutes } from "./api/admin.ts";
 import { evaluationRoutes } from "./api/evaluations.ts";
+import { labelRoutes } from "./api/labels.ts";
 import { meRoutes } from "./api/me.ts";
 import { modelRoutes } from "./api/models.ts";
+import { profileWriteRoutes } from "./api/profile-writes.ts";
 import { profileReadRoutes } from "./api/profiles.ts";
+import { releaseRoutes } from "./api/releases.ts";
 import type { Env, EvaluatorRpc } from "./env.ts";
 import { ApiError, errorResponse, json } from "./http.ts";
 import { loadPrincipal } from "./roles.ts";
@@ -19,7 +22,11 @@ export interface AdminDeps {
   readonly now?: () => number;
 }
 
-export const ROUTES: readonly Route[] = [...meRoutes, ...modelRoutes, ...profileReadRoutes, ...evaluationRoutes, ...adminRoutes];
+export const ROUTES: readonly Route[] = [
+  ...meRoutes, ...modelRoutes, ...profileReadRoutes, ...evaluationRoutes, ...adminRoutes,
+  // HM-34: writes.
+  ...profileWriteRoutes, ...releaseRoutes, ...labelRoutes,
+];
 
 /** Builds the admin Worker's fetch handler. */
 export function createAdminApp(deps: AdminDeps = {}, routes: readonly Route[] = ROUTES) {

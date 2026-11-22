@@ -10,6 +10,7 @@
     "dev": "wrangler dev"
   },
   "dependencies": {
+    "@gmacko/hall-monitor-config-release": "workspace:*",
     "@gmacko/hall-monitor-contracts": "workspace:*",
     "@gmacko/hall-monitor-costing": "workspace:*",
     "@gmacko/hall-monitor-policy": "workspace:*",
@@ -19,6 +20,7 @@
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "catalog:",
     "@cloudflare/workers-types": "catalog:",
+    "@gmacko/hall-monitor-noul-registry": "workspace:*",
     "typescript": "catalog:",
     "vitest": "catalog:",
     "wrangler": "catalog:"
