@@ -53,6 +53,26 @@ stages:
           # receipts to Kanbanger cite; the top-level `health` block does not set it.
           healthCheckUrl: https://hall-monitor.gmac.io/v1/health
 
+  # Admin console (HM-33/34): a separate Worker (apps/admin) serving the SPA and /admin/v1/* behind
+  # Cloudflare Access on its own hostname. It reads tenant records through the production Worker's
+  # AdminRpc service binding, so deploy it after production. Its D1 schema is applied by hand:
+  # `wrangler d1 migrations apply hm-control --remote` from apps/admin. Stage secret:
+  # HM_ADMIN_BOOTSTRAP_EMAILS. No healthCheckUrl: every path on the hostname is behind Access.
+  - name: admin
+    url: https://hall-monitor-admin.gmac.io
+    sortOrder: 30
+    targets:
+      - name: admin-worker
+        platform: cloudflare-workers
+        nodeId: bf11e7b1-b9de-45be-a89d-ae08049c7598  # hetzner-fg runs the deploy
+        config:
+          workerName: hall-monitor-admin
+          appDir: apps/admin
+          configPath: apps/admin/wrangler.jsonc
+          buildCommand: pnpm install --frozen-lockfile
+          deployCommand: pnpm exec wrangler deploy --domain hall-monitor-admin.gmac.io
+          syncSecrets: true
+
 health:
   # Unauthenticated liveness. Readiness (/v1/ready) needs a service token and is checked by hand.
   url: /v1/health

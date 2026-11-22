@@ -1,0 +1,50 @@
+// Hall Monitor admin console (HM-33/34): a separate Worker serving the static SPA in public/ and
+// /admin/v1/* behind Cloudflare Access. Deployed by ForgeGraph (.forgegraph.yaml, stage `admin`).
+//
+// PLACEHOLDERS: the parent deploy fills these in after creating the resources; they are never
+// invented here. Search for "<" to find them:
+//   <D1_DATABASE_ID>            wrangler d1 create hm-control
+//   <CONFIG_POINTER_KV_ID>      wrangler kv namespace create CONFIG_POINTER (shared with apps/worker)
+//   <ACCESS_TEAM_DOMAIN>        the Zero Trust team domain, e.g. example.cloudflareaccess.com
+//   <ACCESS_AUD>                the Access application's audience tag for hall-monitor-admin.gmac.io
+// The R2 bucket is referenced by name (hm-config-releases): wrangler r2 bucket create hm-config-releases.
+//
+// Secret (ForgeGraph stage `admin`, synced by syncSecrets):
+//   HM_ADMIN_BOOTSTRAP_EMAILS   comma-separated emails that always hold the global admin role
+//
+// D1 schema: wrangler d1 migrations apply hm-control --remote   (migrations/)
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hall-monitor-admin",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  // shadow-report (diffs, calibration scoring) uses node:crypto.
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    // Deep links such as /evaluations/<id> serve index.html; the SPA routes them.
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/admin/v1/*"]
+  },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "hm-control", "database_id": "<D1_DATABASE_ID>", "migrations_dir": "migrations" }
+  ],
+  "kv_namespaces": [
+    { "binding": "CONFIG_POINTER", "id": "<CONFIG_POINTER_KV_ID>" }
+  ],
+  "r2_buckets": [
+    { "binding": "CONFIG_RELEASES", "bucket_name": "hm-config-releases" }
+  ],
+  // Read-only access to tenant evaluation records through the evaluation Worker's AdminRpc
+  // entrypoint. It is reachable only through this binding, never over HTTP.
+  "services": [
+    { "binding": "EVALUATOR", "service": "hall-monitor", "entrypoint": "AdminRpc" }
+  ],
+  "vars": {
+    "HM_ADMIN_ACCESS_TEAM_DOMAIN": "<ACCESS_TEAM_DOMAIN>",
+    "HM_ADMIN_ACCESS_AUD": "<ACCESS_AUD>",
+    "HM_ADMIN_TENANTS": "[\"playtrek\",\"playtrek-beta\"]"
+  }
+}

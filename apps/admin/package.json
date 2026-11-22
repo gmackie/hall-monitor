@@ -1,0 +1,26 @@
+{
+  "name": "@gmacko/hall-monitor-admin",
+  "version": "0.5.0",
+  "description": "Hall Monitor admin console: Cloudflare Access-authenticated policy, model, label and evaluation-explorer Worker with a static SPA.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "wrangler dev"
+  },
+  "dependencies": {
+    "@gmacko/hall-monitor-contracts": "workspace:*",
+    "@gmacko/hall-monitor-costing": "workspace:*",
+    "@gmacko/hall-monitor-policy": "workspace:*",
+    "@gmacko/hall-monitor-shadow-report": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "catalog:",
+    "@cloudflare/workers-types": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "wrangler": "catalog:"
+  }
+}

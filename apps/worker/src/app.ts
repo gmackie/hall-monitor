@@ -45,6 +45,7 @@ import { gatedProfile } from "./model-gate.ts";
 import { prepareTelemetryDelivery, scheduleEvaluationMetrics } from "./metrics.ts";
 import { openApiJson } from "./openapi.ts";
 import { replayGuardName } from "./replay.ts";
+import { storeFor } from "./tenant-store.ts";
 
 /**
  * Largest single-evaluation body: up to 8 MiB of images (about 10.7 MiB as base64) plus 32k UTF-16
@@ -540,10 +541,6 @@ function parseOrThrow(input: unknown): EvaluationRequest {
 /** The request's tenant must be the token's: a service can never act for another tenant. */
 function assertTenant(identity: ServiceIdentity, request: EvaluationRequest): void {
   if (request.source.tenantId !== identity.tenant) throw new HttpError("forbidden", "source.tenantId does not match the service token");
-}
-
-function storeFor(env: Env, tenant: string) {
-  return env.IDEMPOTENCY_STORE.get(env.IDEMPOTENCY_STORE.idFromName(`tenant:${tenant}`));
 }
 
 /** The evaluator bundle revision results carry, matching the core's composition. */
