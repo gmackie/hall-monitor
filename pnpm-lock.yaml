@@ -490,6 +490,9 @@ importers:
 
   packages/shadow-report:
     dependencies:
+      '@gmacko/hall-monitor-clairic':
+        specifier: workspace:*
+        version: link:../clairic
       '@gmacko/hall-monitor-clef':
         specifier: workspace:*
         version: link:../clef

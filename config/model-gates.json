@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0",
+  "families": {
+    "clef": {
+      "previewWaiverRef": null,
+      "minPrecisionLower95": 0.8,
+      "maxFalsePositiveRateUpper95": 0.05,
+      "minAdjudicatedCases": 30,
+      "maxAddedUsdNanoPer1000": "150000000",
+      "maxP95Ms": 800
+    },
+    "clairic": {
+      "previewWaiverRef": null,
+      "minPrecisionLower95": 0.8,
+      "maxFalsePositiveRateUpper95": 0.05,
+      "minAdjudicatedCases": 30,
+      "maxAddedUsdNanoPer1000": "150000000",
+      "maxP95Ms": 800
+    }
+  }
+}

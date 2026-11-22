@@ -20,7 +20,8 @@
     "evaluator-smoke": "node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/evaluator-smoke.ts",
     "privacy-preflight": "node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/privacy-preflight.ts",
     "calibration": "node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/calibration.ts",
-    "synthetic-demo": "node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/synthetic-demo.ts"
+    "synthetic-demo": "node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/synthetic-demo.ts",
+    "model-gate": "node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/model-gate.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

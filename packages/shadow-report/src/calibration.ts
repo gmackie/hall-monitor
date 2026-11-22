@@ -1,7 +1,26 @@
 import { OpaqueId } from "@gmacko/hall-monitor-contracts";
 import { CalibrationBand, CalibrationCohort as Cohort } from "@gmacko/hall-monitor-clef";
+import { CLAIRIC_EVALUATOR_VERSION, CLAIRIC_FIELDS } from "@gmacko/hall-monitor-clairic";
+import { CLOUDFLARE_WORKERS_AI, MODEL_REGISTRY } from "@gmacko/hall-monitor-costing";
 import { BASELINE_DECISION_PACK, BASELINE_DECISION_PACK_PIN } from "@gmacko/hall-monitor-noul-registry";
 import { createHash } from "node:crypto";
+
+/**
+ * The pin a Clairic study names in place of a decision pack: Clairic's field set at this evaluator
+ * version, digested over its ids and instructions, so a study scored against one field wording
+ * cannot be applied to another.
+ */
+export const CLAIRIC_FIELD_PACK = Object.freeze({
+  id: "clairic-fields",
+  version: CLAIRIC_EVALUATOR_VERSION,
+  digest: `sha256:${createHash("sha256").update(`hall-monitor/clairic-fields/v1\n${JSON.stringify(CLAIRIC_FIELDS.map((field) => [field.id, field.spec.instructions]))}`).digest("hex")}`,
+});
+
+/** Models a study for `family` may calibrate. */
+function familyAllows(family: "clef" | "clairic", providerId: string, modelId: string): boolean {
+  if (family === "clef") return BASELINE_DECISION_PACK.manifest.providers.some((p) => p.id === providerId && p.modelIds.includes(modelId));
+  return providerId === CLOUDFLARE_WORKERS_AI && MODEL_REGISTRY.some((model) => model.family === "clairic" && model.modelId === modelId);
+}
 import { z } from "zod";
 
 const Digest = z.string().regex(/^sha256:[a-f0-9]{64}$/);
@@ -16,6 +35,8 @@ const Case = z.strictObject({
 
 const Study = z.strictObject({
   schemaVersion: z.literal("1.0"), revision: OpaqueId, corpusRevision: OpaqueId,
+  /** The model family calibrated; absent means Clef, as for every study before HM-32. */
+  family: z.enum(["clef", "clairic"]).optional(),
   pack: z.strictObject({ id: OpaqueId, version: OpaqueId, digest: Digest }),
   decisions: z.array(z.strictObject({ id: OpaqueId, textInstructions: z.string().min(1).max(2048), imageInstructions: z.string().min(1).max(2048) })).min(1).max(64),
   cases: z.array(Case).min(1).max(4000),
@@ -33,18 +54,28 @@ export function parseCalibrationStudy(input: unknown): CalibrationStudy {
   const parsed = Study.safeParse(input);
   if (!parsed.success) throw new Error("invalid calibration study");
   const s = parsed.data;
-  const pin = BASELINE_DECISION_PACK_PIN;
-  if (s.pack.id !== pin.id || s.pack.version !== pin.version || s.pack.digest !== pin.digest ||
-      s.decisions.length !== BASELINE_DECISION_PACK.definitions.length || s.decisions.some((d, i) => {
-        const definition = BASELINE_DECISION_PACK.definitions[i];
-        return definition?.id !== d.id || d.textInstructions !== definition.questions.find((q) => q.modality === "text")?.instructions ||
-          d.imageInstructions !== definition.questions.find((q) => q.modality === "image")?.instructions;
-      })) throw new Error("calibration pack mismatch");
+  const family = s.family ?? "clef";
+  if (family === "clef") {
+    const pin = BASELINE_DECISION_PACK_PIN;
+    if (s.pack.id !== pin.id || s.pack.version !== pin.version || s.pack.digest !== pin.digest ||
+        s.decisions.length !== BASELINE_DECISION_PACK.definitions.length || s.decisions.some((d, i) => {
+          const definition = BASELINE_DECISION_PACK.definitions[i];
+          return definition?.id !== d.id || d.textInstructions !== definition.questions.find((q) => q.modality === "text")?.instructions ||
+            d.imageInstructions !== definition.questions.find((q) => q.modality === "image")?.instructions;
+        })) throw new Error("calibration pack mismatch");
+  } else {
+    // Clairic reads text only: each decision is one of its fields, worded exactly as the evaluator asks it.
+    const pin = CLAIRIC_FIELD_PACK;
+    if (s.pack.id !== pin.id || s.pack.version !== pin.version || s.pack.digest !== pin.digest || s.decisions.some((d) => {
+      const field = CLAIRIC_FIELDS.find((candidate) => candidate.id === d.id);
+      return field === undefined || d.textInstructions !== field.spec.instructions || d.imageInstructions !== d.textInstructions;
+    }) || s.cases.some((c) => c.cohort.modality !== "text")) throw new Error("calibration pack mismatch");
+  }
   const families = new Map<string, string>();
   const decisions = new Set(s.decisions.map((d) => d.id));
   if (!unique(s.cases.map((c) => c.id)) || !unique(s.decisions.map((d) => d.id)) ||
       !unique(s.bands.map((b) => JSON.stringify([bandKey(b.cohort, b.decisionId), b.providerId, b.modelId]))) || s.bands.some((b) => !decisions.has(b.decisionId) ||
-        !BASELINE_DECISION_PACK.manifest.providers.some((p) => p.id === b.providerId && p.modelIds.includes(b.modelId)))) throw new Error("invalid calibration study");
+        !familyAllows(family, b.providerId, b.modelId))) throw new Error("invalid calibration study");
   for (const c of s.cases) {
     if (families.has(c.familyId) && families.get(c.familyId) !== c.split) throw new Error("calibration family crosses data splits");
     families.set(c.familyId, c.split);
@@ -154,7 +185,7 @@ export function scoreCalibration(inputStudy: unknown, value: unknown): Calibrati
   const s = parseCalibrationStudy(inputStudy), result = Input.safeParse(value);
   if (!result.success) throw new Error("invalid calibration observations");
   const input = result.data;
-  if (!BASELINE_DECISION_PACK.manifest.providers.some((p) => p.id === input.run.providerId && p.modelIds.includes(input.run.modelId))) throw new Error("unsupported calibration model");
+  if (!familyAllows(s.family ?? "clef", input.run.providerId, input.run.modelId)) throw new Error("unsupported calibration model");
   const studyDigest = calibrationStudyDigest(s);
   if (input.studyRevision !== s.revision || input.studyDigest !== studyDigest || input.corpusRevision !== s.corpusRevision || input.packDigest !== s.pack.digest) throw new Error("calibration revision mismatch");
   const cases = new Map(s.cases.map((c) => [c.id, c]));

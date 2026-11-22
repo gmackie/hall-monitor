@@ -179,6 +179,9 @@ pnpm shadow-report diff --candidate candidate-overlays.json --out diff.json
 pnpm shadow-report render report.json
 ```
 
+`diff --family clairic:shadow|enforce` adds a model axis: the candidate switches a model family on
+for every profile, and `pnpm model-gate --family clairic …` checks calibration, diff, cost, latency
+and enrollment evidence against `config/model-gates.json` (see [clairic.md](docs/implementation/clairic.md)).
 `diff` evaluates the same corpus under a baseline (built-in profiles, or `--baseline`) and a
 candidate policy revision (`{profileId: PolicyOverlay}`, applied tighten-only as the Worker does)
 and lists every case whose decision changed, by transition and by reason code. The library also

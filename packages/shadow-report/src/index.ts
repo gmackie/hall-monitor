@@ -7,3 +7,4 @@ export * from "./run.ts";
 export * from "./timing.ts";
 export * from "./variant.ts";
 export * from "./calibration.ts";
+export * from "./model-gate.ts";
