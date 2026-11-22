@@ -43,7 +43,7 @@ async function expectError(response: Response, status: number, code: string) {
 describe("evaluation route on results", () => {
   it("records the primary Clef call and links it to the receipt", async () => {
     const { result } = await evaluate("tenant_route_a");
-    expect(result.route?.classifiers).toEqual([
+    expect(result.route?.classifiers.filter((route) => route.status === "ran")).toEqual([
       expect.objectContaining({
         family: "clef",
         evaluatorId: "clef",

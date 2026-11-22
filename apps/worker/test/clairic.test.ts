@@ -19,6 +19,7 @@ async function evaluate(mode: "shadow" | "enforce", extra: Record<string, string
   const request = evaluationRequest({ tenant: TENANT, text: `${SENTINEL} reach me at ${PII_MARKER}` });
   request.policy = { profileId: "student-9-12", revision: `clairic-${mode}` };
   const response = await direct("/v1/evaluations", call("POST", await mintToken("educateos", { tenant: TENANT }), request), {
+    AI: fakeAi,
     HM_POLICY_OVERLAYS: overlays(mode),
     ...extra,
   } as never);
@@ -51,7 +52,7 @@ describe("Clairic routing in the Worker", () => {
 
   it("does not call Clairic under a profile that leaves it off", async () => {
     const request = evaluationRequest({ tenant: TENANT });
-    const response = await direct("/v1/evaluations", call("POST", await mintToken("educateos", { tenant: TENANT }), request));
+    const response = await direct("/v1/evaluations", call("POST", await mintToken("educateos", { tenant: TENANT }), request), { AI: fakeAi });
     const result = EvaluationResult.parse(await response.json());
     expect(fakeAi.calls.map((entry) => entry.model)).toEqual(["@cf/cloudflare/clef-flash"]);
     expect(result.route!.classifiers.map((entry) => [entry.family, entry.status, entry.skipReason])).toEqual([
