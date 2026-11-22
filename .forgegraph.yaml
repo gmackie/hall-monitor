@@ -17,6 +17,24 @@ app: hall-monitor
 server: https://forgegraf.com
 
 stages:
+  # Beta (HM-35): the same Worker code under its own name, Durable Objects and hostname, deployed
+  # from a branch with `forge deploy create beta --ref <branch>` and verified before production.
+  # Its stage secrets are its own (its own HM_DIGEST_KEY); trusted issuers mirror production.
+  - name: beta
+    url: https://hall-monitor-beta.gmac.io
+    sortOrder: 10
+    targets:
+      - name: worker
+        platform: cloudflare-workers
+        nodeId: bf11e7b1-b9de-45be-a89d-ae08049c7598  # hetzner-fg runs the deploy
+        config:
+          workerName: hall-monitor-beta
+          appDir: apps/worker
+          configPath: apps/worker/wrangler.jsonc
+          buildCommand: pnpm install --frozen-lockfile
+          deployCommand: pnpm exec wrangler deploy --name hall-monitor-beta --domain hall-monitor-beta.gmac.io
+          syncSecrets: true
+          healthCheckUrl: https://hall-monitor-beta.gmac.io/v1/health
   - name: production
     url: https://hall-monitor.gmac.io
     sortOrder: 20
