@@ -1,4 +1,6 @@
 import {
+  type ClassifierRoute,
+  type ClassifierSkipReason,
   type EnforcementMode,
   type EvaluationKind,
   EvaluationRequest,
@@ -9,7 +11,7 @@ import {
   type UsageAttempt,
 } from "@gmacko/hall-monitor-contracts";
 import { buildReceipt, type PriceBook, priceAttempt } from "@gmacko/hall-monitor-costing";
-import { type EvaluatorBundle, type EvaluatorPlugin, type EvaluatorSignals, runPlugins } from "@gmacko/hall-monitor-evaluators";
+import { type ClassifierTrace, type EvaluatorBundle, type EvaluatorPlugin, type EvaluatorSignals, runPlugins } from "@gmacko/hall-monitor-evaluators";
 import {
   type ModerationMode,
   type PolicyProfile,
@@ -114,6 +116,14 @@ export async function evaluate(input: unknown, deps: EvaluateDeps): Promise<Eval
   const mode = moderationMode(profile, request.evaluationKind);
   const decisive = findings.some((finding) => finding.severity === "block" || finding.severity === "support");
   const unmoderatedImages = request.content.type === "image" && profile.imageModeration !== true;
+  const routes: ClassifierRoute[] = [];
+  const skipped = (reason: ClassifierSkipReason) => {
+    if (deps.classifier !== undefined) routes.push(classifierRoute(deps.classifier, undefined, reason));
+  };
+  if (mode === "off") skipped("moderation_off");
+  else if (unmoderatedImages) skipped("image_moderation_disabled");
+  else if (request.content.type === "digest") skipped("digest_content");
+  else if (decisive) skipped("deterministic_decisive");
   if (mode !== "off" && unmoderatedImages) {
     findings.push({
       evaluatorId: CORE_EVALUATOR_ID,
@@ -128,6 +138,7 @@ export async function evaluate(input: unknown, deps: EvaluateDeps): Promise<Eval
     findings.push(...classified.findings);
     attempts.push(...classified.attempts);
     flags = { ...flags, ...classified.flags };
+    if (classified.route !== undefined) routes.push(classified.route);
   }
 
   const resolution = (deps.resolve ?? resolveDecision)(profile, findings, request.context, flags);
@@ -163,6 +174,7 @@ export async function evaluate(input: unknown, deps: EvaluateDeps): Promise<Eval
     resolverVersion: resolution.resolverVersion,
     receipt,
     ...(resolution.degraded === undefined ? {} : { degraded: { reason: resolution.degraded } }),
+    route: { classifiers: routes },
   });
   return applyEnforcement(result, profile, deps.enforcement);
 }
@@ -195,23 +207,47 @@ async function classify(
   deps: EvaluateDeps,
   context: { profile: PolicyProfile; signal: AbortSignal },
   mode: Exclude<ModerationMode, "off">,
-): Promise<{ findings: readonly Finding[]; attempts: readonly UsageAttempt[]; flags: ResolutionFlags }> {
+): Promise<{ findings: readonly Finding[]; attempts: readonly UsageAttempt[]; flags: ResolutionFlags; route?: ClassifierRoute }> {
   const required = mode === "required";
   const none = { findings: [], attempts: [] };
-  if (deps.classifier === undefined) return { ...none, flags: required ? { classifierUnavailable: true } : {} };
+  const classifier = deps.classifier;
+  if (classifier === undefined) return { ...none, flags: required ? { classifierUnavailable: true } : {} };
   if (deps.admitClassification !== undefined && !(await deps.admitClassification(request))) {
-    return { ...none, flags: required ? { budgetExhausted: true } : {} };
+    return { ...none, flags: required ? { budgetExhausted: true } : {}, route: classifierRoute(classifier, undefined, "budget_exhausted") };
   }
-  let output: { findings: readonly Finding[]; attempts: readonly UsageAttempt[]; signals: EvaluatorSignals };
+  if (!classifier.supportedKinds.includes(request.evaluationKind)) {
+    return { ...none, flags: {}, route: classifierRoute(classifier, undefined, "kind_not_routed") };
+  }
+  let output: { findings: readonly Finding[]; attempts: readonly UsageAttempt[]; signals: EvaluatorSignals; trace?: ClassifierTrace };
   try {
-    output = await runPlugins([deps.classifier], request, context);
+    const raw = await classifier.evaluate(request, context);
+    output = { findings: raw.findings, attempts: raw.attempts, signals: raw.signals ?? {}, ...(raw.trace === undefined ? {} : { trace: raw.trace }) };
   } catch {
     output = { ...none, signals: { classifierUnavailable: true } };
   }
   // Optional moderation does not fail closed when the classifier is down.
   const { classifierUnavailable: _unavailable, classifierTimedOut: _timedOut, ...rest } = output.signals;
   const flags: ResolutionFlags = required ? output.signals : rest;
-  return { findings: output.findings, attempts: output.attempts, flags };
+  return { findings: output.findings, attempts: output.attempts, flags, route: classifierRoute(classifier, output.trace) };
+}
+
+/** A family's route entry: what it called, or why it was skipped. */
+function classifierRoute(plugin: EvaluatorPlugin, trace: ClassifierTrace | undefined, skipReason?: ClassifierSkipReason): ClassifierRoute {
+  const deniedEverything = trace !== undefined && trace.calls.length > 0 && trace.calls.every((call) => call.outcome === "denied");
+  const reason = skipReason ?? (deniedEverything ? "not_authorized" : undefined);
+  return {
+    family: trace?.family ?? plugin.id,
+    evaluatorId: plugin.id,
+    evaluatorVersion: plugin.version,
+    status: reason === undefined ? "ran" : "skipped",
+    ...(reason === undefined ? {} : { skipReason: reason }),
+    mode: "enforce",
+    calibrationRevision: trace?.calibrationRevision ?? null,
+    calls: [...(trace?.calls ?? [])],
+    escalated: trace?.escalated ?? false,
+    ...(trace?.escalationReason === undefined ? {} : { escalationReason: trace.escalationReason }),
+    ...(trace?.fellBack === true ? { fellBack: true } : {}),
+  };
 }
 
 function bundleRevision(deps: EvaluateDeps): string {

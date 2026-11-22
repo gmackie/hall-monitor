@@ -2,6 +2,8 @@ import { CLEF_QUESTIONS } from "@gmacko/hall-monitor-clef";
 
 /** Marker that makes the fake classifier report harassment. Synthetic text only. */
 export const HARASSMENT_MARKER = "SYNTHETIC-HARASSMENT-MARKER";
+/** Marker that makes Clef-flash ambiguous about harassment and Clef confident, forcing one escalation. */
+export const AMBIGUOUS_MARKER = "SYNTHETIC-AMBIGUOUS-MARKER";
 
 /**
  * A fake Workers AI binding answering in Clef's real response shape:
@@ -15,7 +17,10 @@ export const fakeAi = {
     if (this.failing) throw Object.assign(new Error("upstream unavailable"), { status: 503 });
     const text = String((input as { state?: { text?: unknown } }).state?.text ?? "");
     const answers = Object.fromEntries(
-      CLEF_QUESTIONS.map((question) => [question.id, { type: "noul", noul: question.id === "harassment" && text.includes(HARASSMENT_MARKER) ? 0.97 : 0.02 }]),
+      CLEF_QUESTIONS.map((question) => [question.id, { type: "noul", noul: question.id !== "harassment" ? 0.02
+        : text.includes(HARASSMENT_MARKER) ? 0.97
+        : text.includes(AMBIGUOUS_MARKER) ? (model.endsWith("clef-flash") ? 0.5 : 0.97)
+        : 0.02 }]),
     );
     return { model: model.slice(model.lastIndexOf("/") + 1), answers, usage: { input_tokens: 640, output_tokens: 12 } };
   },

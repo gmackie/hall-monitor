@@ -136,6 +136,338 @@
             }
           }
         }
+      },
+      "get": {
+        "operationId": "listEvaluations",
+        "summary": "List retained evaluation records",
+        "description": "Requires the `evaluations:read` scope. Returns the caller tenant's content-free evaluation records, newest first (`recordedAt`, then `evaluationId`), at most `limit` (default 50, max 200) per page; pass `nextCursor` back as `cursor` for the next page. Filters combine with AND. Records are kept for `HM_EVALUATION_RETENTION_SECONDS` (default 30 days).",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,256}$"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Inclusive lower bound on `recordedAt`.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Exclusive upper bound on `recordedAt`.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "decision",
+            "in": "query",
+            "description": "The enforced decision.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "allow",
+                "coach",
+                "hold",
+                "block",
+                "support"
+              ]
+            }
+          },
+          {
+            "name": "evaluationKind",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "interaction.input",
+                "interaction.output",
+                "content.candidate",
+                "assessment.evaluator-result"
+              ]
+            }
+          },
+          {
+            "name": "profileId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "surface",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "requestId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "reasonCode",
+            "in": "query",
+            "description": "Top-level, finding or shadow reason code.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "modelId",
+            "in": "query",
+            "description": "Any model called on the route.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "enforce",
+                "shadow"
+              ]
+            }
+          },
+          {
+            "name": "escalated",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of records.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An unknown, repeated or invalid query parameter, or a cursor this service did not issue (`invalid_request`). Messages name parameters, never values.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or already-used service token (`unauthorized`, not retryable with the same token).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the `evaluations:read` scope (`forbidden`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The tenant's request rate was exceeded (`rate_limited`); honor `Retry-After`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service misconfigured or a dependency failed (`unavailable`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/evaluations/{evaluationId}": {
+      "get": {
+        "operationId": "evaluation",
+        "summary": "Read one retained evaluation record",
+        "description": "Requires the `evaluations:read` scope. Only the caller tenant's records are visible; another tenant's id is not found.",
+        "parameters": [
+          {
+            "name": "evaluationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The retained record.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationRecord"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The evaluation id is malformed (`invalid_request`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or already-used service token (`unauthorized`, not retryable with the same token).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the `evaluations:read` scope (`forbidden`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No record for this tenant, or it expired (`invalid_request`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The tenant's request rate was exceeded (`rate_limited`); honor `Retry-After`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service misconfigured or a dependency failed (`unavailable`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/reason-codes": {
+      "get": {
+        "operationId": "reasonCodes",
+        "summary": "Reason code display text",
+        "description": "Any valid token. A title and description for every reason code this release can emit; `revision` matches `Capabilities.reasonCodesRevision`.",
+        "responses": {
+          "200": {
+            "description": "The catalog.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReasonCodeCatalog"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or already-used service token (`unauthorized`, not retryable with the same token).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The tenant's request rate was exceeded (`rate_limited`); honor `Retry-After`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service misconfigured or a dependency failed (`unavailable`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/evaluations:governed": {
@@ -574,7 +906,7 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "JWT",
-        "description": "A service JWT signed with EdDSA (Ed25519) or ES256 by an issuer in `HM_TRUSTED_ISSUERS`, carrying `iss`, `aud`, `exp` (at most one hour ahead), optional `nbf`/`iat` (60 s skew), `jti`, `tenant` and `scope` (space-separated: `evaluate`, `receipts:read`). Each token is accepted once: a replayed `(iss, jti)` is `401 unauthorized`, so mint a new token for every request and every retry."
+        "description": "A service JWT signed with EdDSA (Ed25519) or ES256 by an issuer in `HM_TRUSTED_ISSUERS`, carrying `iss`, `aud`, `exp` (at most one hour ahead), optional `nbf`/`iat` (60 s skew), `jti`, `tenant` and `scope` (space-separated: `evaluate`, `receipts:read`, `evaluations:read`). Each token is accepted once: a replayed `(iss, jti)` is `401 unauthorized`, so mint a new token for every request and every retry."
       }
     },
     "schemas": {
@@ -956,6 +1288,9 @@
               "decision",
               "reasonCodes"
             ]
+          },
+          "route": {
+            "$ref": "#/components/schemas/EvaluationRoute"
           }
         },
         "required": [
@@ -1043,6 +1378,47 @@
               "start",
               "end"
             ]
+          },
+          "evidence": {
+            "maxItems": 16,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "maxLength": 96,
+                  "pattern": "^[a-z][a-z0-9_.]*$"
+                },
+                "span": {
+                  "type": "object",
+                  "properties": {
+                    "start": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 32000
+                    },
+                    "end": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 32000
+                    }
+                  },
+                  "required": [
+                    "start",
+                    "end"
+                  ]
+                },
+                "confidence": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              },
+              "required": [
+                "field"
+              ]
+            }
           }
         },
         "required": [
@@ -1419,6 +1795,51 @@
                 "image"
               ]
             }
+          },
+          "models": {
+            "maxItems": 32,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "family": {
+                  "type": "string",
+                  "maxLength": 96,
+                  "pattern": "^[a-z][a-z0-9_.]*$"
+                },
+                "modelId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "primary",
+                    "escalation"
+                  ]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "ga",
+                    "preview"
+                  ]
+                }
+              },
+              "required": [
+                "family",
+                "modelId",
+                "role",
+                "status"
+              ]
+            }
+          },
+          "reasonCodesRevision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
           }
         },
         "required": [
@@ -1485,6 +1906,418 @@
           "receipt",
           "recordedAt",
           "expiresAt"
+        ]
+      },
+      "EvaluationRoute": {
+        "type": "object",
+        "properties": {
+          "classifiers": {
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "family": {
+                  "type": "string",
+                  "maxLength": 96,
+                  "pattern": "^[a-z][a-z0-9_.]*$"
+                },
+                "evaluatorId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+                },
+                "evaluatorVersion": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "ran",
+                    "skipped"
+                  ]
+                },
+                "skipReason": {
+                  "type": "string",
+                  "enum": [
+                    "moderation_off",
+                    "deterministic_decisive",
+                    "digest_content",
+                    "image_moderation_disabled",
+                    "budget_exhausted",
+                    "kind_not_routed",
+                    "profile_disabled",
+                    "not_authorized"
+                  ]
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "enforce",
+                    "shadow"
+                  ]
+                },
+                "calibrationRevision": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "calls": {
+                  "maxItems": 16,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "modelId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      "role": {
+                        "type": "string",
+                        "enum": [
+                          "primary",
+                          "escalation"
+                        ]
+                      },
+                      "outcome": {
+                        "type": "string",
+                        "enum": [
+                          "scored",
+                          "malformed",
+                          "failed",
+                          "timed_out",
+                          "denied"
+                        ]
+                      },
+                      "attemptId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128,
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+                      }
+                    },
+                    "required": [
+                      "modelId",
+                      "role",
+                      "outcome"
+                    ]
+                  }
+                },
+                "escalated": {
+                  "type": "boolean"
+                },
+                "escalationReason": {
+                  "type": "string",
+                  "enum": [
+                    "ambiguous_band",
+                    "low_confidence"
+                  ]
+                },
+                "fellBack": {
+                  "type": "boolean"
+                },
+                "shadowFindings": {
+                  "maxItems": 64,
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Finding"
+                  }
+                }
+              },
+              "required": [
+                "family",
+                "evaluatorId",
+                "evaluatorVersion",
+                "status",
+                "mode",
+                "calibrationRevision",
+                "calls",
+                "escalated"
+              ]
+            }
+          }
+        },
+        "required": [
+          "classifiers"
+        ]
+      },
+      "EvaluationRecord": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "string",
+            "pattern": "^\\d{1,3}\\.\\d{1,3}$"
+          },
+          "evaluationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "tenantId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "product": {
+            "type": "string",
+            "enum": [
+              "educateos",
+              "playtrek",
+              "hall-monitor",
+              "other"
+            ]
+          },
+          "surface": {
+            "type": "string",
+            "maxLength": 96,
+            "pattern": "^[a-z][a-z0-9_.]*$"
+          },
+          "evaluationKind": {
+            "type": "string",
+            "enum": [
+              "interaction.input",
+              "interaction.output",
+              "content.candidate",
+              "assessment.evaluator-result"
+            ]
+          },
+          "contentType": {
+            "type": "string",
+            "enum": [
+              "text",
+              "digest",
+              "image"
+            ]
+          },
+          "policy": {
+            "type": "object",
+            "properties": {
+              "profileId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+              },
+              "revision": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+              }
+            },
+            "required": [
+              "profileId",
+              "revision"
+            ]
+          },
+          "context": {
+            "type": "object",
+            "properties": {
+              "audience": {
+                "type": "string",
+                "enum": [
+                  "student",
+                  "educator",
+                  "public"
+                ]
+              },
+              "gradeBand": {
+                "type": "string",
+                "enum": [
+                  "K-2",
+                  "3-5",
+                  "6-8",
+                  "9-12",
+                  "adult"
+                ]
+              },
+              "subject": {
+                "type": "string",
+                "maxLength": 96,
+                "pattern": "^[a-z][a-z0-9_.]*$"
+              },
+              "activityKind": {
+                "type": "string",
+                "maxLength": 96,
+                "pattern": "^[a-z][a-z0-9_.]*$"
+              },
+              "graded": {
+                "type": "boolean"
+              },
+              "costCenterId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+              },
+              "parentRequestId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+              }
+            },
+            "required": [
+              "audience",
+              "costCenterId"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "enforce",
+              "shadow"
+            ]
+          },
+          "result": {
+            "$ref": "#/components/schemas/EvaluationResult"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "evaluationId",
+          "requestId",
+          "tenantId",
+          "product",
+          "surface",
+          "evaluationKind",
+          "contentType",
+          "policy",
+          "context",
+          "mode",
+          "result",
+          "recordedAt",
+          "expiresAt"
+        ]
+      },
+      "EvaluationPage": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "string",
+            "pattern": "^\\d{1,3}\\.\\d{1,3}$"
+          },
+          "items": {
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvaluationRecord"
+            }
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,256}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "items",
+          "nextCursor"
+        ]
+      },
+      "ReasonCodeCatalog": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "string",
+            "pattern": "^\\d{1,3}\\.\\d{1,3}$"
+          },
+          "revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "codes": {
+            "maxItems": 1000,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "maxLength": 96,
+                  "pattern": "^[a-z][a-z0-9_.]*$"
+                },
+                "category": {
+                  "type": "string",
+                  "enum": [
+                    "safety",
+                    "self-harm",
+                    "harassment",
+                    "sexual",
+                    "violence",
+                    "hate",
+                    "privacy",
+                    "prompt-injection",
+                    "academic-integrity",
+                    "age-fit",
+                    "quality",
+                    "rights",
+                    "format"
+                  ]
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "description": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                }
+              },
+              "required": [
+                "code",
+                "title",
+                "description"
+              ]
+            }
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "revision",
+          "codes"
         ]
       },
       "ErrorBody": {

@@ -76,7 +76,11 @@ school deployment agreement.
 | `POST /v1/evaluations` | `evaluate` scope | Evaluate one request; idempotent by `idempotencyKey` |
 | `POST /v1/evaluations:batch` | `evaluate` scope | Up to 50 `content.candidate` / `assessment.evaluator-result` requests |
 | `GET /v1/capabilities` | any valid token | Supported versions, kinds, bundles and the caller's profile revisions |
+| `POST /v1/evaluations:governed` | `evaluate` scope + signed `hm_governance` | Evaluate under required, enrolled governance authority |
+| `GET /v1/evaluations` | `evaluations:read` scope | The caller tenant's retained, content-free evaluation records, newest first, filtered and paged |
+| `GET /v1/evaluations/{evaluationId}` | `evaluations:read` scope | One retained evaluation record: decision, findings, reason codes, models and escalation path, receipt |
 | `GET /v1/receipts/{evaluationId}` | `receipts:read` scope | The caller tenant's receipt record |
+| `GET /v1/reason-codes` | any valid token | Display title and description for every reason code |
 | `GET /v1/ready` | any valid token | Configuration and binding checks; never makes a billed call |
 | `GET /v1/health` | public | `{"status":"ok"}` and nothing else |
 | `GET /v1/openapi.json` | public | The OpenAPI 3.1 document for this API |
@@ -95,7 +99,9 @@ unauthorized`, so callers mint a new token per request and per retry (the client
 `TOKEN_REPLAY_GUARD` binding, authenticated routes fail closed with 503.
 A request's `source.tenantId` must equal the token's `tenant` (403 otherwise). Idempotency
 records and receipts live in a per-tenant Durable Object for `HM_RETENTION_SECONDS` (default 24 h);
-reusing a key with a different request is `409 idempotency_conflict`. Optional:
+reusing a key with a different request is `409 idempotency_conflict`. Evaluation records (the read API, see
+[evaluation-read-api.md](docs/implementation/evaluation-read-api.md)) live in the same Durable Object for
+`HM_EVALUATION_RETENTION_SECONDS` (default 30 days, at most 400) and carry no content. Optional:
 `HM_POLICY_OVERLAYS` (`{tenant: {profileId: PolicyOverlay}}`, tighten-only; a tenant with an
 overlay can pin only the overlay's revision), the `AI` binding (Clef; without it, classification
 is unavailable and the profile's failure mode applies), `HM_AI_GATEWAY_ID` and the
@@ -204,7 +210,7 @@ unchanged. In the consumer's `.npmrc`, with a token from `forge registry token c
 //npm.forgegraf.com/:_authToken=${FORGEGRAPH_REGISTRY_TOKEN}
 ```
 
-Then depend on versions as usual, e.g. `"@gmacko/hall-monitor-client": "0.4.0"`.
+Then depend on versions as usual, e.g. `"@gmacko/hall-monitor-client": "0.5.0"`.
 
 Without registry access, download the release tarballs into the consuming repo (for example
 `vendor/hall-monitor/`) and use `file:vendor/hall-monitor/<tarball>` both in the dependencies and in

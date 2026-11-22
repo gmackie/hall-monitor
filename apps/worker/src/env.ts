@@ -80,4 +80,9 @@ export interface Env {
   readonly HM_DIGEST_KEY?: string;
   /** How long idempotency records and receipts are kept, in seconds. Defaults to 24 hours. */
   readonly HM_RETENTION_SECONDS?: string;
+  /**
+   * How long content-free evaluation records (`GET /v1/evaluations`) are kept, in seconds.
+   * Defaults to 30 days; at most 400 days.
+   */
+  readonly HM_EVALUATION_RETENTION_SECONDS?: string;
 }

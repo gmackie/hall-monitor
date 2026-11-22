@@ -333,7 +333,9 @@ describe("health, readiness and capabilities", () => {
 
   it("answers unknown routes and wrong methods with wire errors", async () => {
     await expectError(await get("/v1/nope"), 404, "invalid_request");
-    await expectError(await get("/v1/evaluations"), 405, "invalid_request");
+    await expectError(await get("/v1/evaluations:batch"), 405, "invalid_request");
+    await expectError(await post("/v1/evaluations/eval_x", undefined, {}), 405, "invalid_request");
+    await expectError(await post("/v1/reason-codes", undefined, {}), 405, "invalid_request");
   });
 
   it("fails closed when no issuers are configured", async () => {

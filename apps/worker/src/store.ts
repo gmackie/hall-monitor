@@ -1,5 +1,13 @@
 import { DurableObject } from "cloudflare:workers";
-import type { EvaluationResult, ReceiptRecord } from "@gmacko/hall-monitor-contracts";
+import {
+  DEFAULT_EVALUATION_PAGE_SIZE,
+  type EvaluationPage,
+  type EvaluationQuery,
+  type EvaluationRecord,
+  type EvaluationResult,
+  type ReceiptRecord,
+  SCHEMA_VERSION,
+} from "@gmacko/hall-monitor-contracts";
 import {
   grantAllowsBatch,
   parseTelemetryDeliveryV2,
@@ -16,6 +24,11 @@ import { log } from "./log.ts";
 
 /** Default retention for idempotency records and receipts: 24 hours. */
 export const DEFAULT_RETENTION_SECONDS = 24 * 60 * 60;
+
+/** Default retention for content-free evaluation records (the read API): 30 days. */
+export const DEFAULT_EVALUATION_RETENTION_SECONDS = 30 * 24 * 60 * 60;
+/** The longest evaluation records may be kept: 400 days. */
+export const MAX_EVALUATION_RETENTION_SECONDS = 400 * 24 * 60 * 60;
 
 /**
  * How long an in-flight reservation holds its key. A Worker that dies mid-evaluation leaves a
@@ -120,12 +133,14 @@ interface OutboxRow extends Record<string, SqlStorageValue> {
 export class IdempotencyStore extends DurableObject<Env> {
   readonly #sql: SqlStorage;
   readonly #retentionMs: number;
+  readonly #evaluationRetentionMs: number;
 
   /** Creates the store and its tables. */
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     this.#sql = ctx.storage.sql;
     this.#retentionMs = retentionSeconds(env) * 1000;
+    this.#evaluationRetentionMs = evaluationRetentionSeconds(env) * 1000;
     this.#sql.exec(`
       CREATE TABLE IF NOT EXISTS idempotency (
         key TEXT PRIMARY KEY,
@@ -142,6 +157,24 @@ export class IdempotencyStore extends DurableObject<Env> {
         expires_at INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS receipts_expiry ON receipts (expires_at);
+      CREATE TABLE IF NOT EXISTS evaluations (
+        evaluation_id TEXT PRIMARY KEY,
+        request_id TEXT NOT NULL,
+        recorded_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL,
+        decision TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        profile_id TEXT NOT NULL,
+        surface TEXT NOT NULL,
+        mode TEXT NOT NULL,
+        escalated INTEGER NOT NULL,
+        models TEXT NOT NULL,
+        reason_codes TEXT NOT NULL,
+        record TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS evaluations_recent ON evaluations (recorded_at DESC, evaluation_id DESC);
+      CREATE INDEX IF NOT EXISTS evaluations_request ON evaluations (request_id);
+      CREATE INDEX IF NOT EXISTS evaluations_expiry ON evaluations (expires_at);
       CREATE TABLE IF NOT EXISTS telemetry_outbox (
         delivery_id TEXT PRIMARY KEY,
         tenant TEXT NOT NULL,
@@ -221,6 +254,7 @@ export class IdempotencyStore extends DurableObject<Env> {
     result: EvaluationResult,
     record: Omit<ReceiptRecord, "expiresAt">,
     telemetry?: TelemetryInput,
+    evaluation?: Omit<EvaluationRecord, "expiresAt">,
   ): Promise<ReceiptRecord | null> {
     // No caller without a current owner token may write anything.
     if (typeof reservationId !== "string" || reservationId.length === 0) return null;
@@ -245,6 +279,7 @@ export class IdempotencyStore extends DurableObject<Env> {
         JSON.stringify(stored),
         expiresAt,
       );
+      if (evaluation !== undefined) this.#recordEvaluation(evaluation, now);
       if (telemetry !== undefined) this.#queueTelemetry(record.tenantId, telemetry);
       this.afterCompletionWrites();
       return true;
@@ -276,6 +311,56 @@ export class IdempotencyStore extends DurableObject<Env> {
     return row === undefined ? null : (JSON.parse(row.record) as ReceiptRecord);
   }
 
+  /** This tenant's retained evaluation record, or null when unknown or expired. */
+  async evaluation(evaluationId: string): Promise<EvaluationRecord | null> {
+    const row = this.#sql
+      .exec<{ record: string }>("SELECT record FROM evaluations WHERE evaluation_id = ? AND expires_at > ?", evaluationId, Date.now())
+      .toArray()[0];
+    return row === undefined ? null : (JSON.parse(row.record) as EvaluationRecord);
+  }
+
+  /**
+   * One page of this tenant's retained evaluation records, newest first. The query has been
+   * validated by the caller; the cursor is re-checked here and a malformed one yields null.
+   */
+  async listEvaluations(query: EvaluationQuery): Promise<EvaluationPage | null> {
+    const now = Date.now();
+    const where = ["expires_at > ?"];
+    const args: SqlStorageValue[] = [now];
+    if (query.cursor !== undefined) {
+      const cursor = decodeEvaluationCursor(query.cursor);
+      if (cursor === null) return null;
+      where.push("(recorded_at < ? OR (recorded_at = ? AND evaluation_id < ?))");
+      args.push(cursor.recordedAt, cursor.recordedAt, cursor.evaluationId);
+    }
+    if (query.from !== undefined) { where.push("recorded_at >= ?"); args.push(Date.parse(query.from)); }
+    if (query.to !== undefined) { where.push("recorded_at < ?"); args.push(Date.parse(query.to)); }
+    if (query.decision !== undefined) { where.push("decision = ?"); args.push(query.decision); }
+    if (query.evaluationKind !== undefined) { where.push("kind = ?"); args.push(query.evaluationKind); }
+    if (query.profileId !== undefined) { where.push("profile_id = ?"); args.push(query.profileId); }
+    if (query.surface !== undefined) { where.push("surface = ?"); args.push(query.surface); }
+    if (query.requestId !== undefined) { where.push("request_id = ?"); args.push(query.requestId); }
+    if (query.mode !== undefined) { where.push("mode = ?"); args.push(query.mode); }
+    if (query.escalated !== undefined) { where.push("escalated = ?"); args.push(query.escalated ? 1 : 0); }
+    if (query.reasonCode !== undefined) { where.push("EXISTS (SELECT 1 FROM json_each(reason_codes) WHERE value = ?)"); args.push(query.reasonCode); }
+    if (query.modelId !== undefined) { where.push("EXISTS (SELECT 1 FROM json_each(models) WHERE value = ?)"); args.push(query.modelId); }
+    const limit = query.limit ?? DEFAULT_EVALUATION_PAGE_SIZE;
+    const rows = this.#sql
+      .exec<{ record: string; recorded_at: number; evaluation_id: string }>(
+        `SELECT record, recorded_at, evaluation_id FROM evaluations WHERE ${where.join(" AND ")} ORDER BY recorded_at DESC, evaluation_id DESC LIMIT ?`,
+        ...args,
+        limit + 1,
+      )
+      .toArray();
+    const page = rows.slice(0, limit);
+    const last = page.at(-1);
+    return {
+      schemaVersion: SCHEMA_VERSION,
+      items: page.map((row) => JSON.parse(row.record) as EvaluationRecord),
+      nextCursor: rows.length > limit && last !== undefined ? encodeEvaluationCursor(last.recorded_at, last.evaluation_id) : null,
+    };
+  }
+
   /** Queued deliveries and known coverage gaps. Counts and UTC hours only; no IDs or payloads. */
   async telemetryState(): Promise<TelemetryState> {
     const totals = this.#sql
@@ -303,6 +388,7 @@ export class IdempotencyStore extends DurableObject<Env> {
     const now = Date.now();
     this.#sql.exec("DELETE FROM idempotency WHERE expires_at <= ?", now);
     this.#sql.exec("DELETE FROM receipts WHERE expires_at <= ?", now);
+    this.#sql.exec("DELETE FROM evaluations WHERE expires_at <= ?", now);
     let failed = false;
     let withdrawing = false;
     try {
@@ -361,6 +447,34 @@ export class IdempotencyStore extends DurableObject<Env> {
 
   /** Runs inside the completion transaction after every write; a seam for injecting a commit failure. */
   protected afterCompletionWrites(): void {}
+
+  /** Writes the content-free evaluation record, inside the completion transaction. */
+  #recordEvaluation(evaluation: Omit<EvaluationRecord, "expiresAt">, now: number): void {
+    const recordedAt = Date.parse(evaluation.recordedAt);
+    const expiresAt = (Number.isFinite(recordedAt) ? recordedAt : now) + this.#evaluationRetentionMs;
+    const stored: EvaluationRecord = { ...evaluation, expiresAt: new Date(expiresAt).toISOString() };
+    const result = evaluation.result;
+    const calls = result.route?.classifiers.flatMap((route) => route.calls) ?? [];
+    const models = [...new Set([...calls.map((call) => call.modelId), ...(result.receipt?.attempts.map((attempt) => attempt.modelId) ?? [])])];
+    const reasonCodes = [...new Set([...result.reasonCodes, ...result.findings.map((finding) => finding.reasonCode), ...(result.shadow?.reasonCodes ?? [])])];
+    this.#sql.exec(
+      `INSERT OR REPLACE INTO evaluations (evaluation_id, request_id, recorded_at, expires_at, decision, kind, profile_id, surface, mode, escalated, models, reason_codes, record)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      evaluation.evaluationId,
+      evaluation.requestId,
+      Number.isFinite(recordedAt) ? recordedAt : now,
+      expiresAt,
+      result.decision,
+      evaluation.evaluationKind,
+      evaluation.policy.profileId,
+      evaluation.surface,
+      evaluation.mode,
+      result.route?.classifiers.some((route) => route.escalated) === true ? 1 : 0,
+      JSON.stringify(models),
+      JSON.stringify(reasonCodes),
+      JSON.stringify(stored),
+    );
+  }
 
   #queueTelemetry(tenant: string, telemetry: TelemetryInput): void {
     // The policy just admitted is the one in force: apply it to the evidence already held too.
@@ -550,6 +664,7 @@ export class IdempotencyStore extends DurableObject<Env> {
     const times = [
       next("SELECT MIN(expires_at) AS next FROM idempotency"),
       next("SELECT MIN(expires_at) AS next FROM receipts"),
+      next("SELECT MIN(expires_at) AS next FROM evaluations"),
       next("SELECT MIN(expires_at) AS next FROM telemetry_gaps"),
       next("SELECT MIN(next_attempt_at) AS next FROM telemetry_outbox"),
       next("SELECT MIN(deadline_at) AS next FROM telemetry_outbox"),
@@ -579,4 +694,29 @@ export function retryDelayMs(attempts: number): number {
 export function retentionSeconds(env: Pick<Env, "HM_RETENTION_SECONDS">): number {
   const value = Number(env.HM_RETENTION_SECONDS ?? DEFAULT_RETENTION_SECONDS);
   return Number.isInteger(value) && value > 0 && value <= 30 * 24 * 60 * 60 ? value : DEFAULT_RETENTION_SECONDS;
+}
+
+/** How long evaluation records are kept: `HM_EVALUATION_RETENTION_SECONDS`, else 30 days. */
+export function evaluationRetentionSeconds(env: Pick<Env, "HM_EVALUATION_RETENTION_SECONDS">): number {
+  const value = Number(env.HM_EVALUATION_RETENTION_SECONDS ?? DEFAULT_EVALUATION_RETENTION_SECONDS);
+  return Number.isInteger(value) && value > 0 && value <= MAX_EVALUATION_RETENTION_SECONDS ? value : DEFAULT_EVALUATION_RETENTION_SECONDS;
+}
+
+/** An opaque page cursor: base64url of `<recordedAtMs>.<evaluationId>`. */
+export function encodeEvaluationCursor(recordedAt: number, evaluationId: string): string {
+  const bytes = new TextEncoder().encode(`${recordedAt}.${evaluationId}`);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/** Decodes {@link encodeEvaluationCursor}; null for anything it did not produce. */
+export function decodeEvaluationCursor(cursor: string): { recordedAt: number; evaluationId: string } | null {
+  try {
+    const decoded = atob(cursor.replace(/-/g, "+").replace(/_/g, "/"));
+    const match = /^(\d{1,15})\.([A-Za-z0-9][A-Za-z0-9._:-]{0,127})$/.exec(decoded);
+    return match === null ? null : { recordedAt: Number(match[1]), evaluationId: match[2]! };
+  } catch {
+    return null;
+  }
 }

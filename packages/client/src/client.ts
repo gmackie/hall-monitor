@@ -2,9 +2,14 @@ import {
   BatchEvaluationRequest,
   BatchEvaluationResponse,
   Capabilities,
+  EvaluationPage,
+  EvaluationQuery,
+  EvaluationRecord,
   EvaluationRequest,
   EvaluationResult,
+  evaluationQueryParams,
   OpaqueId,
+  ReasonCodeCatalog,
   ReceiptRecord,
 } from "@gmacko/hall-monitor-contracts";
 import type { z } from "zod";
@@ -49,6 +54,19 @@ export interface HallMonitorClient {
   capabilities(options?: CallOptions): Promise<Capabilities>;
   /** The caller tenant's receipt record for an evaluation, or null when there is none. */
   receipt(evaluationId: string, options?: CallOptions): Promise<ReceiptRecord | null>;
+  /**
+   * Evaluates one request on `POST /v1/evaluations:governed`, which requires the token to carry a
+   * signed `hm_governance` claim. A deployment without the route fails; this never falls back.
+   */
+  evaluateGoverned(request: EvaluationRequest, options?: CallOptions): Promise<EvaluationResult>;
+  /** The caller tenant's retained evaluation record (`evaluations:read` scope), or null when unknown or expired. */
+  evaluation(evaluationId: string, options?: CallOptions): Promise<EvaluationRecord | null>;
+  /** One page of the caller tenant's retained evaluation records, newest first (`evaluations:read` scope). */
+  listEvaluations(query?: EvaluationQuery, options?: CallOptions): Promise<EvaluationPage>;
+  /** Every record matching `query`, following cursors page by page. Each page is one call. */
+  iterateEvaluations(query?: Omit<EvaluationQuery, "cursor">, options?: CallOptions): AsyncIterable<EvaluationRecord>;
+  /** Display text for every reason code the deployment can emit. */
+  reasonCodes(options?: CallOptions): Promise<ReasonCodeCatalog>;
 }
 
 interface Call<T> {
@@ -150,7 +168,38 @@ export function createHallMonitorClient(options: HallMonitorClientOptions): Hall
         callOptions,
       );
     },
+    async evaluateGoverned(request, callOptions) {
+      const body = validate(EvaluationRequest, request);
+      return required({ method: "POST", path: "/v1/evaluations:governed", body, schema: EvaluationResult, idempotent: true }, callOptions);
+    },
+    async evaluation(evaluationId, callOptions) {
+      const id = validate(OpaqueId, evaluationId);
+      return call(
+        { method: "GET", path: `/v1/evaluations/${encodeURIComponent(id)}`, schema: EvaluationRecord, idempotent: true, nullOn: 404 },
+        callOptions,
+      );
+    },
+    listEvaluations,
+    async *iterateEvaluations(query = {}, callOptions) {
+      let cursor: string | undefined;
+      do {
+        const page: EvaluationPage = await listEvaluations({ ...query, ...(cursor === undefined ? {} : { cursor }) }, callOptions);
+        yield* page.items;
+        cursor = page.nextCursor ?? undefined;
+      } while (cursor !== undefined);
+    },
+    async reasonCodes(callOptions) {
+      return required({ method: "GET", path: "/v1/reason-codes", schema: ReasonCodeCatalog, idempotent: true }, callOptions);
+    },
   };
+
+  async function listEvaluations(query: EvaluationQuery = {}, callOptions?: CallOptions): Promise<EvaluationPage> {
+    const params = evaluationQueryParams(validate(EvaluationQuery, query)).toString();
+    return required(
+      { method: "GET", path: params === "" ? "/v1/evaluations" : `/v1/evaluations?${params}`, schema: EvaluationPage, idempotent: true },
+      callOptions,
+    );
+  }
 }
 
 /** Network errors, 429 and 5xx; never 4xx validation, auth or conflict errors. */

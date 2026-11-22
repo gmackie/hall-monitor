@@ -9,6 +9,8 @@ export type LogEvent =
   | "evaluation.failed"
   | "batch.completed"
   | "receipt.read"
+  | "evaluation.read"
+  | "evaluation.listed"
   | "auth.rejected"
   | "request.rejected"
   | "policy.overlay_clamped"
