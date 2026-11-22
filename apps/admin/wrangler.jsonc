@@ -29,10 +29,10 @@
     "run_worker_first": ["/admin/v1/*"]
   },
   "d1_databases": [
-    { "binding": "DB", "database_name": "hm-control", "database_id": "<D1_DATABASE_ID>", "migrations_dir": "migrations" }
+    { "binding": "DB", "database_name": "hm-control", "database_id": "1196e4d8-1461-4a98-aa66-74d442321d6d", "migrations_dir": "migrations" }
   ],
   "kv_namespaces": [
-    { "binding": "CONFIG_POINTER", "id": "<CONFIG_POINTER_KV_ID>" }
+    { "binding": "CONFIG_POINTER", "id": "63a4bbe7192c447b9aaa22f0f6d6885b" }
   ],
   "r2_buckets": [
     { "binding": "CONFIG_RELEASES", "bucket_name": "hm-config-releases" }
@@ -43,8 +43,8 @@
     { "binding": "EVALUATOR", "service": "hall-monitor", "entrypoint": "AdminRpc" }
   ],
   "vars": {
-    "HM_ADMIN_ACCESS_TEAM_DOMAIN": "<ACCESS_TEAM_DOMAIN>",
-    "HM_ADMIN_ACCESS_AUD": "<ACCESS_AUD>",
+    "HM_ADMIN_ACCESS_TEAM_DOMAIN": "gmacko.cloudflareaccess.com",
+    "HM_ADMIN_ACCESS_AUD": "e7fe8258883b50a84ce3c2e645daf2d71ea5a8d9f8e2265893cb0e23baf68808",
     "HM_ADMIN_TENANTS": "[\"playtrek\",\"playtrek-beta\"]"
   }
 }

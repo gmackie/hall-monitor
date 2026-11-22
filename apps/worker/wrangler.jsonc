@@ -26,11 +26,10 @@
   "ratelimits": [
     { "name": "TENANT_RATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 600, "period": 60 } }
   ],
-  // Config releases from the admin console (HM-34). Disabled until the resources exist: create
-  // them, replace the placeholder and uncomment. Without these bindings the Worker reads only
-  // its secrets, exactly as before. The admin Worker (apps/admin) binds the same two resources.
-  // "kv_namespaces": [{ "binding": "CONFIG_POINTER", "id": "<CONFIG_POINTER_KV_ID>" }],
-  // "r2_buckets": [{ "binding": "CONFIG_RELEASES", "bucket_name": "hm-config-releases" }],
+  // Config releases from the admin console (HM-34). The admin Worker (apps/admin) binds the same
+  // two resources. With no active release (or an invalid one) the Worker reads only its secrets.
+  "kv_namespaces": [{ "binding": "CONFIG_POINTER", "id": "63a4bbe7192c447b9aaa22f0f6d6885b" }],
+  "r2_buckets": [{ "binding": "CONFIG_RELEASES", "bucket_name": "hm-config-releases" }],
   "vars": {
     "HM_AUDIENCE": "hall-monitor"
   }
