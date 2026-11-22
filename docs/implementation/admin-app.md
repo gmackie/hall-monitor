@@ -138,29 +138,31 @@ production learner content for labelling. That would need the approvals in
 
 ## Deploying
 
-ForgeGraph stage `admin` (`.forgegraph.yaml`) runs `pnpm exec wrangler deploy --domain
-hall-monitor-admin.gmac.io` from `apps/admin` and syncs the stage secrets
-(`HM_ADMIN_BOOTSTRAP_EMAILS`). Deploy it after the production evaluation Worker, which must export
-`AdminRpc` for the service binding to resolve.
+The console is the `admin-worker` target of ForgeGraph's `production` stage (`.forgegraph.yaml`).
+ForgeGraph allows only the development, staging, beta and production stages, so the console isn't
+a stage of its own. It deploys with the evaluation Worker on every production release. The target
+runs `pnpm exec wrangler deploy --domain hall-monitor-admin.gmac.io` from `apps/admin`. The
+production stage's secrets sync to both Workers. `HM_ADMIN_BOOTSTRAP_EMAILS` belongs to the
+console; the console ignores the others.
 
-`apps/admin/wrangler.jsonc` has placeholders that must be filled before the first deploy:
+These resources already exist in the account, and their IDs are in the wrangler configs:
 
-| Placeholder | How to get it |
-|---|---|
-| `<D1_DATABASE_ID>` | `wrangler d1 create hm-control` |
-| `<CONFIG_POINTER_KV_ID>` | `wrangler kv namespace create CONFIG_POINTER` |
-| `<ACCESS_TEAM_DOMAIN>` | the Zero Trust team domain, e.g. `example.cloudflareaccess.com` |
-| `<ACCESS_AUD>` | the audience tag of an Access application for `hall-monitor-admin.gmac.io` |
+| Resource | Name | Bound by |
+|---|---|---|
+| D1 | `hm-control` | admin (`DB`) |
+| KV | `hm-config-pointer` | admin and evaluation Worker (`CONFIG_POINTER`) |
+| R2 | `hm-config-releases` | admin and evaluation Worker (`CONFIG_RELEASES`) |
+| Access application | "Hall Monitor admin console", `hall-monitor-admin.gmac.io`, owner-only policy | team domain `gmacko.cloudflareaccess.com`; its AUD tag is `HM_ADMIN_ACCESS_AUD` |
 
-The R2 bucket is bound by name. Create it with `wrangler r2 bucket create hm-config-releases`.
-
-Apply the schema (`apps/admin/migrations/`) before first use, and again after any new migration:
+Apply new migrations (`apps/admin/migrations/`) before deploying code that uses them:
 
 ```sh
 cd apps/admin
 pnpm exec wrangler d1 migrations apply hm-control --remote
 ```
 
-To let the evaluation Worker serve releases, fill in `<CONFIG_POINTER_KV_ID>` and uncomment the
-`kv_namespaces` and `r2_buckets` block in `apps/worker/wrangler.jsonc`. Both Workers bind the same
-namespace and bucket. Until then, the Worker ignores releases and reads its secrets.
+`0001` and `0002` are already applied and recorded in `d1_migrations`.
+
+With no active release, or an invalid one, the evaluation Worker reads its secrets exactly as
+before. The first release replaces `HM_POLICY_OVERLAYS`, so recreate any overlays from that
+secret as revisions before publishing.
