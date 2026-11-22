@@ -185,7 +185,10 @@ describe("GET /v1/reason-codes and capabilities", () => {
     expect(capabilities.models?.map((model) => [model.modelId, model.role])).toEqual([
       ["@cf/cloudflare/clef-flash", "primary"],
       ["@cf/cloudflare/clef", "escalation"],
+      ["@cf/cloudflare/clairic-flash", "primary"],
+      ["@cf/cloudflare/clairic", "escalation"],
     ]);
+    expect(capabilities.models?.filter((model) => model.status === "preview").map((model) => model.family)).toEqual(["clairic", "clairic"]);
   });
 });
 

@@ -1,6 +1,15 @@
 import { Audience, Decision, MachineCode, OpaqueId } from "@gmacko/hall-monitor-contracts";
 import { z } from "zod";
-import { AnswerAssistance, ClassifierFailureMode, ModerationMode, type PolicyProfile } from "./profile.ts";
+import {
+  AnswerAssistance,
+  ClassifierFailureMode,
+  familyRouting,
+  type FamilyRouting,
+  MODEL_FAMILIES,
+  ModerationMode,
+  type PolicyProfile,
+  ProfileRouting,
+} from "./profile.ts";
 import {
   ANSWER_ASSISTANCE_STRICTNESS,
   decisionRank,
@@ -26,6 +35,8 @@ export const PolicyOverlay = z.object({
   failureMode: z.object({ classifierUnavailable: ClassifierFailureMode.optional() }).optional(),
   imageModeration: z.boolean().optional(),
   actionOverrides: z.record(MachineCode, Decision).optional(),
+  /** Per-family routing changes; only tightening ones apply (see {@link applyOverlay}). */
+  routing: ProfileRouting.optional(),
 });
 /** Changes a narrower scope asks to make to a floor. */
 export type PolicyOverlay = z.infer<typeof PolicyOverlay>;
@@ -113,6 +124,34 @@ export function applyOverlay(floor: PolicyProfile, overlay: PolicyOverlay): Over
     overrides[reasonCode] = tighten(`actionOverrides.${reasonCode}`, floorDecision ?? decision, decision, (a, b) => decisionRank(a) >= decisionRank(b));
   }
   if (Object.keys(overrides).length > 0) profile.actionOverrides = overrides;
+
+  // Routing: a family can be switched on but not off, moved from shadow to enforce but not back,
+  // and given more evaluation kinds but not fewer. Each only adds evaluation, never removes it.
+  if (floor.routing !== undefined || requested.routing !== undefined) {
+    const routing: Record<string, FamilyRouting> = {};
+    for (const family of MODEL_FAMILIES) {
+      const base = familyRouting(floor, family);
+      const ask = requested.routing?.[family];
+      if (ask === undefined && floor.routing?.[family] === undefined) continue;
+      const enabled = tighten(`routing.${family}.enabled`, base.enabled, ask?.enabled, trueWins);
+      const mode = tighten(`routing.${family}.mode`, base.mode, ask?.mode, byOrder(["shadow", "enforce"] as const));
+      let kinds = base.kinds;
+      if (ask?.kinds !== undefined) {
+        // A family the floor leaves off can be switched on for any kinds: that only adds evaluation.
+        if (!base.enabled) {
+          kinds = [...ask.kinds];
+        } else if (base.kinds === undefined) {
+          violations.push({ field: `routing.${family}.kinds`, floor: "all", requested: ask.kinds.join(",") });
+        } else if (base.kinds.every((kind) => ask.kinds!.includes(kind))) {
+          kinds = [...ask.kinds];
+        } else {
+          violations.push({ field: `routing.${family}.kinds`, floor: base.kinds.join(","), requested: ask.kinds.join(",") });
+        }
+      }
+      routing[family] = { enabled, mode, ...(kinds === undefined ? {} : { kinds }) };
+    }
+    if (Object.keys(routing).length > 0) profile.routing = routing;
+  }
 
   return { profile, violations };
 }

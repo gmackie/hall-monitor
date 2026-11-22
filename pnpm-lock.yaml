@@ -227,6 +227,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@gmacko/hall-monitor-clairic':
+        specifier: workspace:*
+        version: link:../../packages/clairic
       '@gmacko/hall-monitor-clef':
         specifier: workspace:*
         version: link:../../packages/clef
@@ -285,6 +288,31 @@ importers:
       wrangler:
         specifier: 'catalog:'
         version: 4.165.0(@cloudflare/workers-types@5.20261018.1)(@types/node@24.19.2)(vitest@3.2.7(@types/node@24.19.2)(supports-color@10.2.2))
+
+  packages/clairic:
+    dependencies:
+      '@gmacko/hall-monitor-clef':
+        specifier: workspace:*
+        version: link:../clef
+      '@gmacko/hall-monitor-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@gmacko/hall-monitor-costing':
+        specifier: workspace:*
+        version: link:../costing
+      '@gmacko/hall-monitor-evaluators':
+        specifier: workspace:*
+        version: link:../evaluators
+      '@gmacko/hall-monitor-policy':
+        specifier: workspace:*
+        version: link:../policy
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
+    devDependencies:
+      vitest:
+        specifier: 'catalog:'
+        version: 3.2.7(@types/node@24.19.2)(supports-color@10.2.2)
 
   packages/clef:
     dependencies:

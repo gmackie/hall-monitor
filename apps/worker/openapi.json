@@ -1951,7 +1951,8 @@
                     "budget_exhausted",
                     "kind_not_routed",
                     "profile_disabled",
-                    "not_authorized"
+                    "not_authorized",
+                    "content_not_supported"
                   ]
                 },
                 "mode": {

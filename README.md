@@ -42,6 +42,7 @@ scenario planning and an offline priority/shift staffing queue simulator, all wi
 | `packages/policy` | Policy profiles, district floors and the deterministic decision resolver |
 | `packages/evaluators` | Deterministic evaluator plugins |
 | `packages/clef` | Cloudflare Workers AI Clef classifier adapter with escalation |
+| `packages/clairic` | Cloudflare Workers AI Clairic typed-extraction evaluator (preview): located evidence, answer leakage, evaluator consistency; shadow unless waived ([clairic.md](docs/implementation/clairic.md)) |
 | `packages/core` | Evaluation orchestration |
 | `packages/client` | TypeScript client used by products |
 | `packages/test-fixtures` | Synthetic fixtures only; never real student data |

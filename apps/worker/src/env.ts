@@ -85,4 +85,9 @@ export interface Env {
    * Defaults to 30 days; at most 400 days.
    */
   readonly HM_EVALUATION_RETENTION_SECONDS?: string;
+  /**
+   * JSON array of model families (e.g. `["clairic"]`) the owner has waived the preview gate for,
+   * so a profile may run them in `enforce` mode. Without a waiver a preview family runs in shadow.
+   */
+  readonly HM_MODEL_ENFORCE_WAIVERS?: string;
 }

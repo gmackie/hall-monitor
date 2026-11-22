@@ -24,7 +24,7 @@ export const ReasonCodeCatalog = z.object({
 export type ReasonCodeCatalog = z.infer<typeof ReasonCodeCatalog>;
 
 /** Revision of {@link REASON_CODES}; bump on any change. */
-export const REASON_CODES_REVISION = "reason-codes-2026-11-22";
+export const REASON_CODES_REVISION = "reason-codes-2026-11-22.2";
 
 type Entry = readonly [code: string, category: FindingCategory | undefined, title: string, description: string];
 
@@ -77,6 +77,11 @@ const ENTRIES: readonly Entry[] = [
   ["clef.hate", "hate", "Hate (model)", "The Clef classifier found an attack on people for a protected characteristic."],
   ["clef.dangerous_instructions", "safety", "Dangerous instructions (model)", "The Clef classifier found instructions that could cause serious harm."],
   ["clef.prompt_injection", "prompt-injection", "Prompt injection (model)", "The Clef classifier found an attempt to override the assistant's instructions."],
+  // Clairic extraction (preview; shadow unless waived). Evidence spans locate what was found.
+  ["clairic.personal_identifier", "privacy", "Personal details (extracted)", "Clairic located details that identify a real private person; see the evidence spans."],
+  ["clairic.answer_leakage", "academic-integrity", "Answer revealed (extracted)", "Clairic found the output states an expected answer outright; see the stated-answer spans."],
+  ["clairic.evaluator_inconsistent", "quality", "Inconsistent evaluator result", "Clairic found the evaluator's stated score, verdict and reasons disagree."],
+  ["clairic.claims", "quality", "Factual claims (extracted)", "Clairic located checkable factual claims for a reviewer to verify; informational."],
 ];
 
 /** Display text for every reason code this release can emit. */

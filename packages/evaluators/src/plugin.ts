@@ -43,7 +43,11 @@ export interface ClassifierTrace {
 export interface EvaluatorPlugin {
   readonly id: string;
   readonly version: string;
+  /** The model family a model-backed evaluator belongs to (`clef`, `clairic`); defaults to `id`. */
+  readonly family?: string;
   readonly supportedKinds: readonly EvaluationKind[];
+  /** Whether it can evaluate this request's content at all (e.g. text only); defaults to yes. */
+  supportsContent?(request: EvaluationRequest): boolean;
   evaluate(request: EvaluationRequest, context: EvaluatorContext): Promise<EvaluatorOutput>;
 }
 
