@@ -74,3 +74,56 @@ privacy, real enrollment, receiver delivery, coverage, cloud export inspection o
 Link the actual deployment, commit, check artifact and health evidence to each owning Kanbanger
 issue before evaluating its remaining acceptance criteria. ForgeGraph's aggregate health must
 also be inspected; a public 200 alone does not settle a `healthy:false` platform result.
+
+## Read API and compatibility smoke (HM-35)
+
+`pnpm read-api-smoke` checks a deployed Worker's 0.5.0 surface and its compatibility with older
+clients. It makes one synthetic evaluation, then reads it back. Every response is parsed with the
+current contracts and with the vendored 0.2.0 schemas, the ones PlayTrek pinned, so a pass also
+shows that existing clients still parse the responses.
+
+It checks:
+- health and capabilities, including `models`
+- evaluate, including `route`, with no content echoed
+- idempotent replay
+- `GET /v1/evaluations/{id}`
+- `GET /v1/evaluations?requestId=` and the newest page
+- the `evaluations:read` scope requirement
+- `GET /v1/reason-codes`
+- the unchanged receipt route
+
+`--expect-mode shadow|enforce` also checks the tenant's enforcement mode.
+
+The issuer's private signing key (JWK or PKCS#8, ES256 or EdDSA) is read from **stdin** and is
+never printed or written anywhere. Each check mints its own single-use token. Example, using the
+product's stage secret:
+
+```sh
+forge secret get HALL_MONITOR_SIGNING_KEY --stage beta \
+  | pnpm read-api-smoke --url https://hall-monitor-beta.gmac.io --issuer playtrek \
+      --kid playtrek-beta-1 --tenant playtrek-beta --expect-mode enforce
+```
+
+Run it from the product's checkout (`forge secret` resolves the app from the working directory),
+with the hall-monitor repo as the working directory of `pnpm`.
+
+Recorded for the 0.5.0 release:
+
+| Target | Revision | `playtrek-beta` (enforce) | `playtrek` (shadow) |
+|---|---|---|---|
+| production, before | 0c1bd9d | 10/17: legacy checks pass; the read routes don't exist yet | 10/17, same |
+| beta | 7b6361c, 0a5ae92 | 17/17 | 17/17 |
+| production, after | 500e0bd | 17/17 | 17/17 |
+
+Cloudflare Workers analytics showed 0 errors for `hall-monitor` in the 90 minutes around the
+production deploy.
+
+### Beta stage and PR previews
+
+The `beta` stage deploys a separately named Worker, `hall-monitor-beta`, with its own Durable
+Objects and stage secrets, using `forge deploy create beta --ref <branch> --target worker`.
+ForgeGraph's automatic PR previews copy the beta target's deploy command, including `--name` and
+`--domain`, so each preview collides with the beta Worker and is refused as
+`worker_name_collision`. Disable a preview target with `forge target update pr-<n> --stage beta
+--config '{…,"disabled":true}'` before deploying beta. A lasting fix needs ForgeGraph to give
+previews their own route instead of copying the beta domain.
