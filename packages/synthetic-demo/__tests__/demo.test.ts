@@ -12,7 +12,7 @@ it("runs four fictional pairs through the actual core with explicit simulated pr
   expect(report.outage.support.decision).toBe("support");
   expect(report.analytics).toMatchObject({ coverage: "unavailable", candidateCount: null, liveData: false, humanResponse: "not-configured" });
   for (const v of report.cases.flatMap((c) => c.variants)) {
-    expect(v.result.evaluatorBundleRevision).toContain("base-1.1.0");
+    expect(v.result.evaluatorBundleRevision).toContain("base-1.2.0");
     expect(JSON.stringify(v.result)).not.toContain(v.text);
     expect(v.draft.published).toBe(false);
     expect(v.result.receipt?.totalGrossUsdNano ?? "0").toBe("0");

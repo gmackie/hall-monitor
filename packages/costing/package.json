@@ -1,6 +1,6 @@
 {
   "name": "@gmacko/hall-monitor-costing",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Integer UsdNano arithmetic, immutable price books, cost receipts and the Hall Monitor scenario calculator.",
   "type": "module",
   "private": false,

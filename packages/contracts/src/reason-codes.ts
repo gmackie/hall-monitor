@@ -24,7 +24,7 @@ export const ReasonCodeCatalog = z.object({
 export type ReasonCodeCatalog = z.infer<typeof ReasonCodeCatalog>;
 
 /** Revision of {@link REASON_CODES}; bump on any change. */
-export const REASON_CODES_REVISION = "reason-codes-2026-11-23.1";
+export const REASON_CODES_REVISION = "reason-codes-2026-11-23.2";
 
 type Entry = readonly [code: string, category: FindingCategory | undefined, title: string, description: string];
 
@@ -83,6 +83,15 @@ const ENTRIES: readonly Entry[] = [
   ["tone.sarcasm", "harassment", "Sarcasm", "A spoken line is sarcastic about the learner's attempt."],
   ["tone.anxiety_pressure", "age-fit", "Anxiety-inducing pressure", "A spoken line pressures the learner with time, stakes or fear of failing."],
   ["tone.hollow_praise", "quality", "Hollow praise", "A spoken line praises being smart rather than the work, praises a wrong answer, or is only a stock compliment."],
+  // Character-voice consistency (voice_line.* surfaces with context.speakerProfile).
+  ["character_voice.register_mismatch", "quality", "Off-register line", "A spoken line does not fit the speaker's register: slang, dense contractions or heavy exclamation for a formal or neutral speaker, or very formal phrasing for a playful one."],
+  ["character_voice.forbidden_slang", "quality", "Slang the speaker avoids", "A spoken line uses slang the speaker's profile forbids."],
+  ["character_voice.forbidden_sarcasm", "quality", "Sarcasm the speaker avoids", "A spoken line is sarcastic or teasing, which the speaker's profile forbids."],
+  ["character_voice.forbidden_exclamation_spam", "quality", "Exclamation spam", "A spoken line piles up exclamation marks, which the speaker's profile forbids."],
+  ["character_voice.forbidden_all_caps", "quality", "Capitals the speaker avoids", "A spoken line has words in capitals, which the speaker's profile forbids."],
+  ["character_voice.role_sarcasm", "harassment", "Sarcasm from a guide", "A teacher, coach or narrator teases the learner or is sarcastic; held for a teacher or coach."],
+  ["character_voice.narrator_first_person", "quality", "Narrator in first person", "The narrator speaks in the first person (\"I\", \"me\") outside quoted dialogue; narration is third person."],
+  ["character_voice.catchphrase_overuse", "quality", "Catchphrase overused", "The speaker's catchphrase appears more than twice in one chunk of lines."],
   // Clef decision questions (clef-baseline pack).
   ["clef.self_harm", "self-harm", "Self-harm risk (model)", "The Clef classifier found that the writer may harm themselves or be in crisis."],
   ["clef.harassment", "harassment", "Harassment (model)", "The Clef classifier found bullying, harassment or demeaning content."],

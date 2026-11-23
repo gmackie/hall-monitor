@@ -1025,6 +1025,69 @@
                 "minLength": 1,
                 "maxLength": 128,
                 "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+              },
+              "speakerProfile": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[a-z0-9_.:-]+$"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "narrator",
+                      "teacher",
+                      "coach",
+                      "character"
+                    ]
+                  },
+                  "register": {
+                    "type": "string",
+                    "enum": [
+                      "formal",
+                      "neutral",
+                      "casual",
+                      "playful"
+                    ]
+                  },
+                  "traits": {
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 32,
+                      "pattern": "^[a-z][a-z0-9_]*$"
+                    }
+                  },
+                  "catchphrases": {
+                    "maxItems": 5,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 60,
+                      "pattern": "^[¡¿]?[\\p{L}\\p{N}][\\p{L}\\p{N} ,.!?'’¡¿-]*$"
+                    }
+                  },
+                  "forbids": {
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 32,
+                      "pattern": "^[a-z][a-z0-9_]*$"
+                    }
+                  }
+                },
+                "required": [
+                  "id",
+                  "role"
+                ]
               }
             },
             "required": [

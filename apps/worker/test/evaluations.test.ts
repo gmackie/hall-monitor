@@ -1,5 +1,5 @@
 import { SELF } from "cloudflare:test";
-import { ErrorBody, EvaluationPage, EvaluationRecord, EvaluationResult, ReasonCodeCatalog, REASON_CODES_REVISION, Capabilities } from "@gmacko/hall-monitor-contracts";
+import { ErrorBody, EvaluationPage, type SpeakerProfile, EvaluationRecord, EvaluationResult, ReasonCodeCatalog, REASON_CODES_REVISION, Capabilities } from "@gmacko/hall-monitor-contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { decodeEvaluationCursor, encodeEvaluationCursor, evaluationRetentionSeconds } from "../src/store.ts";
 import { AMBIGUOUS_MARKER, fakeAi, HARASSMENT_MARKER } from "./fake-ai.ts";
@@ -103,6 +103,24 @@ describe("GET /v1/evaluations/:evaluationId", () => {
     await expectError(await get(`/v1/evaluations/${result.evaluationId}`), 401, "unauthorized");
     await expectError(await get(`/v1/evaluations/${result.evaluationId}`, await mintToken("educateos", { tenant: "tenant_read_a" })), 403, "forbidden");
     await expectError(await get(`/v1/evaluations/${encodeURIComponent("bad id!")}`, await reader("tenant_read_a")), 400, "invalid_request");
+  });
+
+  it("keeps no trace of a voice line's speaker profile in the result, record or logs", async () => {
+    const tenant = "tenant_read_speaker";
+    const speakerProfile = { id: "character.speaker_marker", role: "coach", register: "neutral", traits: ["trait_marker"], catchphrases: ["Catchphrase marker"], forbids: ["sarcasm"] } satisfies SpeakerProfile;
+    const { result } = await evaluate(tenant, {
+      text: `${SENTINEL} Yeah, right. As if that was it.`,
+      source: { product: "educateos", tenantId: tenant, surface: "voice_line.feedback" },
+      policy: { profileId: "voice-lines", revision: "builtin-1" },
+      evaluationKind: "content.candidate",
+      context: { audience: "student", gradeBand: "3-5", costCenterId: "cc_voice", speakerProfile },
+    });
+    expect(result.decision).toBe("hold");
+    expect(result.reasonCodes).toContain("character_voice.role_sarcasm");
+    const text = await (await get(`/v1/evaluations/${result.evaluationId}`, await reader(tenant))).text();
+    const record = EvaluationRecord.parse(JSON.parse(text));
+    expect(record.context).toEqual({ audience: "student", gradeBand: "3-5", costCenterId: "cc_voice" });
+    for (const body of [text, JSON.stringify(result), ...logLines]) expect(body).not.toMatch(/speaker_marker|trait_marker|catchphrase marker/i);
   });
 
   it("does not create a second record when an idempotent request is replayed", async () => {

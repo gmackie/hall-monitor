@@ -3,6 +3,7 @@ export * from "./plugin.ts";
 export * from "./plugins/academic-integrity.ts";
 export * from "./plugins/answer-leakage.ts";
 export * from "./plugins/bounds.ts";
+export * from "./plugins/character-voice.ts";
 export * from "./plugins/harmful-content.ts";
 export * from "./plugins/kid-tone.ts";
 export * from "./plugins/pii.ts";

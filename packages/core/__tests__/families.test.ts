@@ -64,7 +64,7 @@ describe("model families", () => {
   it("keeps the pre-routing result when the profile does not enable the second family", async () => {
     const result = await evaluate(request(), deps(STUDENT_9_12_PROFILE));
     expect(result.decision).toBe("allow");
-    expect(result.evaluatorBundleRevision).toBe("base-1.1.0:clef-1.1.0");
+    expect(result.evaluatorBundleRevision).toBe("base-1.2.0:clef-1.1.0");
     expect(result.receipt?.attempts.map((attempt) => attempt.modelId)).toEqual(["@cf/cloudflare/clef-flash"]);
     expect(result.route?.classifiers.map((route) => [route.family, route.status, route.skipReason])).toEqual([
       ["clef", "ran", undefined],
@@ -80,7 +80,7 @@ describe("model families", () => {
     expect(route).toMatchObject({ status: "ran", mode: "shadow" });
     expect(route.shadowFindings?.map((finding) => finding.reasonCode)).toEqual(["clairic.personal_identifier"]);
     expect(result.receipt?.attempts.map((attempt) => attempt.modelId)).toEqual(["@cf/cloudflare/clef-flash", "@cf/cloudflare/clairic-flash"]);
-    expect(result.evaluatorBundleRevision).toBe("base-1.1.0:clef-1.1.0:clairic-0.1.0");
+    expect(result.evaluatorBundleRevision).toBe("base-1.2.0:clef-1.1.0:clairic-0.1.0");
   });
 
   it("lets an enforcing family decide", async () => {

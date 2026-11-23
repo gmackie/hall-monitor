@@ -1,6 +1,6 @@
 {
   "name": "@gmacko/hall-monitor-config-release",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Digest-pinned Hall Monitor config releases: policy overlays and tenant modes the admin console publishes and the evaluation Worker verifies.",
   "type": "module",
   "private": true,

@@ -11,7 +11,7 @@ import { mintToken } from "./tokens.ts";
 
 const result: EvaluationResult = { schemaVersion: "1.0", evaluationId: "eval_reservation", requestId: "req_reservation",
   decision: "allow", reasonCodes: [], findings: [], uncertain: false, policyRevision: "builtin-1",
-  evaluatorBundleRevision: "base-1.1.0", resolverVersion: "resolver-1.0.0", receipt: null };
+  evaluatorBundleRevision: "base-1.2.0", resolverVersion: "resolver-1.0.0", receipt: null };
 const record = { schemaVersion: "1.0" as const, evaluationId: result.evaluationId, requestId: result.requestId,
   tenantId: "tenant_educateos", receipt: null, recordedAt: new Date().toISOString() };
 const stub = () => env.IDEMPOTENCY_STORE.get(env.IDEMPOTENCY_STORE.idFromName("tenant:tenant_educateos"));

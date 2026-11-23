@@ -1,6 +1,6 @@
 {
   "name": "@gmacko/hall-monitor-shadow-report",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Offline shadow reports and calibration tooling over synthetic or licensed Hall Monitor corpora.",
   "type": "module",
   "private": true,
