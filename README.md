@@ -191,7 +191,7 @@ the voice says and any following lines are the on-screen caption (sent only when
 PlayTrek's sender already does. Speakability and spoken answer leakage read only the spoken lines;
 tone reads everything, since the caption is shown too.
 
-The deterministic bundle (`base-1.1.0`) adds three evaluators that run only on `voice_line.*`
+The deterministic bundle (`base-1.2.0`) has four evaluators that run only on `voice_line.*`
 surfaces, for `content.candidate` and `interaction.output`, English and basic Spanish:
 
 - **speakability**: sentence length and stacked clauses by `context.gradeBand` (K-2 at most 12
@@ -207,11 +207,48 @@ surfaces, for `content.candidate` and `interaction.output`, English and basic Sp
   and on `voice_line.feedback` a line that is only a stock compliment) coach. The rules are a
   pattern list, `KID_TONE_RULES`, meant to be extended.
 
-**Not built: character-voice consistency.** Checking a line against its speaker's persona needs
-the speaker, and `EvaluationRequest.context` has no field for it (`activityKind` names the
-activity, not who speaks). It needs an additive contract field, for example an optional
-`context.speakerProfile` (a machine code such as `narrator` or `character.fox`) plus a
-service-side registry of persona traits, before an evaluator can be written.
+- **character-voice-consistency** (`base-1.2.0`): checks the spoken lines against
+  `context.speakerProfile`, the authored persona of who speaks them. Without a speaker profile it
+  does nothing. Deterministic, so it also runs on the live gate.
+
+**Speaker profile.** `context.speakerProfile` (0.6.0, an optional 1.0 field) is authored character
+metadata, never learner data, and is strictly bounded so it cannot carry free text:
+
+```json
+"speakerProfile": {
+  "id": "character.captain_finn",
+  "role": "character",
+  "register": "playful",
+  "traits": ["silly", "pirate_speak"],
+  "catchphrases": ["Shiver me timbers"],
+  "forbids": ["sarcasm", "all_caps"]
+}
+```
+
+| Field | Rule |
+|---|---|
+| `id` | required, `[a-z0-9_.:-]`, at most 64 |
+| `role` | required: `narrator`, `teacher`, `coach` or `character` |
+| `register` | `formal`, `neutral`, `casual` or `playful` |
+| `traits`, `forbids` | at most 8 machine codes (`[a-z][a-z0-9_]*`, at most 32); unknown codes are ignored |
+| `catchphrases` | at most 5, each at most 60 characters of letters, digits, spaces and light punctuation |
+
+Like content, it is never echoed into results, findings, receipts, errors or logs, and the
+retained evaluation record (`GET /v1/evaluations/{id}`) does not keep it: `EvaluationRecordContext`
+lists only the curriculum and billing labels. Clef never sees it. A pre-0.6.0 client strips the
+field during validation, so update the client to send it.
+
+| Check | Reason code | Decision |
+|---|---|---|
+| Off-register: slang, dense contractions (over 12% of words) or more than one `!` in a line for `formal`; two slang words or heavy exclamation for `neutral`; two or more very formal markers ("furthermore", "therefore", "por lo tanto") for `playful` | `character_voice.register_mismatch` | coach |
+| `forbids: slang` / `sarcasm` / `exclamation_spam` (`!!`, or more than two `!` in a line) / `all_caps` | `character_voice.forbidden_slang`, `.forbidden_sarcasm`, `.forbidden_exclamation_spam`, `.forbidden_all_caps` | coach |
+| A teacher or coach teases or is sarcastic | `character_voice.role_sarcasm` | **hold** |
+| A narrator teases or is sarcastic | `character_voice.role_sarcasm` | coach |
+| A narrator speaks in the first person ("I", "me", "yo", "mi") outside quoted dialogue | `character_voice.narrator_first_person` | coach |
+| One catchphrase more than twice in the chunk | `character_voice.catchphrase_overuse` | coach |
+
+A `character` may tease or be sarcastic unless its profile forbids `sarcasm`; kid-tone still
+applies to everyone. Slang, sarcasm and first-person lexicons cover English and basic Spanish.
 
 
 The [four-case demonstration](docs/launch/synthetic-demonstration.md) runs locally with scripted
@@ -268,7 +305,7 @@ unchanged. In the consumer's `.npmrc`, with a token from `forge registry token c
 //npm.forgegraf.com/:_authToken=${FORGEGRAPH_REGISTRY_TOKEN}
 ```
 
-Then depend on versions as usual, e.g. `"@gmacko/hall-monitor-client": "0.5.0"`.
+Then depend on versions as usual, e.g. `"@gmacko/hall-monitor-client": "0.6.0"`.
 
 Without registry access, download the release tarballs into the consuming repo (for example
 `vendor/hall-monitor/`) and use `file:vendor/hall-monitor/<tarball>` both in the dependencies and in

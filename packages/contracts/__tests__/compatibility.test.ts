@@ -203,3 +203,58 @@ describe("image content", () => {
     expect(JSON.stringify(parsed.error!.issues)).not.toContain(PNG);
   });
 });
+
+describe("context.speakerProfile (0.6.0)", () => {
+  const base = fixture("request.json") as { context: Record<string, unknown> };
+  const withSpeaker = (speakerProfile: unknown) => ({ ...base, context: { ...base.context, speakerProfile } });
+  const parses = (speakerProfile: unknown) => contracts.EvaluationRequest.safeParse(withSpeaker(speakerProfile)).success;
+  const full = {
+    id: "character.captain_finn",
+    role: "character",
+    register: "playful",
+    traits: ["silly", "pirate_speak"],
+    catchphrases: ["Shiver me timbers!", "¡Al abordaje, grumetes!"],
+    forbids: ["sarcasm", "all_caps"],
+  };
+
+  it("is optional: a request without it parses unchanged", () => {
+    expect(contracts.EvaluationRequest.parse(base)).toEqual(base);
+  });
+
+  it("accepts a minimal and a full profile, round-tripping it", () => {
+    expect(parses({ id: "narrator", role: "narrator" })).toBe(true);
+    for (const id of ["narrator", "character.fox", "teacher:ms_lee", "coach-1", "a".repeat(64)]) expect(parses({ id, role: "teacher" }), id).toBe(true);
+    expect(contracts.EvaluationRequest.parse(withSpeaker(full)).context.speakerProfile).toEqual(full);
+    for (const register of ["formal", "neutral", "casual", "playful"]) expect(parses({ id: "x", role: "coach", register })).toBe(true);
+  });
+
+  it.each([
+    ["missing id", { role: "narrator" }],
+    ["missing role", { id: "narrator" }],
+    ["unknown role", { id: "narrator", role: "villain" }],
+    ["unknown register", { id: "narrator", role: "narrator", register: "shouty" }],
+    ["uppercase id", { id: "Narrator", role: "narrator" }],
+    ["id with spaces", { id: "the narrator", role: "narrator" }],
+    ["id too long", { id: "a".repeat(65), role: "narrator" }],
+    ["empty id", { id: "", role: "narrator" }],
+    ["too many traits", { id: "x", role: "character", traits: Array.from({ length: 9 }, (_, i) => `trait_${i}`) }],
+    ["free-text trait", { id: "x", role: "character", traits: ["likes to talk about Maya's dog"] }],
+    ["trait too long", { id: "x", role: "character", traits: ["a".repeat(33)] }],
+    ["too many catchphrases", { id: "x", role: "character", catchphrases: ["a", "b", "c", "d", "e", "f"] }],
+    ["catchphrase too long", { id: "x", role: "character", catchphrases: ["a".repeat(61)] }],
+    ["catchphrase with markup", { id: "x", role: "character", catchphrases: ["<b>hi</b>"] }],
+    ["multi-line catchphrase", { id: "x", role: "character", catchphrases: ["hi\nthere"] }],
+    ["too many forbids", { id: "x", role: "character", forbids: Array.from({ length: 9 }, (_, i) => `rule_${i}`) }],
+    ["free-text forbid", { id: "x", role: "character", forbids: ["no talking about tests"] }],
+    ["not an object", "narrator"],
+  ])("refuses %s", (_name, speakerProfile) => {
+    expect(parses(speakerProfile)).toBe(false);
+  });
+
+  it("is never kept in a retained evaluation record's context", () => {
+    expect(Object.keys(contracts.EvaluationRecordContext.shape)).not.toContain("speakerProfile");
+    const record = fixture("evaluation-record.json") as { context: Record<string, unknown> };
+    const parsed = contracts.EvaluationRecord.parse({ ...record, context: { ...record.context, speakerProfile: full } });
+    expect(parsed.context).not.toHaveProperty("speakerProfile");
+  });
+});

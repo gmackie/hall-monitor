@@ -144,6 +144,45 @@ export const PolicyRef = z.object({
 /** The pinned policy profile revision to evaluate under. */
 export type PolicyRef = z.infer<typeof PolicyRef>;
 
+/** A short lowercase machine code for a speaker trait or forbidden pattern, e.g. `pirate_speak`. */
+const SpeakerCode = z.string().min(1).max(32).regex(/^[a-z][a-z0-9_]*$/);
+
+/** The longest catchphrase a speaker profile may carry, in UTF-16 code units. */
+export const MAX_CATCHPHRASE_LENGTH = 60;
+
+/**
+ * Who speaks a voice line: authored character metadata, never learner data (0.6.0, an optional
+ * 1.0 field). Read only by the character-voice consistency evaluator on `voice_line.*` surfaces;
+ * like content it is never echoed into results, receipts, errors, logs or retained records.
+ *
+ * Traits and forbids are open sets of machine codes so authors can add new ones; codes the
+ * service does not know are ignored. Catchphrases are short authored phrases (letters, digits,
+ * spaces and light punctuation only).
+ */
+export const SpeakerProfile = z.object({
+  /** The speaker's machine code, e.g. `narrator` or `character.fox`. */
+  id: z.string().min(1).max(64).regex(/^[a-z0-9_.:-]+$/),
+  role: z.enum(["narrator", "teacher", "coach", "character"]),
+  register: z.enum(["formal", "neutral", "casual", "playful"]).optional(),
+  /** Persona traits, e.g. `wise`, `gentle`, `silly`, `pirate_speak`. */
+  traits: z.array(SpeakerCode).max(8).optional(),
+  /** Phrases the speaker is known for, which should not be overused within one chunk. */
+  catchphrases: z
+    .array(
+      z
+        .string()
+        .min(1)
+        .max(MAX_CATCHPHRASE_LENGTH)
+        .regex(/^[¡¿]?[\p{L}\p{N}][\p{L}\p{N} ,.!?'’¡¿-]*$/u),
+    )
+    .max(5)
+    .optional(),
+  /** Patterns this speaker must not use, e.g. `slang`, `sarcasm`, `exclamation_spam`, `all_caps`. */
+  forbids: z.array(SpeakerCode).max(8).optional(),
+});
+/** Who speaks a voice line. */
+export type SpeakerProfile = z.infer<typeof SpeakerProfile>;
+
 /** Curriculum and billing context. Every field is a label, never learner data. */
 export const EvaluationContext = z.object({
   gradeBand: GradeBand.optional(),
@@ -154,6 +193,11 @@ export const EvaluationContext = z.object({
   graded: z.boolean().optional(),
   costCenterId: OpaqueId,
   parentRequestId: OpaqueId.optional(),
+  /**
+   * Who speaks a voice line (0.6.0). Absent means no character-voice checks. Not retained in
+   * evaluation records.
+   */
+  speakerProfile: SpeakerProfile.optional(),
 });
 /** Curriculum and billing context. */
 export type EvaluationContext = z.infer<typeof EvaluationContext>;

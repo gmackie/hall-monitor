@@ -59,7 +59,7 @@ describe("Clairic routing in the Worker", () => {
       ["clef", "ran", undefined],
       ["clairic", "skipped", "profile_disabled"],
     ]);
-    expect(result.evaluatorBundleRevision).toBe("base-1.1.0:clef-1.1.0");
+    expect(result.evaluatorBundleRevision).toBe("base-1.2.0:clef-1.1.0");
   });
 });
 

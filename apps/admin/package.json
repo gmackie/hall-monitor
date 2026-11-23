@@ -1,6 +1,6 @@
 {
   "name": "@gmacko/hall-monitor-admin",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Hall Monitor admin console: Cloudflare Access-authenticated policy, model, label and evaluation-explorer Worker with a static SPA.",
   "type": "module",
   "private": true,
