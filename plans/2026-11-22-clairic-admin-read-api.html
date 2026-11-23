@@ -84,7 +84,7 @@
 <header class="hero">
   <div class="hero-inner">
     <div class="kicker">Hall pass · Implementation Plan</div>
-    <h1>Clef + Clairic, a Hall Monitor admin UI, and a retained evaluation read API <span class="badge approved">Approved</span></h1>
+    <h1>Clef + Clairic, a Hall Monitor admin UI, and a retained evaluation read API <span class="badge done">Delivered</span></h1>
     <p class="meta">
       <span>2026-11-22</span>
       <span>repo: <code>hall-monitor</code> @ <code>main</code></span>
@@ -101,7 +101,17 @@
     <div class="stat"><b>4</b><span>Model IDs</span></div>
     <div class="stat"><b>0.5.0</b><span>Contracts / client</span></div>
   </div>
-  <div class="progress" aria-label="Phase progress"><i class="active"></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="progress" aria-label="Phase progress"><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i></div>
+
+  <div class="callout ok"><strong>Delivered 2026-11-23.</strong>
+    <ul>
+      <li>PRs #30–#34 are merged to <code>main</code> (<code>500e0bd</code>), and #35 adds the smoke tooling.</li>
+      <li>Contracts and client 0.5.0 are on the ForgeGraph registry and attached to the GitHub release <code>v0.5.0</code>.</li>
+      <li>The evaluation Worker is live in production. Beta and production each pass 17/17 read-API and 0.2.0-compatibility checks for the shadow and enforce tenants.</li>
+      <li>The admin console runs at <code>hall-monitor-admin.gmac.io</code> behind Cloudflare Access.</li>
+      <li>Clairic is wired in but off by default. When a profile enables it, it is held to shadow until it clears the model gate.</li>
+    </ul>
+  </div>
 
   <h2>Overview</h2>
   <p>Hall Monitor already classifies with Cloudflare's <strong>Clef</strong> decision models (<code>@cf/cloudflare/clef-flash</code>, escalating once to <code>@cf/cloudflare/clef</code>). This plan adds the second Cloudflare-built family, <strong>Clairic</strong>, as a typed <em>extraction</em> evaluator. It also gives Hall Monitor its own admin app for policies, models, labels and an evaluation explorer, and exposes a retained, content-free <strong>evaluation read API</strong> that PlayTrek and EducateOS can render. The first slice is the read API, because product UIs can build against it while the model and admin work continue.</p>
@@ -403,58 +413,58 @@ client.evaluateGoverned(request)         → EvaluationResult   // POST /v1/eval
 
   <h2>Milestones</h2>
   <ul class="timeline">
-    <li class="active"><b>HM-30: Evaluation read API and route explainability</b><br>Contracts, client, worker storage and routes, reason-code catalog, docs. Contract posted to the PlayTrek thread.</li>
-    <li><b>HM-31: Multi-family foundation</b><br>Model registry, <code>classifiers[]</code> in core, <code>PolicyProfile.routing</code>, governance widening, price book 2026-11-22. No behavior change.</li>
-    <li><b>HM-32: Clairic evaluator (shadow)</b><br><code>packages/clairic</code>, evidence findings, shadow-report model axis, generalized calibration, <code>pnpm model-gate</code>.</li>
-    <li><b>HM-33: Admin app (read)</b><br><code>apps/admin</code>: Access auth, roles, D1, profile, model and routing views, evaluation explorer via AdminRpc.</li>
-    <li><b>HM-34: Admin writes, releases, labels</b><br>Draft, diff, approve and publish releases read by the Worker. Label review and adjudication, calibration promotion.</li>
-    <li><b>HM-35: Release 0.5.0 and beta deploy</b><br>Version bump, README and docs, beta deploy. The tag and publish wait for the owner's sign-off.</li>
+    <li class="done"><b>HM-30: Evaluation read API and route explainability</b><br>Contracts, client, worker storage and routes, reason-code catalog, docs. Contract posted to the PlayTrek thread.</li>
+    <li class="done"><b>HM-31: Multi-family foundation</b><br>Model registry, <code>classifiers[]</code> in core, <code>PolicyProfile.routing</code>, governance widening, price book 2026-11-22. No behavior change.</li>
+    <li class="done"><b>HM-32: Clairic evaluator (shadow)</b><br><code>packages/clairic</code>, evidence findings, shadow-report model axis, generalized calibration, <code>pnpm model-gate</code>.</li>
+    <li class="done"><b>HM-33: Admin app (read)</b><br><code>apps/admin</code>: Access auth, roles, D1, profile, model and routing views, evaluation explorer via AdminRpc.</li>
+    <li class="done"><b>HM-34: Admin writes, releases, labels</b><br>Draft, diff, approve and publish releases read by the Worker. Label review and adjudication, calibration promotion.</li>
+    <li class="done"><b>HM-35: Release 0.5.0 and beta deploy</b><br>Version bump, README and docs, beta deploy. The tag and publish wait for the owner's sign-off.</li>
   </ul>
 
-  <h2>HM-30 — Evaluation read API <span class="badge active">In progress</span></h2>
+  <h2>HM-30 — Evaluation read API <span class="badge done">Done</span></h2>
   <table>
     <thead><tr><th>Task</th><th>Files</th><th>Verification</th><th>Status</th></tr></thead>
     <tbody>
-      <tr><td>Route, evidence, record, page and catalog schemas</td><td><code>packages/contracts/src/{route,result,finding,api,reason-codes}.ts</code></td><td>Contract tests, snapshot, 0.2.0 fixture compatibility</td><td><span class="badge active">Doing</span></td></tr>
-      <tr><td>Clef emits a per-call trace; core builds <code>route</code></td><td><code>packages/evaluators/src/plugin.ts</code>, <code>packages/clef/src/classifier.ts</code>, <code>packages/core/src/evaluate.ts</code></td><td>Core and Clef tests: escalation, fallback, denied, skipped</td><td><span class="badge todo">Todo</span></td></tr>
-      <tr><td>Evaluation records in the tenant DO, list and get routes, scope</td><td><code>apps/worker/src/{store,app,auth,env,openapi}.ts</code></td><td>Workerd tests: tenant isolation, cursor, filters, expiry, scope</td><td><span class="badge todo">Todo</span></td></tr>
-      <tr><td>Client methods</td><td><code>packages/client/src/client.ts</code></td><td>Client tests</td><td><span class="badge todo">Todo</span></td></tr>
-      <tr><td>Docs</td><td><code>docs/implementation/evaluation-read-api.md</code>, README</td><td><code>pnpm lint</code> (<code>openapi:check</code>)</td><td><span class="badge todo">Todo</span></td></tr>
+      <tr><td>Route, evidence, record, page and catalog schemas</td><td><code>packages/contracts/src/{route,result,finding,api,reason-codes}.ts</code></td><td>Contract tests, snapshot, 0.2.0 fixture compatibility</td><td><span class="badge done">Done</span></td></tr>
+      <tr><td>Clef emits a per-call trace; core builds <code>route</code></td><td><code>packages/evaluators/src/plugin.ts</code>, <code>packages/clef/src/classifier.ts</code>, <code>packages/core/src/evaluate.ts</code></td><td>Core and Clef tests: escalation, fallback, denied, skipped</td><td><span class="badge done">Done</span></td></tr>
+      <tr><td>Evaluation records in the tenant DO, list and get routes, scope</td><td><code>apps/worker/src/{store,app,auth,env,openapi}.ts</code></td><td>Workerd tests: tenant isolation, cursor, filters, expiry, scope</td><td><span class="badge done">Done</span></td></tr>
+      <tr><td>Client methods</td><td><code>packages/client/src/client.ts</code></td><td>Client tests</td><td><span class="badge done">Done</span></td></tr>
+      <tr><td>Docs</td><td><code>docs/implementation/evaluation-read-api.md</code>, README</td><td><code>pnpm lint</code> (<code>openapi:check</code>)</td><td><span class="badge done">Done</span></td></tr>
     </tbody>
   </table>
 
-  <h2>HM-31 — Multi-family foundation <span class="badge todo">Todo</span></h2>
+  <h2>HM-31 — Multi-family foundation <span class="badge done">Done</span></h2>
   <table>
     <thead><tr><th>Task</th><th>Files</th><th>Verification</th><th>Status</th></tr></thead>
     <tbody>
-      <tr><td>Model registry (family, tier, status, price rates, modalities)</td><td><code>packages/models</code></td><td>Unit tests</td><td><span class="badge todo">Todo</span></td></tr>
-      <tr><td><code>classifiers[]</code> in core, with shadow-family isolation</td><td><code>packages/core/src/evaluate.ts</code></td><td>Results byte-identical to the Clef-only baseline over <code>CORPUS</code></td><td><span class="badge todo">Todo</span></td></tr>
-      <tr><td><code>PolicyProfile.routing</code> with tighten-only overlay rules</td><td><code>packages/policy</code></td><td>Overlay tests</td><td><span class="badge todo">Todo</span></td></tr>
-      <tr><td>Governance <code>modelIds</code> from the registry</td><td><code>packages/governance/src/policy.ts</code></td><td>Governance tests</td><td><span class="badge todo">Todo</span></td></tr>
-      <tr><td>Price book 2026-11-22 (Clairic, dated rates)</td><td><code>packages/costing/src/cloudflare-2026-11-22.ts</code></td><td>Rates before and after 2026-12-01</td><td><span class="badge todo">Todo</span></td></tr>
-      <tr><td>Remove hardcoded Clef IDs from the worker</td><td><code>apps/worker/src/{app,decision-packs}.ts</code></td><td>Worker tests</td><td><span class="badge todo">Todo</span></td></tr>
+      <tr><td>Model registry (family, tier, status, price rates, modalities)</td><td><code>packages/models</code></td><td>Unit tests</td><td><span class="badge done">Done</span></td></tr>
+      <tr><td><code>classifiers[]</code> in core, with shadow-family isolation</td><td><code>packages/core/src/evaluate.ts</code></td><td>Results byte-identical to the Clef-only baseline over <code>CORPUS</code></td><td><span class="badge done">Done</span></td></tr>
+      <tr><td><code>PolicyProfile.routing</code> with tighten-only overlay rules</td><td><code>packages/policy</code></td><td>Overlay tests</td><td><span class="badge done">Done</span></td></tr>
+      <tr><td>Governance <code>modelIds</code> from the registry</td><td><code>packages/governance/src/policy.ts</code></td><td>Governance tests</td><td><span class="badge done">Done</span></td></tr>
+      <tr><td>Price book 2026-11-22 (Clairic, dated rates)</td><td><code>packages/costing/src/cloudflare-2026-11-22.ts</code></td><td>Rates before and after 2026-12-01</td><td><span class="badge done">Done</span></td></tr>
+      <tr><td>Remove hardcoded Clef IDs from the worker</td><td><code>apps/worker/src/{app,decision-packs}.ts</code></td><td>Worker tests</td><td><span class="badge done">Done</span></td></tr>
     </tbody>
   </table>
 
-  <h2>HM-32 — Clairic evaluator (shadow) <span class="badge todo">Todo</span></h2>
+  <h2>HM-32 — Clairic evaluator (shadow) <span class="badge done">Done</span></h2>
   <table>
     <thead><tr><th>Task</th><th>Files</th><th>Verification</th><th>Status</th></tr></thead>
     <tbody>
-      <tr><td>Clairic protocol, plugin, escalation, pass-aware usage</td><td><code>packages/clairic</code></td><td>Scripted-transport tests</td><td><span class="badge todo">Todo</span></td></tr>
-      <tr><td>Evidence findings (spans, answer leakage, evaluator consistency)</td><td><code>packages/clairic/src/findings.ts</code></td><td>Content-free assertions</td><td><span class="badge todo">Todo</span></td></tr>
-      <tr><td>Shadow-report model variant and calibration generalization</td><td><code>packages/shadow-report</code></td><td><code>pnpm shadow-report diff --model-variant clairic</code></td><td><span class="badge todo">Todo</span></td></tr>
-      <tr><td><code>pnpm model-gate</code></td><td><code>scripts/model-gate.ts</code></td><td>Reports Clairic as shadow-only (preview)</td><td><span class="badge todo">Todo</span></td></tr>
+      <tr><td>Clairic protocol, plugin, escalation, pass-aware usage</td><td><code>packages/clairic</code></td><td>Scripted-transport tests</td><td><span class="badge done">Done</span></td></tr>
+      <tr><td>Evidence findings (spans, answer leakage, evaluator consistency)</td><td><code>packages/clairic/src/findings.ts</code></td><td>Content-free assertions</td><td><span class="badge done">Done</span></td></tr>
+      <tr><td>Shadow-report model variant and calibration generalization</td><td><code>packages/shadow-report</code></td><td><code>pnpm shadow-report diff --model-variant clairic</code></td><td><span class="badge done">Done</span></td></tr>
+      <tr><td><code>pnpm model-gate</code></td><td><code>scripts/model-gate.ts</code></td><td>Reports Clairic as shadow-only (preview)</td><td><span class="badge done">Done</span></td></tr>
     </tbody>
   </table>
 
-  <h2>HM-33 / HM-34 — Admin app <span class="badge todo">Todo</span></h2>
+  <h2>HM-33 / HM-34 — Admin app <span class="badge done">Done</span></h2>
   <table>
     <thead><tr><th>Task</th><th>Files</th><th>Verification</th><th>Status</th></tr></thead>
     <tbody>
-      <tr><td>Worker, Access JWT verification, roles, D1 schema</td><td><code>apps/admin/src/*</code>, <code>apps/admin/migrations</code></td><td>Workerd tests with a mocked Access JWT</td><td><span class="badge todo">Todo</span></td></tr>
-      <tr><td>AdminRpc entrypoint on the evaluation Worker</td><td><code>apps/worker/src/admin-rpc.ts</code></td><td>Not reachable over HTTP; tenant-checked</td><td><span class="badge todo">Todo</span></td></tr>
-      <tr><td>SPA: profiles, routing, models, explorer, labels, calibration</td><td><code>apps/admin/web</code></td><td>Build, then <code>/qa</code> on beta</td><td><span class="badge todo">Todo</span></td></tr>
-      <tr><td>Config releases (publish, activate, Worker read path)</td><td><code>packages/config-release</code>, <code>apps/worker/src/config.ts</code></td><td>A floor-weakening release is clamped</td><td><span class="badge todo">Todo</span></td></tr>
+      <tr><td>Worker, Access JWT verification, roles, D1 schema</td><td><code>apps/admin/src/*</code>, <code>apps/admin/migrations</code></td><td>Workerd tests with a mocked Access JWT</td><td><span class="badge done">Done</span></td></tr>
+      <tr><td>AdminRpc entrypoint on the evaluation Worker</td><td><code>apps/worker/src/admin-rpc.ts</code></td><td>Not reachable over HTTP; tenant-checked</td><td><span class="badge done">Done</span></td></tr>
+      <tr><td>SPA: profiles, routing, models, explorer, labels, calibration</td><td><code>apps/admin/web</code></td><td>Build, then <code>/qa</code> on beta</td><td><span class="badge done">Done</span></td></tr>
+      <tr><td>Config releases (publish, activate, Worker read path)</td><td><code>packages/config-release</code>, <code>apps/worker/src/config.ts</code></td><td>A floor-weakening release is clamped</td><td><span class="badge done">Done</span></td></tr>
     </tbody>
   </table>
 
