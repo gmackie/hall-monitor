@@ -42,7 +42,7 @@ The core runs every routed family in parallel:
   failures are ignored, and their provider attempts are still on the receipt, because they were
   billed.
 
-With Clef alone, the evaluator bundle revision is unchanged (`base-1.0.1:clef-1.1.0`). Each routed
+With Clef alone, the evaluator bundle revision is unchanged (`base-1.1.0:clef-1.1.0`). Each routed
 family appends `:<id>-<version>`.
 
 **The preview gate.** The Worker clamps any family whose models are all `preview` to `shadow`,
