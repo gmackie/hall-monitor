@@ -12,6 +12,7 @@
   "dependencies": {
     "@gmacko/hall-monitor-clairic": "workspace:*",
     "@gmacko/hall-monitor-clef": "workspace:*",
+    "@gmacko/hall-monitor-config-release": "workspace:*",
     "@gmacko/hall-monitor-contracts": "workspace:*",
     "@gmacko/hall-monitor-core": "workspace:*",
     "@gmacko/hall-monitor-costing": "workspace:*",

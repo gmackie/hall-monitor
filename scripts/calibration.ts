@@ -5,7 +5,8 @@ import { randomUUID } from "node:crypto";
 import { parseArgs } from "node:util";
 import { BASELINE_DECISION_PACK, BASELINE_DECISION_PACK_PIN } from "../packages/noul-registry/src/index.ts";
 import { CORPUS, fixtureProfileId } from "../packages/test-fixtures/src/index.ts";
-import { parseCalibrationStudy, prepareCalibrationPacket, scoreCalibration } from "../packages/shadow-report/src/calibration.ts";
+import { CLAIRIC_FIELD_PACK, parseCalibrationStudy, prepareCalibrationPacket, scoreCalibration } from "../packages/shadow-report/src/calibration.ts";
+import { CLAIRIC_FIELDS } from "../packages/clairic/src/index.ts";
 
 async function save(path: string, value: unknown) {
   await mkdir(dirname(path), { recursive: true });
@@ -14,16 +15,21 @@ async function save(path: string, value: unknown) {
 async function main() {
   const { values, positionals } = parseArgs({ allowPositionals: true, options: {
     study: { type: "string" }, observations: { type: "string" }, out: { type: "string" },
-    packet: { type: "string" }, key: { type: "string" },
+    packet: { type: "string" }, key: { type: "string" }, family: { type: "string" },
   } });
   const command = positionals[0];
   if (positionals.length !== 1) throw new Error("usage");
   if (command === "init" && values.out !== undefined) {
+    if (values.family !== undefined && values.family !== "clef" && values.family !== "clairic") throw new Error("usage");
+    const clairic = values.family === "clairic";
     const study = parseCalibrationStudy({ schemaVersion: "1.0", revision: "draft-study-1", corpusRevision: "synthetic-corpus-v1",
-      pack: BASELINE_DECISION_PACK_PIN,
-      decisions: BASELINE_DECISION_PACK.definitions.map((d) => ({ id: d.id,
-        textInstructions: d.questions.find((q) => q.modality === "text")!.instructions,
-        imageInstructions: d.questions.find((q) => q.modality === "image")!.instructions })),
+      ...(clairic ? { family: "clairic" } : {}),
+      pack: clairic ? CLAIRIC_FIELD_PACK : BASELINE_DECISION_PACK_PIN,
+      decisions: clairic
+        ? CLAIRIC_FIELDS.map((field) => ({ id: field.id, textInstructions: field.spec.instructions, imageInstructions: field.spec.instructions }))
+        : BASELINE_DECISION_PACK.definitions.map((d) => ({ id: d.id,
+          textInstructions: d.questions.find((q) => q.modality === "text")!.instructions,
+          imageInstructions: d.questions.find((q) => q.modality === "image")!.instructions })),
       // No automatic split of related examples: an owner must define independent families first.
       cases: CORPUS.map((c) => ({ id: c.id, familyId: "builtin-corpus-v1", split: "development", origin: { kind: "synthetic" },
         cohort: { profileId: fixtureProfileId(c), profileRevision: "builtin-1", gradeBand: c.gradeBand, language: c.language, modality: "text",

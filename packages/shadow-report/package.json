@@ -4,9 +4,14 @@
   "description": "Offline shadow reports and calibration tooling over synthetic or licensed Hall Monitor corpora.",
   "type": "module",
   "private": true,
-  "exports": { ".": "./src/index.ts" },
-  "scripts": { "test": "vitest run" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
   "dependencies": {
+    "@gmacko/hall-monitor-clairic": "workspace:*",
     "@gmacko/hall-monitor-clef": "workspace:*",
     "@gmacko/hall-monitor-contracts": "workspace:*",
     "@gmacko/hall-monitor-core": "workspace:*",
@@ -17,5 +22,7 @@
     "@gmacko/hall-monitor-test-fixtures": "workspace:*",
     "zod": "catalog:"
   },
-  "devDependencies": { "vitest": "catalog:" }
+  "devDependencies": {
+    "vitest": "catalog:"
+  }
 }

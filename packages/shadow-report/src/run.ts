@@ -1,10 +1,10 @@
 import { type Decision, type EvaluationResult, SCHEMA_VERSION } from "@gmacko/hall-monitor-contracts";
 import { evaluate, HallMonitorError } from "@gmacko/hall-monitor-core";
-import { CLEF_MODEL, ceilDiv, formatUsdNano, PRICE_BOOK_CLOUDFLARE_2026_10_20, type PriceBook, sumUsdNano } from "@gmacko/hall-monitor-costing";
+import { ceilDiv, CURRENT_PRICE_BOOK, formatUsdNano, type PriceBook, sumUsdNano } from "@gmacko/hall-monitor-costing";
 import { defaultBundle, type EvaluatorBundle } from "@gmacko/hall-monitor-evaluators";
 import { type CaseResult, type FixtureCase, fixtureProfileId, fixtureRequest, scoreCorpus } from "@gmacko/hall-monitor-test-fixtures";
 import type { CaseSet } from "./cases.ts";
-import { type ClassifierChoice, classifierLabel, classifierPlugin } from "./classifier.ts";
+import { type ClassifierChoice, classifierLabel, classifierPlugin, familyPlugins } from "./classifier.ts";
 import { type Agreement, type DecisionCounts, REPORT_VERSION, ShadowReport } from "./report.ts";
 import { StageRecorder, summarizeLatency } from "./timing.ts";
 import { BUILTIN_VARIANT, type PolicyVariant } from "./variant.ts";
@@ -42,12 +42,13 @@ export interface CaseEvaluation {
  */
 export async function evaluateCases(set: CaseSet, options: RunOptions = {}): Promise<CaseEvaluation[]> {
   const variant = options.variant ?? BUILTIN_VARIANT;
-  const priceBook = options.priceBook ?? PRICE_BOOK_CLOUDFLARE_2026_10_20;
+  const priceBook = options.priceBook ?? CURRENT_PRICE_BOOK;
   const clock = options.clock ?? (() => new Date());
   const recorder = new StageRecorder();
   const bundle = recorder.wrapBundle(options.bundle ?? defaultBundle);
   const plugin = classifierPlugin(options.classifier ?? { kind: "fake" }, priceBook);
   const classifier = plugin === undefined ? undefined : recorder.wrap("classifier", plugin);
+  const families = familyPlugins(options.classifier ?? { kind: "fake" }, priceBook);
 
   const evaluations: CaseEvaluation[] = [];
   for (const [index, fixture] of set.cases.entries()) {
@@ -67,6 +68,7 @@ export async function evaluateCases(set: CaseSet, options: RunOptions = {}): Pro
           },
           bundle,
           ...(classifier === undefined ? {} : { classifier }),
+          ...(families.length === 0 ? {} : { classifiers: families }),
           priceBook,
           clock,
           ids: { evaluationId: () => `eval_shadow_${index}`, receiptId: () => `rcpt_shadow_${index}` },
@@ -99,7 +101,7 @@ export async function runShadowReport(set: CaseSet, options: RunOptions = {}): P
 export function buildShadowReport(set: CaseSet, evaluations: readonly CaseEvaluation[], options: RunOptions = {}): ShadowReport {
   const variant = options.variant ?? BUILTIN_VARIANT;
   const classifier = classifierLabel(options.classifier ?? { kind: "fake" });
-  const priceBook = options.priceBook ?? PRICE_BOOK_CLOUDFLARE_2026_10_20;
+  const priceBook = options.priceBook ?? CURRENT_PRICE_BOOK;
   const decided = evaluations.flatMap((evaluation) => (evaluation.result === undefined ? [] : [{ ...evaluation, result: evaluation.result }]));
   const profiles = [...new Set(evaluations.map((evaluation) => evaluation.profileId))].sort();
 
@@ -160,7 +162,7 @@ export function buildShadowReport(set: CaseSet, evaluations: readonly CaseEvalua
       evaluations: decided.length,
       billedEvaluations: receipts.length,
       attempts: receipts.reduce((sum, receipt) => sum + receipt.attempts.length, 0),
-      escalations: receipts.reduce((sum, receipt) => sum + receipt.attempts.filter((attempt) => attempt.modelId === CLEF_MODEL).length, 0),
+      escalations: decided.reduce((sum, entry) => sum + (entry.result.route?.classifiers.filter((route) => route.escalated).length ?? 0), 0),
       unknownCostEvaluations: receipts.filter((receipt) => receipt.hasUnknownCost).length,
       totalGrossUsdNano: formatUsdNano(total),
       grossUsdNanoPer1000: formatUsdNano(per1000),

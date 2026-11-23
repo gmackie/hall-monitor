@@ -6,7 +6,7 @@ import { diffDecisions } from "./diff.ts";
 import { renderDiffMarkdown, renderShadowMarkdown } from "./markdown.ts";
 import { DecisionDiffReport, ShadowReport } from "./report.ts";
 import { runShadowReport } from "./run.ts";
-import { BUILTIN_VARIANT, overlayVariant, type PolicyVariant } from "./variant.ts";
+import { BUILTIN_VARIANT, familyVariant, overlayVariant, type PolicyVariant } from "./variant.ts";
 
 /** The file system and streams the CLI uses, injectable for tests. */
 export interface CliIo {
@@ -21,6 +21,7 @@ export interface CliIo {
 export const USAGE = `Usage:
   pnpm shadow-report [run] [options]            Shadow-run a synthetic corpus and report
   pnpm shadow-report diff --candidate <file>    Decision diff between two policy variants
+  pnpm shadow-report diff --family clairic:shadow  Diff with a model family switched on (model axis)
   pnpm shadow-report render <report.json>       Render a saved report as Markdown
 
 Options:
@@ -28,7 +29,9 @@ Options:
   --cases <file.jsonl>   Synthetic cases (every line needs "synthetic": true); default: built-in corpus
   --policy <file.json>   Overlays by profile id for the run (default: built-in profiles)
   --baseline <file.json> diff: baseline overlays (default: built-in profiles)
-  --candidate <file.json> diff: candidate overlays (required)
+  --candidate <file.json> diff: candidate overlays (required unless --family)
+  --family <name:mode>   diff: switch a model family on in the candidate, e.g. clairic:shadow
+                         or clairic:enforce (applied on top of --candidate, or the baseline)
   --classifier <kind>    fake (default) | none | gateway (billed; needs HM_CF_ACCOUNT_ID,
                          HM_AI_GATEWAY_ID and HM_CF_API_TOKEN)
   --include-text         Copy synthetic text of mismatched/changed cases into the report
@@ -72,9 +75,14 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
       json = report;
       markdown = renderShadowMarkdown(report);
     } else if (command === "diff") {
-      if (values.candidate === undefined) throw new UsageError("diff needs --candidate");
+      if (values.candidate === undefined && values.family === undefined) throw new UsageError("diff needs --candidate or --family");
       const baseline = values.baseline === undefined ? BUILTIN_VARIANT : await loadVariant("baseline", values.baseline, io);
-      const candidate = await loadVariant("candidate", values.candidate, io);
+      let candidate = values.candidate === undefined ? baseline : await loadVariant("candidate", values.candidate, io);
+      if (values.family !== undefined) {
+        const match = /^(clef|clairic):(shadow|enforce)$/.exec(values.family);
+        if (match === null) throw new UsageError("--family must be <clef|clairic>:<shadow|enforce>");
+        candidate = familyVariant(match[1] as "clef" | "clairic", match[2] as "shadow" | "enforce", candidate);
+      }
       const report = await diffDecisions(set, baseline, candidate, { classifier, includeText });
       json = report;
       markdown = renderDiffMarkdown(report);
@@ -103,6 +111,7 @@ const OPTIONS = {
   policy: { type: "string" },
   baseline: { type: "string" },
   candidate: { type: "string" },
+  family: { type: "string" },
   classifier: { type: "string" },
   "include-text": { type: "boolean" },
   out: { type: "string" },

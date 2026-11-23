@@ -17,6 +17,24 @@ app: hall-monitor
 server: https://forgegraf.com
 
 stages:
+  # Beta (HM-35): the same Worker code under its own name, Durable Objects and hostname, deployed
+  # from a branch with `forge deploy create beta --ref <branch>` and verified before production.
+  # Its stage secrets are its own (its own HM_DIGEST_KEY); trusted issuers mirror production.
+  - name: beta
+    url: https://hall-monitor-beta.gmac.io
+    sortOrder: 10
+    targets:
+      - name: worker
+        platform: cloudflare-workers
+        nodeId: bf11e7b1-b9de-45be-a89d-ae08049c7598  # hetzner-fg runs the deploy
+        config:
+          workerName: hall-monitor-beta
+          appDir: apps/worker
+          configPath: apps/worker/wrangler.jsonc
+          buildCommand: pnpm install --frozen-lockfile
+          deployCommand: pnpm exec wrangler deploy --name hall-monitor-beta --domain hall-monitor-beta.gmac.io
+          syncSecrets: true
+          healthCheckUrl: https://hall-monitor-beta.gmac.io/v1/health
   - name: production
     url: https://hall-monitor.gmac.io
     sortOrder: 20
@@ -34,6 +52,22 @@ stages:
           # The production health probe ForgeGraph runs after a deploy, and that its delivery
           # receipts to Kanbanger cite; the top-level `health` block does not set it.
           healthCheckUrl: https://hall-monitor.gmac.io/v1/health
+      # The admin console (HM-33/34), behind Cloudflare Access at hall-monitor-admin.gmac.io. It
+      # binds the evaluation Worker's AdminRpc entrypoint, so it ships with the same release.
+      # ForgeGraph allows only development/staging/beta/production stages, so it is a second
+      # production target rather than a stage of its own; the stage's secrets sync to both
+      # Workers (HM_ADMIN_BOOTSTRAP_EMAILS is the console's; the others are unused there).
+      # No health check URL: every path on that hostname is behind Access.
+      - name: admin-worker
+        platform: cloudflare-workers
+        nodeId: bf11e7b1-b9de-45be-a89d-ae08049c7598  # hetzner-fg runs the deploy
+        config:
+          workerName: hall-monitor-admin
+          appDir: apps/admin
+          configPath: apps/admin/wrangler.jsonc
+          buildCommand: pnpm install --frozen-lockfile
+          deployCommand: pnpm exec wrangler deploy --domain hall-monitor-admin.gmac.io
+          syncSecrets: true
 
 health:
   # Unauthenticated liveness. Readiness (/v1/ready) needs a service token and is checked by hand.

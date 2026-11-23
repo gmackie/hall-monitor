@@ -79,15 +79,44 @@ unchanged.
 `MODEL_REGISTRY` lists every routable model with its family, role, status, context and modalities.
 `GET /v1/capabilities` reports it as `models`.
 
-## Not yet done
+## Shadow evidence, calibration and the model gate (HM-32)
 
-The following waits for HM-32:
+**Model axis.** `pnpm shadow-report diff --family clairic:shadow` (or `:enforce`) evaluates the
+synthetic corpus with a model family switched on for every profile. It layers on top of
+`--candidate` overlays when those are given, otherwise on the baseline. The `fake` classifier
+includes a Clairic stand-in that answers "nothing found", so the diff isolates routing and cost.
+Use `gateway` for real, billed calls on synthetic cases only. Escalations are now counted from the
+result routes for every family.
 
-- the `shadow-report` model axis
-- the calibration harness for Clairic studies
-- `pnpm model-gate`
+**Calibration.** A study can now declare `"family": "clairic"`. Run `pnpm calibration init
+--family clairic --out study.json` to create one. A Clairic study must pin `CLAIRIC_FIELD_PACK`,
+which is the field ids and instructions at the evaluator version, digested. Its decisions must be
+Clairic fields worded exactly as the evaluator asks them, its cases must be text, and its bands may
+name only Clairic models. Blinding works the same as for Clef studies: two or more independent
+reviewers, a separate adjudicator, Wilson intervals, and `activation: "not-approved"`. Existing
+Clef studies are unchanged.
+
+**Model gate.** `pnpm model-gate --family clairic --calibration flash.json --calibration
+full.json --diff diff.json --baseline-report base.json --candidate-report cand.json --enrolled
+id,id` checks the evidence against `config/model-gates.json`. The verdict is `eligible-for-enforce`
+only when every gate passes:
+
+1. **Release status.** Every model is GA, or `previewWaiverRef` records the owner's waiver.
+2. **Calibration.** Every model on the route has measured, held-out metrics. Each cohort and
+   decision has at least `minAdjudicatedCases` adjudicated cases, a precision lower bound (Wilson
+   95%) of at least `minPrecisionLower95`, and a false-positive-rate upper bound of at most
+   `maxFalsePositiveRateUpper95`.
+3. **No support regression.** No `support` decision changes in the diff.
+4. **Cost.** Measured added cost per 1,000 evaluations is within `maxAddedUsdNanoPer1000`.
+5. **Latency.** Measured classifier p95 is within `maxP95Ms`.
+6. **Governance.** The enrollment lists every model.
+
+The verdict is always `activation: "not-approved"`. Enforcing still takes the owner's approval, a
+profile routing change and, for preview models, the Worker's `HM_MODEL_ENFORCE_WAIVERS`. The
+initial thresholds (precision ≥ 0.80, FPR ≤ 0.05, 30 adjudicated cases, $0.15 per 1,000, 800 ms)
+are proposals for the owner to confirm.
 
 Clairic's response schema comes from the public model pages. If the live response differs (for
-example, in its span encoding), the parser treats the response as malformed, which reports
-uncertainty and never produces false findings. Validate it against real responses on synthetic
-cases with `shadow-report --classifier gateway` before any tenant enables Clairic.
+example, in its span encoding), the parser treats it as malformed, which reports uncertainty and
+never produces false findings. Validate it with `shadow-report --classifier gateway` on synthetic
+cases before any tenant enables Clairic.

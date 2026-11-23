@@ -1,3 +1,4 @@
+import { TenantModes } from "@gmacko/hall-monitor-config-release";
 import { EnforcementMode, OpaqueId } from "@gmacko/hall-monitor-contracts";
 import { type GovernanceConfig, parseGovernanceConfig } from "@gmacko/hall-monitor-governance";
 import type { EnforcementOptions } from "@gmacko/hall-monitor-core";
@@ -5,24 +6,14 @@ import { applyOverlay, BUILTIN_PROFILE_REVISION, BUILTIN_PROFILES, PolicyOverlay
 import { z } from "zod";
 import { type TrustedIssuer, TrustedIssuers } from "./auth.ts";
 import type { Env } from "./env.ts";
+import { activeConfigRelease } from "./config-release.ts";
 import { log } from "./log.ts";
 
 const Overlays = z.record(OpaqueId, z.record(OpaqueId, PolicyOverlay));
 type Overlays = z.infer<typeof Overlays>;
 
-/**
- * One tenant's entry in `HM_TENANT_MODES`: a bare mode, or a mode with explicit permission to
- * shadow student-facing profiles whose input moderation is required (see `shadowEligibility`).
- */
-export const TenantModeSetting = z.union([
-  EnforcementMode,
-  z.strictObject({ mode: EnforcementMode, allowStudentShadow: z.boolean().optional() }),
-]);
-/** One tenant's entry in `HM_TENANT_MODES`. */
-export type TenantModeSetting = z.infer<typeof TenantModeSetting>;
-
-/** `HM_TENANT_MODES`: enforcement mode by tenant. Tenants not listed are enforced. */
-export const TenantModes = z.record(OpaqueId, TenantModeSetting);
+// One definition, shared with config releases (HM-34).
+export { TenantModes, TenantModeSetting } from "@gmacko/hall-monitor-config-release";
 
 /** A tenant's resolved enforcement mode. */
 export interface TenantMode {
@@ -51,16 +42,23 @@ let cached: { readonly key: string; readonly config: Config } | undefined;
  * fails closed.
  */
 export function loadConfig(env: Env): Config {
-  const key = JSON.stringify([env.HM_TRUSTED_ISSUERS, env.HM_AUDIENCE, env.HM_POLICY_OVERLAYS, env.HM_TENANT_MODES, env.HM_GOVERNANCE]);
+  // An active, verified config release (HM-34) replaces the overlay secret and, when it carries
+  // them, the tenant modes. Everything else (issuers, governance, waivers) is only ever a secret.
+  const release = activeConfigRelease();
+  const key = JSON.stringify([env.HM_TRUSTED_ISSUERS, env.HM_AUDIENCE, env.HM_POLICY_OVERLAYS, env.HM_TENANT_MODES, env.HM_GOVERNANCE, release?.digest ?? null]);
   if (cached?.key === key) return cached.config;
 
   const issuers = parseJson(env.HM_TRUSTED_ISSUERS, TrustedIssuers);
   if (issuers === undefined) log("error", "config.invalid", { variable: "HM_TRUSTED_ISSUERS" });
   const audience = env.HM_AUDIENCE === undefined || env.HM_AUDIENCE.length === 0 ? undefined : env.HM_AUDIENCE;
-  const overlays = env.HM_POLICY_OVERLAYS === undefined || env.HM_POLICY_OVERLAYS.trim() === "" ? {} : parseJson(env.HM_POLICY_OVERLAYS, Overlays);
+  const overlays = release !== undefined
+    ? release.release.overlays
+    : env.HM_POLICY_OVERLAYS === undefined || env.HM_POLICY_OVERLAYS.trim() === "" ? {} : parseJson(env.HM_POLICY_OVERLAYS, Overlays);
   if (overlays === undefined) log("error", "config.invalid", { variable: "HM_POLICY_OVERLAYS" });
 
-  const modes = env.HM_TENANT_MODES === undefined || env.HM_TENANT_MODES.trim() === "" ? {} : parseJson(env.HM_TENANT_MODES, TenantModes);
+  const modes = release?.release.tenantModes !== undefined
+    ? release.release.tenantModes
+    : env.HM_TENANT_MODES === undefined || env.HM_TENANT_MODES.trim() === "" ? {} : parseJson(env.HM_TENANT_MODES, TenantModes);
   if (modes === undefined) log("error", "config.invalid", { variable: "HM_TENANT_MODES" });
   const governance = parseGovernanceConfig(env.HM_GOVERNANCE);
   if (governance === undefined) log("error", "config.invalid", { variable: "HM_GOVERNANCE" });
