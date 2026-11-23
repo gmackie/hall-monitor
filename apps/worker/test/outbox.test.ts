@@ -528,7 +528,7 @@ describe("W8a producer retention policy", () => {
       // Drain the queue and let the gap's approved retention run out.
       const past = Date.now() - 1;
       st.storage.sql.exec("DELETE FROM telemetry_outbox");
-      for (const table of ["telemetry_gaps", "idempotency", "receipts"]) st.storage.sql.exec(`UPDATE ${table} SET expires_at = ?`, past);
+      for (const table of ["telemetry_gaps", "idempotency", "receipts", "evaluations"]) st.storage.sql.exec(`UPDATE ${table} SET expires_at = ?`, past);
     });
     expect((await state()).gaps).toEqual([]); // read-time exclusion, before any alarm
     expect(await stored()).toHaveLength(1);

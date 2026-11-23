@@ -1,5 +1,6 @@
 import type { Decision, DegradedReason, EnforcementMode, ErrorCode } from "@gmacko/hall-monitor-contracts";
 import type { AuthFailure } from "./auth.ts";
+import type { ReleaseFailure } from "./config-release.ts";
 import type { GovernanceDenial } from "@gmacko/hall-monitor-governance";
 
 /** Every event the Worker logs. Names are fixed so dashboards and alerts can rely on them. */
@@ -9,11 +10,14 @@ export type LogEvent =
   | "evaluation.failed"
   | "batch.completed"
   | "receipt.read"
+  | "evaluation.read"
+  | "evaluation.listed"
   | "auth.rejected"
   | "request.rejected"
   | "policy.overlay_clamped"
   | "shadow.refused"
   | "config.invalid"
+  | "config.release_invalid"
   | "governance.denied"
   | "ratelimit.unavailable"
   | "replay_guard.unavailable"
@@ -51,7 +55,7 @@ export interface LogFields {
   /** An exception's class name, never its message. */
   readonly errorName?: string;
   /** Why telemetry coverage was lost, or why an attempt failed: fixed codes, never free text. */
-  readonly reason?: GovernanceDenial | "capacity" | "expired" | "revoked" | "error" | "timeout" | "unavailable" | "rejected" | "not_durable" | "invalid_ack" | "mismatched_ack" | "conflict";
+  readonly reason?: GovernanceDenial | ReleaseFailure | "capacity" | "expired" | "revoked" | "error" | "timeout" | "unavailable" | "rejected" | "not_durable" | "invalid_ack" | "mismatched_ack" | "conflict";
   readonly count?: number;
 }
 

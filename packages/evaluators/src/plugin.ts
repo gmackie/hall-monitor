@@ -1,4 +1,4 @@
-import type { EvaluationKind, EvaluationRequest, Finding, UsageAttempt } from "@gmacko/hall-monitor-contracts";
+import type { EscalationReason, EvaluationKind, EvaluationRequest, Finding, ModelCall, UsageAttempt } from "@gmacko/hall-monitor-contracts";
 import type { PolicyProfile, ResolutionFlags } from "@gmacko/hall-monitor-policy";
 
 /** What an evaluator may read besides the request. */
@@ -20,13 +20,34 @@ export interface EvaluatorOutput {
   readonly findings: readonly Finding[];
   readonly attempts: readonly UsageAttempt[];
   readonly signals?: EvaluatorSignals;
+  /** A model-backed evaluator's route: which models it called, in order, and whether it escalated. */
+  readonly trace?: ClassifierTrace;
+}
+
+/**
+ * What a model-backed evaluator reports about its own calls, which the core turns into the
+ * result's `route`. Content-free: model ids, roles, outcomes and attempt ids only.
+ */
+export interface ClassifierTrace {
+  /** The model family, e.g. `clef`. */
+  readonly family: string;
+  /** The calibration revision whose bands were applied; null for uncalibrated defaults. */
+  readonly calibrationRevision: string | null;
+  readonly calls: readonly ModelCall[];
+  readonly escalated: boolean;
+  readonly escalationReason?: EscalationReason;
+  readonly fellBack?: boolean;
 }
 
 /** A pluggable evaluator. Findings must never include the text they matched. */
 export interface EvaluatorPlugin {
   readonly id: string;
   readonly version: string;
+  /** The model family a model-backed evaluator belongs to (`clef`, `clairic`); defaults to `id`. */
+  readonly family?: string;
   readonly supportedKinds: readonly EvaluationKind[];
+  /** Whether it can evaluate this request's content at all (e.g. text only); defaults to yes. */
+  supportsContent?(request: EvaluationRequest): boolean;
   evaluate(request: EvaluationRequest, context: EvaluatorContext): Promise<EvaluatorOutput>;
 }
 
@@ -70,7 +91,7 @@ export async function runPlugins(
   plugins: readonly EvaluatorPlugin[],
   request: EvaluationRequest,
   context: EvaluatorContext,
-): Promise<Required<EvaluatorOutput>> {
+): Promise<Required<Omit<EvaluatorOutput, "trace">>> {
   const applicable = plugins.filter((plugin) => plugin.supportedKinds.includes(request.evaluationKind));
   const outputs = await Promise.all(applicable.map((plugin) => plugin.evaluate(request, context)));
   const signals: { -readonly [K in keyof EvaluatorSignals]: EvaluatorSignals[K] } = {};

@@ -1,3 +1,4 @@
+import { createClairicEvaluator } from "@gmacko/hall-monitor-clairic";
 import { CLEF_CLASSIFIER_VERSION, createClefClassifier, workersAiBindingTransport } from "@gmacko/hall-monitor-clef";
 import { authorizeModelTransfer } from "@gmacko/hall-monitor-governance";
 import { loadDecisionQuestions } from "./decision-packs.ts";
@@ -7,27 +8,45 @@ import {
   type BatchEvaluationItem,
   type BatchEvaluationResponse,
   type Capabilities,
+  type EvaluationRecord,
   type EvaluationRequest,
   type EvaluationResult,
   EvaluationKind,
   MAX_BATCH_SIZE,
+  type ModelInfo,
   OpaqueId,
+  parseEvaluationQuery,
+  REASON_CODES,
+  REASON_CODES_REVISION,
+  type ReasonCodeCatalog,
   SCHEMA_VERSION,
   SUPPORTED_SCHEMA_VERSIONS,
 } from "@gmacko/hall-monitor-contracts";
 import { evaluate, HallMonitorError, parseEvaluationRequest } from "@gmacko/hall-monitor-core";
-import { CLEF_FLASH_MODEL, CLEF_MODEL, PRICE_BOOK_CLOUDFLARE_2026_10_20 } from "@gmacko/hall-monitor-costing";
+import { CLEF_FLASH_MODEL, CURRENT_PRICE_BOOK, MODEL_REGISTRY } from "@gmacko/hall-monitor-costing";
 import { defaultBundle } from "@gmacko/hall-monitor-evaluators";
 import { RESOLVER_VERSION } from "@gmacko/hall-monitor-policy";
-import { AuthError, bearerToken, CLOCK_SKEW_SECONDS, SCOPE_EVALUATE, SCOPE_RECEIPTS_READ, type ServiceIdentity, verifyServiceToken } from "./auth.ts";
+import {
+  AuthError,
+  bearerToken,
+  CLOCK_SKEW_SECONDS,
+  SCOPE_EVALUATE,
+  SCOPE_EVALUATIONS_READ,
+  SCOPE_RECEIPTS_READ,
+  type ServiceIdentity,
+  verifyServiceToken,
+} from "./auth.ts";
+import { refreshConfigRelease } from "./config-release.ts";
 import { type Config, enforcementFor, loadConfig, lookupPolicy, tenantProfiles } from "./config.ts";
 import { requestDigest } from "./digest.ts";
 import type { Env } from "./env.ts";
 import { errorResponse, HttpError, json, readJson } from "./http.ts";
 import { log } from "./log.ts";
+import { gatedProfile } from "./model-gate.ts";
 import { prepareTelemetryDelivery, scheduleEvaluationMetrics } from "./metrics.ts";
 import { openApiJson } from "./openapi.ts";
 import { replayGuardName } from "./replay.ts";
+import { storeFor } from "./tenant-store.ts";
 
 /**
  * Largest single-evaluation body: up to 8 MiB of images (about 10.7 MiB as base64) plus 32k UTF-16
@@ -52,6 +71,8 @@ export async function handle(request: Request, env: Env, ctx?: ExecutionContext)
 }
 
 async function handleRoute(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
+  // Never throws; at most one KV read a minute per isolate, and R2 only when the pointer moves.
+  await refreshConfigRelease(env);
   const url = new URL(request.url);
   const route = routeOf(request.method, url.pathname);
   try {
@@ -72,6 +93,12 @@ async function handleRoute(request: Request, env: Env, ctx?: ExecutionContext): 
         return await evaluateBatch(request, env, ctx);
       case "receipt":
         return await readReceipt(request, env, route.evaluationId);
+      case "evaluation":
+        return await readEvaluation(request, env, route.evaluationId);
+      case "list":
+        return await listEvaluations(request, env, url);
+      case "reason_codes":
+        return await reasonCodes(request, env);
       case "method_not_allowed":
         throw new HttpError("invalid_request", "method not allowed", { status: 405 });
       case "not_found":
@@ -87,12 +114,13 @@ async function handleRoute(request: Request, env: Env, ctx?: ExecutionContext): 
   }
 }
 
+type SimpleRoute = "health" | "openapi" | "ready" | "capabilities" | "evaluate" | "governed" | "batch" | "list" | "reason_codes";
 type Route =
-  | { readonly name: "health" | "openapi" | "ready" | "capabilities" | "evaluate" | "governed" | "batch" | "method_not_allowed" | "not_found" }
-  | { readonly name: "receipt"; readonly evaluationId: string };
+  | { readonly name: SimpleRoute | "method_not_allowed" | "not_found" }
+  | { readonly name: "receipt" | "evaluation"; readonly evaluationId: string };
 
 function routeOf(method: string, path: string): Route {
-  const want = (expected: string, name: "health" | "openapi" | "ready" | "capabilities" | "evaluate" | "governed" | "batch"): Route =>
+  const want = (expected: string, name: SimpleRoute): Route =>
     method === expected ? { name } : { name: "method_not_allowed" };
   switch (path) {
     case "/v1/health":
@@ -104,7 +132,9 @@ function routeOf(method: string, path: string): Route {
     case "/v1/capabilities":
       return want("GET", "capabilities");
     case "/v1/evaluations":
-      return want("POST", "evaluate");
+      return method === "GET" ? { name: "list" } : want("POST", "evaluate");
+    case "/v1/reason-codes":
+      return want("GET", "reason_codes");
     case "/v1/evaluations:governed":
       return want("POST", "governed");
     case "/v1/evaluations:batch":
@@ -112,6 +142,8 @@ function routeOf(method: string, path: string): Route {
   }
   const receipt = /^\/v1\/receipts\/([^/]+)$/.exec(path);
   if (receipt !== null) return method === "GET" ? { name: "receipt", evaluationId: receipt[1]! } : { name: "method_not_allowed" };
+  const evaluation = /^\/v1\/evaluations\/([^/]+)$/.exec(path);
+  if (evaluation !== null) return method === "GET" ? { name: "evaluation", evaluationId: evaluation[1]! } : { name: "method_not_allowed" };
   return { name: "not_found" };
 }
 
@@ -182,8 +214,10 @@ async function capabilities(request: Request, env: Env): Promise<Response> {
     evaluatorBundles: [{ id: defaultBundle.id, revision: bundleRevision(classifierEnabled) }],
     policyProfiles: config.overlays === undefined ? [] : tenantProfiles(config, identity.tenant),
     resolverVersion: RESOLVER_VERSION,
-    classifier: { enabled: classifierEnabled, models: classifierEnabled ? [CLEF_FLASH_MODEL, CLEF_MODEL] : [] },
+    classifier: { enabled: classifierEnabled, models: classifierEnabled ? MODEL_REGISTRY.filter((model) => model.family === "clef").map((model) => model.modelId) : [] },
     contentTypes: [...ContentType.options],
+    models: classifierEnabled ? [...DEPLOYED_MODELS] : [],
+    reasonCodesRevision: REASON_CODES_REVISION,
   };
   return json(body);
 }
@@ -240,8 +274,13 @@ async function evaluateBatch(request: Request, env: Env, ctx?: ExecutionContext)
   return json(response);
 }
 
-async function readReceipt(request: Request, env: Env, rawId: string): Promise<Response> {
-  const identity = await authenticate(request, env, loadConfig(env), SCOPE_RECEIPTS_READ);
+/** The models this deployment may call, for `GET /v1/capabilities`. */
+const DEPLOYED_MODELS: readonly ModelInfo[] = Object.freeze(
+  MODEL_REGISTRY.map(({ family, modelId, role, status }) => Object.freeze({ family, modelId, role, status })),
+);
+
+
+function evaluationIdOf(rawId: string): string {
   let evaluationId: string;
   try {
     evaluationId = decodeURIComponent(rawId);
@@ -249,6 +288,44 @@ async function readReceipt(request: Request, env: Env, rawId: string): Promise<R
     throw new HttpError("invalid_request", "invalid evaluation id");
   }
   if (!OpaqueId.safeParse(evaluationId).success) throw new HttpError("invalid_request", "invalid evaluation id");
+  return evaluationId;
+}
+
+/** `GET /v1/evaluations/{id}`: the caller tenant's retained, content-free evaluation record. */
+async function readEvaluation(request: Request, env: Env, rawId: string): Promise<Response> {
+  const identity = await authenticate(request, env, loadConfig(env), SCOPE_EVALUATIONS_READ);
+  const evaluationId = evaluationIdOf(rawId);
+  // The store is the caller's own tenant's: another tenant's evaluation id is simply not found.
+  const record = await storeFor(env, identity.tenant).evaluation(evaluationId);
+  if (record === null) throw new HttpError("invalid_request", "evaluation not found", { status: 404 });
+  log("info", "evaluation.read", { tenant: identity.tenant, evaluationId });
+  return json(record);
+}
+
+/** `GET /v1/evaluations`: one page of the caller tenant's retained evaluation records, newest first. */
+async function listEvaluations(request: Request, env: Env, url: URL): Promise<Response> {
+  const identity = await authenticate(request, env, loadConfig(env), SCOPE_EVALUATIONS_READ);
+  const parsed = parseEvaluationQuery(url.searchParams);
+  if (!parsed.ok) throw new HttpError("invalid_request", `invalid query parameters: ${parsed.fields.join(", ")}`);
+  if (parsed.query.from !== undefined && parsed.query.to !== undefined && Date.parse(parsed.query.from) >= Date.parse(parsed.query.to)) {
+    throw new HttpError("invalid_request", "from must be before to");
+  }
+  const page = await storeFor(env, identity.tenant).listEvaluations(parsed.query);
+  if (page === null) throw new HttpError("invalid_request", "invalid query parameters: cursor");
+  log("info", "evaluation.listed", { tenant: identity.tenant, items: page.items.length });
+  return json(page);
+}
+
+/** `GET /v1/reason-codes`: display text for every reason code. */
+async function reasonCodes(request: Request, env: Env): Promise<Response> {
+  await authenticate(request, env, loadConfig(env));
+  const body: ReasonCodeCatalog = { schemaVersion: SCHEMA_VERSION, revision: REASON_CODES_REVISION, codes: [...REASON_CODES] };
+  return json(body);
+}
+
+async function readReceipt(request: Request, env: Env, rawId: string): Promise<Response> {
+  const identity = await authenticate(request, env, loadConfig(env), SCOPE_RECEIPTS_READ);
+  const evaluationId = evaluationIdOf(rawId);
   // The store is the caller's own tenant's: another tenant's evaluation id is simply not found.
   const record = await storeFor(env, identity.tenant).receipt(evaluationId);
   if (record === null) throw new HttpError("invalid_request", "receipt not found", { status: 404 });
@@ -313,10 +390,13 @@ async function runEvaluation(request: EvaluationRequest, identity: ServiceIdenti
   try {
     await admit(env, tenant);
     result = await evaluate(request, {
-      policies: (profileId, revision) => lookupPolicy(config, tenant, profileId, revision),
+      policies: (profileId, revision) => {
+        const profile = lookupPolicy(config, tenant, profileId, revision);
+        return profile === undefined ? undefined : gatedProfile(profile, env);
+      },
       bundle: defaultBundle,
       ...(await classifierFor(env, request, identity, config)),
-      priceBook: PRICE_BOOK_CLOUDFLARE_2026_10_20,
+      priceBook: CURRENT_PRICE_BOOK,
       clock: () => new Date(),
       ids: { evaluationId: () => newId("eval"), receiptId: () => newId("rcpt") },
       // Enrollment cannot turn denied classification into an allow through an old shadow override.
@@ -335,14 +415,15 @@ async function runEvaluation(request: EvaluationRequest, identity: ServiceIdenti
   // The v2 delivery is projected before completion so the store commits it with the result and
   // receipt in one transaction. Disabled (the default), it is null and nothing changes.
   const telemetry = await prepareTelemetryDelivery(env, tenant, request, result);
+  const recordedAt = new Date().toISOString();
   const committed = await store.completeReserved(request.idempotencyKey, digest, begun.reservationId, result, {
     schemaVersion: SCHEMA_VERSION,
     evaluationId: result.evaluationId,
     requestId: result.requestId,
     tenantId: tenant,
     receipt: result.receipt,
-    recordedAt: new Date().toISOString(),
-  }, telemetry ?? undefined);
+    recordedAt,
+  }, telemetry ?? undefined, evaluationRecord(request, result, tenant, recordedAt));
   if (committed === null) return fail(new HttpError("idempotency_conflict", "evaluation reservation is no longer current", { retryable: true }));
   log("info", "evaluation.completed", {
     tenant,
@@ -357,6 +438,37 @@ async function runEvaluation(request: EvaluationRequest, identity: ServiceIdenti
   // uncommitted evaluation; send is isolated by ctx.waitUntil.
   scheduleEvaluationMetrics(env, tenant, request, result, ctx);
   return { result, replayed: false };
+}
+
+/**
+ * The content-free evaluation record kept for the read API: the request's identifiers and labels
+ * (never its content) and the full result.
+ */
+function evaluationRecord(request: EvaluationRequest, result: EvaluationResult, tenant: string, recordedAt: string): Omit<EvaluationRecord, "expiresAt"> {
+  const { audience, gradeBand, subject, activityKind, graded, costCenterId, parentRequestId } = request.context;
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    evaluationId: result.evaluationId,
+    requestId: result.requestId,
+    tenantId: tenant,
+    product: request.source.product,
+    surface: request.source.surface,
+    evaluationKind: request.evaluationKind,
+    contentType: request.content.type,
+    policy: { profileId: request.policy.profileId, revision: request.policy.revision },
+    context: {
+      audience,
+      costCenterId,
+      ...(gradeBand === undefined ? {} : { gradeBand }),
+      ...(subject === undefined ? {} : { subject }),
+      ...(activityKind === undefined ? {} : { activityKind }),
+      ...(graded === undefined ? {} : { graded }),
+      ...(parentRequestId === undefined ? {} : { parentRequestId }),
+    },
+    mode: result.shadow === undefined ? "enforce" : "shadow",
+    result,
+    recordedAt,
+  };
 }
 
 /** Applies the per-tenant rate limit when the binding exists. A limiter outage does not block evaluation. */
@@ -384,15 +496,21 @@ async function classifierFor(env: Env, request: EvaluationRequest, identity: Ser
       ? undefined
       : { id: gatewayId, metadata: { tenant: request.source.tenantId, product: request.source.product, kind: request.evaluationKind },
         ...(config.governance !== undefined && Object.hasOwn(config.governance.tenants, identity.tenant) ? { skipCache: true, collectLog: false } : {}) };
+  const transport = workersAiBindingTransport(env.AI, gateway);
   return {
     classifier: createClefClassifier({
-      transport: workersAiBindingTransport(env.AI, gateway),
-      priceBook: PRICE_BOOK_CLOUDFLARE_2026_10_20,
+      transport,
+      priceBook: CURRENT_PRICE_BOOK,
       newAttemptId: () => newId("att"),
       questions: questions.text,
       imageQuestions: questions.image,
       authorizeModel,
     }),
+    // Runs only where a profile's routing enables it (shadow by default), and each call is
+    // authorized like Clef's: an enrollment that lists only Clef models denies it.
+    classifiers: [
+      createClairicEvaluator({ transport, priceBook: CURRENT_PRICE_BOOK, newAttemptId: () => newId("att"), authorizeModel }),
+    ],
   };
 }
 
@@ -426,10 +544,6 @@ function parseOrThrow(input: unknown): EvaluationRequest {
 /** The request's tenant must be the token's: a service can never act for another tenant. */
 function assertTenant(identity: ServiceIdentity, request: EvaluationRequest): void {
   if (request.source.tenantId !== identity.tenant) throw new HttpError("forbidden", "source.tenantId does not match the service token");
-}
-
-function storeFor(env: Env, tenant: string) {
-  return env.IDEMPOTENCY_STORE.get(env.IDEMPOTENCY_STORE.idFromName(`tenant:${tenant}`));
 }
 
 /** The evaluator bundle revision results carry, matching the core's composition. */

@@ -13,7 +13,11 @@ export const Route = z.strictObject({
   kind: z.enum(["direct", "gateway"]),
   gatewayId: OpaqueId.nullable(),
   sourceRevision: Revision,
-  modelIds: z.array(z.enum(["@cf/cloudflare/clef-flash", "@cf/cloudflare/clef"])).min(1).max(2),
+  /**
+   * The models this route may transfer data to. Clairic (HM-31) is listed explicitly, so an
+   * enrollment that names only Clef keeps denying Clairic calls.
+   */
+  modelIds: z.array(z.enum(["@cf/cloudflare/clef-flash", "@cf/cloudflare/clef", "@cf/cloudflare/clairic-flash", "@cf/cloudflare/clairic"])).min(1).max(4),
 }).refine((r) => (r.kind === "direct") === (r.gatewayId === null))
   .refine((r) => new Set(r.modelIds).size === r.modelIds.length);
 export type Route = z.infer<typeof Route>;

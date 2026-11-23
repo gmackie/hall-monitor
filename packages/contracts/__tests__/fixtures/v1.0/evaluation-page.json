@@ -1,0 +1,133 @@
+{
+  "schemaVersion": "1.0",
+  "items": [
+    {
+      "schemaVersion": "1.0",
+      "evaluationId": "eval_01",
+      "requestId": "req_01",
+      "tenantId": "tenant_opaque",
+      "product": "playtrek",
+      "surface": "student.chat",
+      "evaluationKind": "interaction.input",
+      "contentType": "text",
+      "policy": {
+        "profileId": "student-9-12",
+        "revision": "builtin-1"
+      },
+      "context": {
+        "audience": "student",
+        "gradeBand": "9-12",
+        "costCenterId": "cc_biology"
+      },
+      "mode": "enforce",
+      "result": {
+        "schemaVersion": "1.0",
+        "evaluationId": "eval_01",
+        "requestId": "req_01",
+        "decision": "coach",
+        "reasonCodes": [
+          "academic_integrity.direct_answer_request"
+        ],
+        "findings": [
+          {
+            "evaluatorId": "academic-integrity",
+            "evaluatorVersion": "1.0.0",
+            "category": "academic-integrity",
+            "reasonCode": "academic_integrity.direct_answer_request",
+            "severity": "warn",
+            "confidence": 0.9,
+            "span": {
+              "start": 0,
+              "end": 22
+            },
+            "evidence": [
+              {
+                "field": "direct_answer_request",
+                "span": {
+                  "start": 0,
+                  "end": 22
+                },
+                "confidence": 0.9
+              }
+            ]
+          }
+        ],
+        "uncertain": false,
+        "policyRevision": "school-2026-fall:17",
+        "evaluatorBundleRevision": "base-1.0.0",
+        "resolverVersion": "resolver-1.0.0",
+        "receipt": {
+          "receiptId": "rcpt_01",
+          "tenantId": "tenant_opaque",
+          "product": "playtrek",
+          "costCenterId": "cc_biology",
+          "logicalRequestId": "req_01",
+          "createdAt": "2026-10-20T12:00:00.000Z",
+          "purpose": "moderation.input",
+          "attempts": [
+            {
+              "attemptId": "att_01",
+              "attemptIndex": 0,
+              "providerId": "cloudflare-workers-ai",
+              "modelId": "@cf/cloudflare/clef-flash",
+              "sku": "@cf/cloudflare/clef-flash",
+              "priceBookId": "cloudflare-2026-10-20",
+              "units": {
+                "inputTokens": 602
+              },
+              "grossUsdNano": "22876",
+              "state": "provider_reported",
+              "gatewayLogId": "log_01"
+            },
+            {
+              "attemptId": "att_02",
+              "attemptIndex": 1,
+              "providerId": "cloudflare-workers-ai",
+              "modelId": "@cf/cloudflare/clef",
+              "sku": "@cf/cloudflare/clef",
+              "priceBookId": "cloudflare-2026-10-20",
+              "units": {
+                "inputTokens": 602
+              },
+              "grossUsdNano": "144480",
+              "state": "provider_reported"
+            }
+          ],
+          "totalGrossUsdNano": "167356",
+          "hasUnknownCost": false
+        },
+        "route": {
+          "classifiers": [
+            {
+              "family": "clef",
+              "evaluatorId": "clef",
+              "evaluatorVersion": "1.1.0",
+              "status": "ran",
+              "mode": "enforce",
+              "calibrationRevision": null,
+              "calls": [
+                {
+                  "modelId": "@cf/cloudflare/clef-flash",
+                  "role": "primary",
+                  "outcome": "scored",
+                  "attemptId": "att_01"
+                },
+                {
+                  "modelId": "@cf/cloudflare/clef",
+                  "role": "escalation",
+                  "outcome": "scored",
+                  "attemptId": "att_02"
+                }
+              ],
+              "escalated": true,
+              "escalationReason": "ambiguous_band"
+            }
+          ]
+        }
+      },
+      "recordedAt": "2026-11-22T12:00:00.000Z",
+      "expiresAt": "2026-12-22T12:00:00.000Z"
+    }
+  ],
+  "nextCursor": "MTc5MDAwMDAwMDAwMC5ldmFsXzAx"
+}

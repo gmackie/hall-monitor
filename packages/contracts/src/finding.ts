@@ -40,6 +40,20 @@ export const Span = z
 export type Span = z.infer<typeof Span>;
 
 /**
+ * A located piece of evidence behind a finding: which extracted field it came from and where it
+ * sits in the evaluated text. Like the finding itself it never carries the text, so a reviewer or
+ * product UI that holds the original content can highlight it and nothing else can recover it.
+ */
+export const Evidence = z.object({
+  /** The extraction field or question that produced it, e.g. `personal_identifier`. */
+  field: MachineCode,
+  span: Span.optional(),
+  confidence: z.number().min(0).max(1).optional(),
+});
+/** A located piece of evidence behind a finding. */
+export type Evidence = z.infer<typeof Evidence>;
+
+/**
  * One evaluator's observation. It carries a reason code and an optional span, never the text it
  * matched, so findings are safe to log and store.
  */
@@ -51,6 +65,11 @@ export const Finding = z.object({
   severity: Severity,
   confidence: z.number().min(0).max(1).optional(),
   span: Span.optional(),
+  /**
+   * Additional located evidence (0.5.0, an optional 1.0 field): spans of extracted identifiers,
+   * claims or answers that support this finding. Older clients ignore it.
+   */
+  evidence: z.array(Evidence).max(16).optional(),
 });
 /** One evaluator's observation. */
 export type Finding = z.infer<typeof Finding>;

@@ -1,0 +1,11 @@
+// Test-only configuration: D1, KV and R2 in Miniflare; the evaluator and Access keys are faked in
+// test/entry.ts, so no auxiliary Worker or network is needed.
+{
+  "name": "hall-monitor-admin-test",
+  "main": "./entry.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [{ "binding": "DB", "database_name": "hm-control", "database_id": "test-db" }],
+  "kv_namespaces": [{ "binding": "CONFIG_POINTER", "id": "test-kv" }],
+  "r2_buckets": [{ "binding": "CONFIG_RELEASES", "bucket_name": "test-releases" }]
+}

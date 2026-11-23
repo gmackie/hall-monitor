@@ -1,4 +1,4 @@
-import { Audience, Decision, MachineCode, OpaqueId } from "@gmacko/hall-monitor-contracts";
+import { Audience, Decision, EvaluationKind, FamilyMode, MachineCode, OpaqueId } from "@gmacko/hall-monitor-contracts";
 import { z } from "zod";
 
 /** Whether a moderation stage must run, may run, or is skipped. */
@@ -21,6 +21,53 @@ export type AnswerAssistance = z.infer<typeof AnswerAssistance>;
 export const ClassifierFailureMode = z.enum(["fail_closed", "deterministic_only"]);
 /** What to do when the classifier cannot answer. */
 export type ClassifierFailureMode = z.infer<typeof ClassifierFailureMode>;
+
+/**
+ * How one model family runs under a profile: whether it runs at all, whether its findings decide
+ * (`enforce`) or are only recorded (`shadow`), and for which evaluation kinds (all when omitted).
+ */
+export const FamilyRouting = z.object({
+  enabled: z.boolean(),
+  mode: FamilyMode,
+  kinds: z.array(EvaluationKind).min(1).optional(),
+});
+/** How one model family runs under a profile. */
+export type FamilyRouting = z.infer<typeof FamilyRouting>;
+
+/** The model families a profile can route: Clef (decision probabilities) and Clairic (typed extraction). */
+export const MODEL_FAMILIES = ["clef", "clairic"] as const;
+/** A model family a profile can route. */
+export type ModelFamily = (typeof MODEL_FAMILIES)[number];
+
+/** Per-family routing. Absent families take {@link DEFAULT_ROUTING}. */
+export const ProfileRouting = z.object({
+  clef: FamilyRouting.optional(),
+  clairic: FamilyRouting.optional(),
+});
+/** Per-family routing. */
+export type ProfileRouting = z.infer<typeof ProfileRouting>;
+
+/**
+ * Routing when a profile says nothing: Clef runs everywhere and decides, which is the behaviour
+ * before routing existed; Clairic, a preview model, is off.
+ */
+export const DEFAULT_ROUTING: Readonly<Record<ModelFamily, FamilyRouting>> = Object.freeze({
+  clef: Object.freeze({ enabled: true, mode: "enforce" as const }),
+  clairic: Object.freeze({ enabled: false, mode: "shadow" as const }),
+});
+
+/** A profile's effective routing for `family`. */
+export function familyRouting(profile: Pick<PolicyProfile, "routing">, family: ModelFamily): FamilyRouting {
+  return profile.routing?.[family] ?? DEFAULT_ROUTING[family];
+}
+
+/** Whether `family` runs for `kind` under `profile`, and how. Null when it does not run. */
+export function routeFor(profile: Pick<PolicyProfile, "routing">, family: ModelFamily, kind: EvaluationKind): FamilyRouting | null {
+  const routing = familyRouting(profile, family);
+  if (!routing.enabled) return null;
+  if (routing.kinds !== undefined && !routing.kinds.includes(kind)) return null;
+  return routing;
+}
 
 /** A policy profile: one pinned revision of the rules for an audience and surface. */
 export const PolicyProfile = z.object({
@@ -53,6 +100,11 @@ export const PolicyProfile = z.object({
    * never more lenient, so it cannot be used to switch a check off.
    */
   actionOverrides: z.record(MachineCode, Decision).optional(),
+  /**
+   * Which model families run and how. Absent keeps the pre-routing behaviour: Clef enforces on
+   * every kind and Clairic is off ({@link DEFAULT_ROUTING}).
+   */
+  routing: ProfileRouting.optional(),
 });
 /** A policy profile: one pinned revision of the rules for an audience and surface. */
 export type PolicyProfile = z.infer<typeof PolicyProfile>;
