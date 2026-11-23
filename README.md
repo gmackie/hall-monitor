@@ -42,6 +42,7 @@ scenario planning and an offline priority/shift staffing queue simulator, all wi
 | `packages/policy` | Policy profiles, district floors and the deterministic decision resolver |
 | `packages/evaluators` | Deterministic evaluator plugins |
 | `packages/clef` | Cloudflare Workers AI Clef classifier adapter with escalation |
+| `packages/clairic` | Cloudflare Workers AI Clairic typed-extraction evaluator (preview): located evidence, answer leakage, evaluator consistency; shadow unless waived ([clairic.md](docs/implementation/clairic.md)) |
 | `packages/core` | Evaluation orchestration |
 | `packages/client` | TypeScript client used by products |
 | `packages/test-fixtures` | Synthetic fixtures only; never real student data |
@@ -51,7 +52,9 @@ scenario planning and an offline priority/shift staffing queue simulator, all wi
 | `packages/telemetry-sink` | Internal signed v1 emitter and v2 delivery/ack validation |
 | `packages/telemetry-coverage` | Isolated experimental evidence model; no runtime completeness/zero classification |
 | `apps/telemetry-worker` | Internal v1 validate/discard and v2 durable aggregate receiver; default off, not production-verified |
+| `packages/config-release` | Digest-pinned config releases (overlays, tenant modes) the admin console publishes and the Worker verifies |
 | `apps/worker` | Cloudflare Worker HTTP API |
+| `apps/admin` | Admin console Worker behind Cloudflare Access: evaluation explorer, profiles, releases, models, labels ([admin-app.md](docs/implementation/admin-app.md)) |
 
 ## Rules
 
@@ -76,10 +79,21 @@ school deployment agreement.
 | `POST /v1/evaluations` | `evaluate` scope | Evaluate one request; idempotent by `idempotencyKey` |
 | `POST /v1/evaluations:batch` | `evaluate` scope | Up to 50 `content.candidate` / `assessment.evaluator-result` requests |
 | `GET /v1/capabilities` | any valid token | Supported versions, kinds, bundles and the caller's profile revisions |
+| `POST /v1/evaluations:governed` | `evaluate` scope + signed `hm_governance` | Evaluate under required, enrolled governance authority |
+| `GET /v1/evaluations` | `evaluations:read` scope | The caller tenant's retained, content-free evaluation records, newest first, filtered and paged |
+| `GET /v1/evaluations/{evaluationId}` | `evaluations:read` scope | One retained evaluation record: decision, findings, reason codes, models and escalation path, receipt |
 | `GET /v1/receipts/{evaluationId}` | `receipts:read` scope | The caller tenant's receipt record |
+| `GET /v1/reason-codes` | any valid token | Display title and description for every reason code |
 | `GET /v1/ready` | any valid token | Configuration and binding checks; never makes a billed call |
 | `GET /v1/health` | public | `{"status":"ok"}` and nothing else |
 | `GET /v1/openapi.json` | public | The OpenAPI 3.1 document for this API |
+
+The Worker also exports `AdminRpc`, a `WorkerEntrypoint` with `listEvaluations(tenant, query)` and
+`getEvaluation(tenant, id)`. It is reachable only through the admin console's service binding;
+no HTTP route leads to it. When the `CONFIG_POINTER` (KV) and `CONFIG_RELEASES` (R2) bindings are
+present, the Worker serves the admin console's active, digest-verified config release in place of
+`HM_POLICY_OVERLAYS` (and `HM_TENANT_MODES` when the release carries modes), still tighten-only;
+see [admin-app.md](docs/implementation/admin-app.md).
 
 The OpenAPI document is generated from the zod contracts (`z.toJSONSchema`) and committed at
 [`apps/worker/openapi.json`](apps/worker/openapi.json). After changing a contract or a route, run
@@ -95,7 +109,9 @@ unauthorized`, so callers mint a new token per request and per retry (the client
 `TOKEN_REPLAY_GUARD` binding, authenticated routes fail closed with 503.
 A request's `source.tenantId` must equal the token's `tenant` (403 otherwise). Idempotency
 records and receipts live in a per-tenant Durable Object for `HM_RETENTION_SECONDS` (default 24 h);
-reusing a key with a different request is `409 idempotency_conflict`. Optional:
+reusing a key with a different request is `409 idempotency_conflict`. Evaluation records (the read API, see
+[evaluation-read-api.md](docs/implementation/evaluation-read-api.md)) live in the same Durable Object for
+`HM_EVALUATION_RETENTION_SECONDS` (default 30 days, at most 400) and carry no content. Optional:
 `HM_POLICY_OVERLAYS` (`{tenant: {profileId: PolicyOverlay}}`, tighten-only; a tenant with an
 overlay can pin only the overlay's revision), the `AI` binding (Clef; without it, classification
 is unavailable and the profile's failure mode applies), `HM_AI_GATEWAY_ID` and the
@@ -172,6 +188,9 @@ pnpm shadow-report diff --candidate candidate-overlays.json --out diff.json
 pnpm shadow-report render report.json
 ```
 
+`diff --family clairic:shadow|enforce` adds a model axis: the candidate switches a model family on
+for every profile, and `pnpm model-gate --family clairic …` checks calibration, diff, cost, latency
+and enrollment evidence against `config/model-gates.json` (see [clairic.md](docs/implementation/clairic.md)).
 `diff` evaluates the same corpus under a baseline (built-in profiles, or `--baseline`) and a
 candidate policy revision (`{profileId: PolicyOverlay}`, applied tighten-only as the Worker does)
 and lists every case whose decision changed, by transition and by reason code. The library also
@@ -204,7 +223,7 @@ unchanged. In the consumer's `.npmrc`, with a token from `forge registry token c
 //npm.forgegraf.com/:_authToken=${FORGEGRAPH_REGISTRY_TOKEN}
 ```
 
-Then depend on versions as usual, e.g. `"@gmacko/hall-monitor-client": "0.4.0"`.
+Then depend on versions as usual, e.g. `"@gmacko/hall-monitor-client": "0.5.0"`.
 
 Without registry access, download the release tarballs into the consuming repo (for example
 `vendor/hall-monitor/`) and use `file:vendor/hall-monitor/<tarball>` both in the dependencies and in

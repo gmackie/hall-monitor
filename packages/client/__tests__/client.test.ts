@@ -174,6 +174,55 @@ describe("createHallMonitorClient", () => {
     await expect(hm.receipt("../etc")).rejects.toMatchObject({ code: "invalid_request" });
   });
 
+  it("reads one evaluation record, returning null when it is not found", async () => {
+    const record = {
+      schemaVersion: "1.0", evaluationId: "eval_client_1", requestId: "req_client_1", tenantId: "tenant_a", product: "playtrek",
+      surface: "test.surface", evaluationKind: "content.candidate", contentType: "text", policy: { profileId: "educator", revision: "builtin-1" },
+      context: { audience: "educator", costCenterId: "cc_test" }, mode: "enforce", result: RESULT,
+      recordedAt: "2026-11-22T12:00:00.000Z", expiresAt: "2026-12-22T12:00:00.000Z",
+    };
+    const { client: instance, calls } = client([json(record), json({ code: "invalid_request", message: "evaluation not found", retryable: false }, 404)]);
+    expect(await instance.evaluation("eval_client_1")).toEqual(record);
+    expect(await instance.evaluation("eval:missing")).toBeNull();
+    expect(calls.map((call) => call.url)).toEqual(["https://hm.example.test/v1/evaluations/eval_client_1", "https://hm.example.test/v1/evaluations/eval%3Amissing"]);
+  });
+
+  it("lists evaluations with encoded filters and iterates every page", async () => {
+    const record = (id: string) => ({
+      schemaVersion: "1.0", evaluationId: id, requestId: "req_client_1", tenantId: "tenant_a", product: "playtrek",
+      surface: "test.surface", evaluationKind: "content.candidate", contentType: "text", policy: { profileId: "educator", revision: "builtin-1" },
+      context: { audience: "educator", costCenterId: "cc_test" }, mode: "enforce", result: { ...RESULT, evaluationId: id },
+      recordedAt: "2026-11-22T12:00:00.000Z", expiresAt: "2026-12-22T12:00:00.000Z",
+    });
+    const { client: instance, calls } = client([
+      json({ schemaVersion: "1.0", items: [record("eval_a")], nextCursor: null }),
+      json({ schemaVersion: "1.0", items: [record("eval_b")], nextCursor: "Y3Vyc29y" }),
+      json({ schemaVersion: "1.0", items: [record("eval_c")], nextCursor: null }),
+    ]);
+    const page = await instance.listEvaluations({ decision: "hold", limit: 10, escalated: true });
+    expect(page.items.map((item) => item.evaluationId)).toEqual(["eval_a"]);
+    expect(calls[0]!.url).toBe("https://hm.example.test/v1/evaluations?limit=10&decision=hold&escalated=true");
+    const ids: string[] = [];
+    for await (const item of instance.iterateEvaluations({ reasonCode: "clef.harassment" })) ids.push(item.evaluationId);
+    expect(ids).toEqual(["eval_b", "eval_c"]);
+    expect(calls.slice(1).map((call) => call.url)).toEqual([
+      "https://hm.example.test/v1/evaluations?reasonCode=clef.harassment",
+      "https://hm.example.test/v1/evaluations?cursor=Y3Vyc29y&reasonCode=clef.harassment",
+    ]);
+    await expect(instance.listEvaluations({ limit: 500 })).rejects.toMatchObject({ code: "invalid_request" });
+  });
+
+  it("evaluates on the governed route and reads the reason-code catalog", async () => {
+    const catalog = { schemaVersion: "1.0", revision: "reason-codes-2026-11-22", codes: [{ code: "clef.harassment", category: "harassment", title: "Harassment (model)", description: "x" }] };
+    const { client: instance, calls } = client([json(RESULT), json(catalog)]);
+    expect(await instance.evaluateGoverned(REQUEST)).toEqual(RESULT);
+    expect(await instance.reasonCodes()).toEqual(catalog);
+    expect(calls.map((call) => [call.init.method, call.url])).toEqual([
+      ["POST", "https://hm.example.test/v1/evaluations:governed"],
+      ["GET", "https://hm.example.test/v1/reason-codes"],
+    ]);
+  });
+
   it("refuses batches with interactive kinds before sending", async () => {
     const { client: hm, calls } = client([]);
     await expect(hm.evaluateBatch([{ ...REQUEST, evaluationKind: "interaction.input" }])).rejects.toMatchObject({ code: "invalid_request" });

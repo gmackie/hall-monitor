@@ -2,8 +2,19 @@ import { z } from "zod";
 import { Finding } from "./finding.ts";
 import { Decision, EvaluationKind, MachineCode, OpaqueId } from "./primitives.ts";
 import { ContentType } from "./request.ts";
+import { EvaluationRoute, ModelCallRole } from "./route.ts";
 import { CostReceipt } from "./usage.ts";
 import { SchemaVersion } from "./version.ts";
+
+/** A model the deployment may call. */
+export const ModelInfo = z.object({
+  family: MachineCode,
+  modelId: z.string().min(1).max(128),
+  role: ModelCallRole,
+  status: z.enum(["ga", "preview"]),
+});
+/** A model the deployment may call. */
+export type ModelInfo = z.infer<typeof ModelInfo>;
 
 /** Why a result was decided with less than the full evaluator set. */
 export const DegradedReason = z.enum(["classifier_timeout", "classifier_unavailable", "budget_exhausted"]);
@@ -53,6 +64,11 @@ export const EvaluationResult = z.object({
    * `uncertain` and `degraded` describe the real evaluation either way.
    */
   shadow: ShadowOutcome.optional(),
+  /**
+   * Which model families ran, the models they called and whether they escalated (0.5.0, an
+   * optional 1.0 field). Older clients ignore it; it is absent on results stored before 0.5.0.
+   */
+  route: EvaluationRoute.optional(),
 }).refine((result) => result.shadow === undefined || result.decision === "allow", {
   message: "a shadow-mode result enforces allow",
   path: ["decision"],
@@ -101,6 +117,13 @@ export const Capabilities = z.object({
    * pinned profile.
    */
   contentTypes: z.array(ContentType).min(1).optional(),
+  /**
+   * Every model the deployment may call, by family and role (0.5.0, optional). `status` is the
+   * provider's release status: a `preview` model runs only in shadow mode unless explicitly waived.
+   */
+  models: z.array(ModelInfo).max(32).optional(),
+  /** The revision of `GET /v1/reason-codes` this deployment serves (0.5.0, optional). */
+  reasonCodesRevision: OpaqueId.optional(),
 });
 /** What a deployment supports. */
 export type Capabilities = z.infer<typeof Capabilities>;

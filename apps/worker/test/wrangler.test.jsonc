@@ -18,5 +18,7 @@
     { "tag": "v2", "new_sqlite_classes": ["TokenReplayGuard"] },
     { "tag": "v3", "new_sqlite_classes": ["TelemetryAggregateStore"] }
   ],
+  "kv_namespaces": [{ "binding": "CONFIG_POINTER", "id": "test-config-pointer" }],
+  "r2_buckets": [{ "binding": "CONFIG_RELEASES", "bucket_name": "test-config-releases" }],
   "vars": { "HM_AUDIENCE": "hall-monitor" }
 }

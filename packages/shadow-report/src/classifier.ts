@@ -1,5 +1,6 @@
 import { CLEF_QUESTIONS, type ClefTransport, createClefClassifier, gatewayFetchTransport } from "@gmacko/hall-monitor-clef";
-import { PRICE_BOOK_CLOUDFLARE_2026_10_20, type PriceBook } from "@gmacko/hall-monitor-costing";
+import { createClairicEvaluator } from "@gmacko/hall-monitor-clairic";
+import { CURRENT_PRICE_BOOK, type PriceBook } from "@gmacko/hall-monitor-costing";
 import type { EvaluatorPlugin } from "@gmacko/hall-monitor-evaluators";
 
 /**
@@ -52,7 +53,7 @@ export function gatewayClassifier(settings: GatewaySettings): ClassifierChoice {
 }
 
 /** The classifier plugin for a choice, or undefined for `none`. */
-export function classifierPlugin(choice: ClassifierChoice, priceBook: PriceBook = PRICE_BOOK_CLOUDFLARE_2026_10_20): EvaluatorPlugin | undefined {
+export function classifierPlugin(choice: ClassifierChoice, priceBook: PriceBook = CURRENT_PRICE_BOOK): EvaluatorPlugin | undefined {
   if (choice.kind === "none") return undefined;
   let n = 0;
   return createClefClassifier({
@@ -60,4 +61,34 @@ export function classifierPlugin(choice: ClassifierChoice, priceBook: PriceBook 
     priceBook,
     newAttemptId: () => `att_shadow_${n++}`,
   });
+}
+
+/**
+ * A local stand-in for Clairic: every requested field is answered "nothing found" with high
+ * confidence, and usage is the same four-characters-per-token estimate as the fake Clef, so a
+ * family diff isolates routing and cost rather than model behaviour.
+ */
+export function fakeClairicTransport(): ClefTransport {
+  return {
+    async run(_model, input) {
+      const fields = (input as { fields?: Record<string, { type: string }> }).fields ?? {};
+      const answers = Object.fromEntries(Object.entries(fields).map(([id, spec]) => [id, { value: spec.type === "list" ? [] : spec.type === "boolean" ? false : null, confidence: 0.95 }]));
+      const inputTokens = Math.ceil(JSON.stringify(input).length / 4) * Math.max(1, Object.keys(fields).length);
+      return { output: { answers, usage: { input_tokens: inputTokens } }, usage: { inputTokens } };
+    },
+  };
+}
+
+/**
+ * The further model families for a choice: Clairic, through the same transport kind as Clef. They
+ * run only where a variant's profile routing enables them, so built-in variants are unaffected.
+ */
+export function familyPlugins(choice: ClassifierChoice, priceBook: PriceBook = CURRENT_PRICE_BOOK): EvaluatorPlugin[] {
+  if (choice.kind === "none") return [];
+  let n = 0;
+  return [createClairicEvaluator({
+    transport: choice.kind === "fake" ? fakeClairicTransport() : choice.transport,
+    priceBook,
+    newAttemptId: () => `att_shadow_clairic_${n++}`,
+  })];
 }

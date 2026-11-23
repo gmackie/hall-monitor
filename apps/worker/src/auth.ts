@@ -19,6 +19,8 @@ export const MAX_TOKEN_LENGTH = 8192;
 export const SCOPE_EVALUATE = "evaluate";
 /** Scope required to read receipts. */
 export const SCOPE_RECEIPTS_READ = "receipts:read";
+/** Scope required to read and list the tenant's retained evaluation records. */
+export const SCOPE_EVALUATIONS_READ = "evaluations:read";
 
 const Jwk = z
   .object({

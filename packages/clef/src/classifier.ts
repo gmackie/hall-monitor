@@ -1,6 +1,6 @@
-import { EvaluationKind, type EvaluationRequest, type Finding, type Severity, type UsageAttempt } from "@gmacko/hall-monitor-contracts";
+import { EvaluationKind, type EvaluationRequest, type Finding, type ModelCall, type ModelCallRole, type Severity, type UsageAttempt } from "@gmacko/hall-monitor-contracts";
 import { CLEF_FLASH_MODEL, CLEF_MODEL, CLOUDFLARE_WORKERS_AI, type PriceBook, priceAttempt } from "@gmacko/hall-monitor-costing";
-import type { EvaluatorPlugin, EvaluatorSignals } from "@gmacko/hall-monitor-evaluators";
+import type { ClassifierTrace, EvaluatorPlugin, EvaluatorSignals } from "@gmacko/hall-monitor-evaluators";
 import {
   buildClefImageInput,
   buildClefInput,
@@ -61,7 +61,10 @@ export interface ClefClassifierOptions {
 type CallOutcome =
   | { readonly kind: "scored"; readonly scores: Map<string, number> }
   | { readonly kind: "malformed" }
-  | { readonly kind: "failed"; readonly timedOut: boolean };
+  | { readonly kind: "failed"; readonly timedOut: boolean; readonly denied?: boolean };
+
+/** The model family this plugin reports in a result's route. */
+export const CLEF_FAMILY = "clef";
 
 /**
  * A Clef classifier plugin. It asks Clef-flash every category question in one request and, when
@@ -114,20 +117,33 @@ export function createClefClassifier(options: ClefClassifierOptions): EvaluatorP
         return { findings: [], attempts: [] };
       }
       const attempts: UsageAttempt[] = [];
+      const calls: ModelCall[] = [];
+      const calibrationRevision = calibrationSelected ? calibration?.revision ?? null : null;
+      const trace = (extra: Partial<Pick<ClassifierTrace, "escalated" | "escalationReason" | "fellBack">> = {}): ClassifierTrace => ({
+        family: CLEF_FAMILY,
+        calibrationRevision,
+        calls: [...calls],
+        escalated: false,
+        ...extra,
+      });
       const bandsFor = (model: string): ReadonlyMap<string, CalibrationBand> | undefined => !calibrationSelected
         ? new Map(questions.map((q) => [q.id, { low, high }]))
         : calibration === undefined ? undefined : selectClefCalibration(calibration, model, request, context.profile, questions);
       let bands = bandsFor(primaryModel);
-      if (bands === undefined) return { findings: [], attempts, signals: { classifierUnavailable: true, uncertain: true } };
+      if (bands === undefined) return { findings: [], attempts, signals: { classifierUnavailable: true, uncertain: true }, trace: trace() };
 
-      const call = async (model: string): Promise<CallOutcome> => {
-        if (options.authorizeModel !== undefined && !options.authorizeModel(model)) return { kind: "failed", timedOut: false };
+      const call = async (model: string, role: ModelCallRole): Promise<CallOutcome> => {
+        if (options.authorizeModel !== undefined && !options.authorizeModel(model)) {
+          calls.push({ modelId: model, role, outcome: "denied" });
+          return { kind: "failed", timedOut: false, denied: true };
+        }
         const attemptIndex = attempts.length;
+        const attemptId = options.newAttemptId();
         try {
           const result = await runWithTimeout(options.transport, model, clefRequestFor(model, input), timeoutMs, context.signal);
           attempts.push(
             price({
-              attemptId: options.newAttemptId(),
+              attemptId,
               attemptIndex,
               providerId: CLOUDFLARE_WORKERS_AI,
               modelId: model,
@@ -140,12 +156,13 @@ export function createClefClassifier(options: ClefClassifierOptions): EvaluatorP
             }),
           );
           const scores = parseClefOutput(result.output, questions);
+          calls.push({ modelId: model, role, outcome: scores === null ? "malformed" : "scored", attemptId });
           return scores === null ? { kind: "malformed" } : { kind: "scored", scores };
         } catch (error) {
           // The provider may have processed (and billed) a request we gave up on.
           attempts.push(
             price({
-              attemptId: options.newAttemptId(),
+              attemptId,
               attemptIndex,
               providerId: CLOUDFLARE_WORKERS_AI,
               modelId: model,
@@ -155,27 +172,36 @@ export function createClefClassifier(options: ClefClassifierOptions): EvaluatorP
               state: "unknown",
             }),
           );
-          return { kind: "failed", timedOut: error instanceof ClefTimeoutError };
+          const timedOut = error instanceof ClefTimeoutError;
+          calls.push({ modelId: model, role, outcome: timedOut ? "timed_out" : "failed", attemptId });
+          return { kind: "failed", timedOut };
         }
       };
       const price = (attempt: UsageAttempt) => priceAttempt(options.priceBook, attempt, { at: clock() }).attempt;
       const ambiguous = (scores: Map<string, number>, selected: ReadonlyMap<string, CalibrationBand>) =>
         [...scores].some(([id, score]) => score >= selected.get(id)!.low && score < selected.get(id)!.high);
 
-      const primary = await call(primaryModel);
+      const primary = await call(primaryModel, "primary");
       if (primary.kind === "failed") {
-        return { findings: [], attempts, signals: { classifierUnavailable: true, ...(primary.timedOut ? { classifierTimedOut: true } : {}) } };
+        return {
+          findings: [],
+          attempts,
+          signals: { classifierUnavailable: true, ...(primary.timedOut ? { classifierTimedOut: true } : {}) },
+          trace: trace(),
+        };
       }
-      if (primary.kind === "malformed") return { findings: [], attempts, signals: { uncertain: true } };
+      if (primary.kind === "malformed") return { findings: [], attempts, signals: { uncertain: true }, trace: trace() };
 
       let scores = primary.scores;
       let fellBack = false;
+      let escalated = false;
       if (ambiguous(scores, bands) && context.profile.escalation.enabled && escalationKinds.includes(request.evaluationKind)) {
         const escalationBands = bandsFor(escalationModel);
         if (escalationBands === undefined) fellBack = true;
         else {
-          const escalated = await call(escalationModel);
-          if (escalated.kind === "scored") { scores = escalated.scores; bands = escalationBands; }
+          escalated = true;
+          const outcome = await call(escalationModel, "escalation");
+          if (outcome.kind === "scored") { scores = outcome.scores; bands = escalationBands; }
           else fellBack = true;
         }
       }
@@ -196,7 +222,12 @@ export function createClefClassifier(options: ClefClassifierOptions): EvaluatorP
           : [];
       });
       const signals: EvaluatorSignals = fellBack || ambiguous(scores, bands) ? { uncertain: true } : {};
-      return { findings, attempts, signals };
+      return {
+        findings,
+        attempts,
+        signals,
+        trace: trace({ escalated, ...(escalated ? { escalationReason: "ambiguous_band" as const } : {}), ...(fellBack ? { fellBack } : {}) }),
+      };
     },
   };
 }

@@ -34,6 +34,15 @@ const WIRE_SCHEMAS = {
   BatchEvaluationRequest: contracts.BatchEvaluationRequest,
   BatchEvaluationResponse: contracts.BatchEvaluationResponse,
   ReceiptRecord: contracts.ReceiptRecord,
+  Evidence: contracts.Evidence,
+  ModelCall: contracts.ModelCall,
+  ClassifierRoute: contracts.ClassifierRoute,
+  EvaluationRoute: contracts.EvaluationRoute,
+  ModelInfo: contracts.ModelInfo,
+  EvaluationRecord: contracts.EvaluationRecord,
+  EvaluationQuery: contracts.EvaluationQuery,
+  EvaluationPage: contracts.EvaluationPage,
+  ReasonCodeCatalog: contracts.ReasonCodeCatalog,
 } satisfies Record<string, z.ZodType>;
 
 function fixture(name: string): unknown {
