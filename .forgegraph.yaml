@@ -52,6 +52,22 @@ stages:
           # The production health probe ForgeGraph runs after a deploy, and that its delivery
           # receipts to Kanbanger cite; the top-level `health` block does not set it.
           healthCheckUrl: https://hall-monitor.gmac.io/v1/health
+      # The admin console (HM-33/34), behind Cloudflare Access at hall-monitor-admin.gmac.io. It
+      # binds the evaluation Worker's AdminRpc entrypoint, so it ships with the same release.
+      # ForgeGraph allows only development/staging/beta/production stages, so it is a second
+      # production target rather than a stage of its own; the stage's secrets sync to both
+      # Workers (HM_ADMIN_BOOTSTRAP_EMAILS is the console's; the others are unused there).
+      # No health check URL: every path on that hostname is behind Access.
+      - name: admin-worker
+        platform: cloudflare-workers
+        nodeId: bf11e7b1-b9de-45be-a89d-ae08049c7598  # hetzner-fg runs the deploy
+        config:
+          workerName: hall-monitor-admin
+          appDir: apps/admin
+          configPath: apps/admin/wrangler.jsonc
+          buildCommand: pnpm install --frozen-lockfile
+          deployCommand: pnpm exec wrangler deploy --domain hall-monitor-admin.gmac.io
+          syncSecrets: true
 
 health:
   # Unauthenticated liveness. Readiness (/v1/ready) needs a service token and is checked by hand.

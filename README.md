@@ -52,7 +52,9 @@ scenario planning and an offline priority/shift staffing queue simulator, all wi
 | `packages/telemetry-sink` | Internal signed v1 emitter and v2 delivery/ack validation |
 | `packages/telemetry-coverage` | Isolated experimental evidence model; no runtime completeness/zero classification |
 | `apps/telemetry-worker` | Internal v1 validate/discard and v2 durable aggregate receiver; default off, not production-verified |
+| `packages/config-release` | Digest-pinned config releases (overlays, tenant modes) the admin console publishes and the Worker verifies |
 | `apps/worker` | Cloudflare Worker HTTP API |
+| `apps/admin` | Admin console Worker behind Cloudflare Access: evaluation explorer, profiles, releases, models, labels ([admin-app.md](docs/implementation/admin-app.md)) |
 
 ## Rules
 
@@ -85,6 +87,13 @@ school deployment agreement.
 | `GET /v1/ready` | any valid token | Configuration and binding checks; never makes a billed call |
 | `GET /v1/health` | public | `{"status":"ok"}` and nothing else |
 | `GET /v1/openapi.json` | public | The OpenAPI 3.1 document for this API |
+
+The Worker also exports `AdminRpc`, a `WorkerEntrypoint` with `listEvaluations(tenant, query)` and
+`getEvaluation(tenant, id)`. It is reachable only through the admin console's service binding;
+no HTTP route leads to it. When the `CONFIG_POINTER` (KV) and `CONFIG_RELEASES` (R2) bindings are
+present, the Worker serves the admin console's active, digest-verified config release in place of
+`HM_POLICY_OVERLAYS` (and `HM_TENANT_MODES` when the release carries modes), still tighten-only;
+see [admin-app.md](docs/implementation/admin-app.md).
 
 The OpenAPI document is generated from the zod contracts (`z.toJSONSchema`) and committed at
 [`apps/worker/openapi.json`](apps/worker/openapi.json). After changing a contract or a route, run

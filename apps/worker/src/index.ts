@@ -1,6 +1,7 @@
 import { handle } from "./app.ts";
 import type { Env } from "./env.ts";
 
+export { AdminRpc } from "./admin-rpc.ts";
 export { TokenReplayGuard } from "./replay.ts";
 export { IdempotencyStore } from "./store.ts";
 export type { Env } from "./env.ts";
