@@ -167,6 +167,51 @@ tokens, which include them. A call without reported usage is recorded with unkno
 tokens are never estimated from bytes. Image bytes are never logged, stored or echoed: idempotency
 keeps only a keyed digest of the request. `GET /v1/capabilities` lists `contentTypes`.
 
+## Voice lines
+
+Lines a product speaks to learners through text-to-speech are evaluated in their **spoken form**
+(numbers and symbols already verbalized: "three fourths", not "3/4") on three surfaces, each
+paired with a built-in profile. Profiles are chosen by the caller in `policy.profileId`; the
+service does not pick one from the surface (`voiceLineProfileFor(surface)` in the policy package
+returns the pairing).
+
+| `source.surface` | What it carries | Profile | Models |
+|---|---|---|---|
+| `voice_line.composed` | Episode lines, checked when the episode is built | `voice-lines@builtin-1` | Clef enforces and escalates; fail closed |
+| `voice_line.feedback` | Hint, praise and retry lines | `voice-lines@builtin-1` | Clef enforces and escalates; fail closed |
+| `voice_line.live` | One sentence, just before TTS | `voice-lines-live@builtin-1` | None: deterministic only, no escalation, no receipt |
+
+`voice-lines-live` moderates `optional`ly (a required stage with no model would resolve as an
+unavailable classifier), so a shadow tenant shadows it; its content is expected to have been
+moderated upstream as `composed` or `feedback`, which, like the other student profiles, are never
+shadowed without `allowStudentShadow`.
+
+**Text convention.** Lines are separated by a blank line. In each segment the first line is what
+the voice says and any following lines are the on-screen caption (sent only when it differs), as
+PlayTrek's sender already does. Speakability and spoken answer leakage read only the spoken lines;
+tone reads everything, since the caption is shown too.
+
+The deterministic bundle (`base-1.1.0`) adds three evaluators that run only on `voice_line.*`
+surfaces, for `content.candidate` and `interaction.output`, English and basic Spanish:
+
+- **speakability**: sentence length and stacked clauses by `context.gradeBand` (K-2 at most 12
+  words, 3-5 18, 6-8 25, 9-12 30; past twice the limit holds), written math left in the spoken form
+  (`speakability.unverbalized_math`, hold), other digits and symbols, tongue twisters, all-caps
+  shouting and ellipsis runs (coach).
+- **spoken-answer-leakage**: `content.answerKey` (the same field answer-leakage reads) matched
+  after a small English/Spanish number-word normalizer puts both sides in one form ("three fourths",
+  "three quarters", "tres cuartos" and "3/4" are all `3/4`; "twenty-one" is `21`; "fifty percent"
+  is `50%`). Holds as `academic_integrity.spoken_answer_leakage`.
+- **kid-tone**: menacing (`tone.menacing`) and shaming (`tone.shaming`) lines hold; sarcasm,
+  anxiety-inducing pressure and hollow praise (praise for being smart, praise on a wrong answer,
+  and on `voice_line.feedback` a line that is only a stock compliment) coach. The rules are a
+  pattern list, `KID_TONE_RULES`, meant to be extended.
+
+**Not built: character-voice consistency.** Checking a line against its speaker's persona needs
+the speaker, and `EvaluationRequest.context` has no field for it (`activityKind` names the
+activity, not who speaks). It needs an additive contract field, for example an optional
+`context.speakerProfile` (a machine code such as `narrator` or `character.fox`) plus a
+service-side registry of persona traits, before an evaluator can be written.
 
 
 The [four-case demonstration](docs/launch/synthetic-demonstration.md) runs locally with scripted

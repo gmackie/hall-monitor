@@ -98,7 +98,7 @@ describe("deep link GET /evaluations/{id}", () => {
 describe("profiles, models and reason codes", () => {
   it("shows every floor with no published overlay", async () => {
     const body = await (await api(ROOT, "GET", "/tenants/playtrek/profiles")).json() as { profiles: { id: string; published: unknown }[] };
-    expect(body.profiles.map((p) => p.id)).toEqual(["educator", "published-content", "student-6-8", "student-9-12"]);
+    expect(body.profiles.map((p) => p.id)).toEqual(["educator", "published-content", "student-6-8", "student-9-12", "voice-lines", "voice-lines-live"]);
     expect(body.profiles.every((p) => p.published === null)).toBe(true);
     expect((await api(ROOT, "GET", "/tenants/playtrek/profiles/nope/revisions")).status).toBe(404);
   });

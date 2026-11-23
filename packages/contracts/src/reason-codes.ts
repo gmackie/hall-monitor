@@ -24,7 +24,7 @@ export const ReasonCodeCatalog = z.object({
 export type ReasonCodeCatalog = z.infer<typeof ReasonCodeCatalog>;
 
 /** Revision of {@link REASON_CODES}; bump on any change. */
-export const REASON_CODES_REVISION = "reason-codes-2026-11-22.2";
+export const REASON_CODES_REVISION = "reason-codes-2026-11-23.1";
 
 type Entry = readonly [code: string, category: FindingCategory | undefined, title: string, description: string];
 
@@ -39,6 +39,7 @@ const ENTRIES: readonly Entry[] = [
   // Deterministic evaluators.
   ["academic_integrity.answer_leakage", "academic-integrity", "Answer revealed", "The output reveals an answer from the supplied answer key."],
   ["academic_integrity.answer_key_marker", "academic-integrity", "Answer-key marker", "The text contains markers that indicate answer-key material."],
+  ["academic_integrity.spoken_answer_leakage", "academic-integrity", "Answer spoken aloud", "A spoken line says an answer from the supplied answer key, including in words (\"three fourths\" for 3/4)."],
   ["academic_integrity.direct_answer_request", "academic-integrity", "Direct answer request", "The learner asks for the answer instead of help reaching it."],
   ["age_fit.readability_above_band", "age-fit", "Reading level above grade band", "The text reads well above the reading level of its grade band."],
   ["format.content_not_inspected", "format", "Content not inspected", "The content could not be inspected by the deterministic rules."],
@@ -69,6 +70,19 @@ const ENTRIES: readonly Entry[] = [
   ["sensitive_topic.academic_context", "safety", "Sensitive topic, academic context", "A sensitive topic appears in an academic framing."],
   ["sexual.solicitation", "sexual", "Sexual solicitation", "The text solicits sexual content or contact."],
   ["violence.threat", "violence", "Threat of violence", "The text threatens violence against people."],
+  // Spoken lines (voice_line.* surfaces); see "Voice lines" in the README.
+  ["speakability.sentence_too_long", "age-fit", "Spoken sentence too long", "A spoken sentence has more words than listeners in the grade band can follow; far over the limit, it is held."],
+  ["speakability.stacked_clauses", "age-fit", "Stacked clauses", "A spoken sentence stacks more clauses than listeners in the grade band can follow."],
+  ["speakability.unverbalized_math", "format", "Math not spoken out", "The spoken form still has written math (3/4, =, %, ^, ×) that a voice would read literally."],
+  ["speakability.unverbalized_symbols", "format", "Digits or symbols in speech", "The spoken form still has digits or symbols that a voice may read unpredictably."],
+  ["speakability.tongue_twister", "age-fit", "Tongue twister", "Many nearby words start with the same sound, which is hard to say and hear clearly."],
+  ["speakability.all_caps", "format", "All-caps shouting", "A spoken line has words in capitals, which can be voiced as shouting."],
+  ["speakability.ellipsis_overuse", "format", "Ellipsis overuse", "A spoken line has long or repeated ellipses, which voice as awkward pauses."],
+  ["tone.menacing", "harassment", "Menacing tone", "A spoken line threatens the learner (\"hurry up or else\")."],
+  ["tone.shaming", "harassment", "Shaming tone", "A spoken line shames the learner for an error or their ability (\"wrong again\", \"you should know this\")."],
+  ["tone.sarcasm", "harassment", "Sarcasm", "A spoken line is sarcastic about the learner's attempt."],
+  ["tone.anxiety_pressure", "age-fit", "Anxiety-inducing pressure", "A spoken line pressures the learner with time, stakes or fear of failing."],
+  ["tone.hollow_praise", "quality", "Hollow praise", "A spoken line praises being smart rather than the work, praises a wrong answer, or is only a stock compliment."],
   // Clef decision questions (clef-baseline pack).
   ["clef.self_harm", "self-harm", "Self-harm risk (model)", "The Clef classifier found that the writer may harm themselves or be in crisis."],
   ["clef.harassment", "harassment", "Harassment (model)", "The Clef classifier found bullying, harassment or demeaning content."],
