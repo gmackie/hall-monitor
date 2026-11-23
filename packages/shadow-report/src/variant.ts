@@ -55,3 +55,19 @@ export function overlayVariant(label: string, overlays: unknown, base: PolicyVar
 export function resolverVariant(label: string, resolve: DecisionResolver, resolverVersion: string, base: PolicyVariant = BUILTIN_VARIANT): PolicyVariant {
   return { ...base, label, resolve, resolverVersion };
 }
+
+/**
+ * The model axis of a diff: `base` with one model family switched on for every profile, in
+ * `mode`. Routing applies as an overlay on each base profile, so it composes with a candidate's
+ * policy overlays and stays tighten-only. Each profile gets the revision `<revision>.<family>-<mode>`.
+ */
+export function familyVariant(family: "clef" | "clairic", mode: "shadow" | "enforce", base: PolicyVariant = BUILTIN_VARIANT): PolicyVariant {
+  const profiles: Record<string, PolicyProfile> = {};
+  const clampedFields: string[] = [...base.clampedFields];
+  for (const [profileId, profile] of Object.entries(base.profiles).sort(([a], [b]) => a.localeCompare(b))) {
+    const { profile: routed, violations } = applyOverlay(profile, { id: profile.id, revision: `${profile.revision}.${family}-${mode}`, routing: { [family]: { enabled: true, mode } } });
+    clampedFields.push(...violations.map((violation) => `${profileId}.${violation.field}`));
+    profiles[profileId] = routed;
+  }
+  return { ...base, label: `${base.label}+${family}:${mode}`, profiles, clampedFields };
+}

@@ -43,7 +43,7 @@ async function expectError(response: Response, status: number, code: string) {
 describe("evaluation route on results", () => {
   it("records the primary Clef call and links it to the receipt", async () => {
     const { result } = await evaluate("tenant_route_a");
-    expect(result.route?.classifiers).toEqual([
+    expect(result.route?.classifiers.filter((route) => route.status === "ran")).toEqual([
       expect.objectContaining({
         family: "clef",
         evaluatorId: "clef",
@@ -185,7 +185,10 @@ describe("GET /v1/reason-codes and capabilities", () => {
     expect(capabilities.models?.map((model) => [model.modelId, model.role])).toEqual([
       ["@cf/cloudflare/clef-flash", "primary"],
       ["@cf/cloudflare/clef", "escalation"],
+      ["@cf/cloudflare/clairic-flash", "primary"],
+      ["@cf/cloudflare/clairic", "escalation"],
     ]);
+    expect(capabilities.models?.filter((model) => model.status === "preview").map((model) => model.family)).toEqual(["clairic", "clairic"]);
   });
 });
 

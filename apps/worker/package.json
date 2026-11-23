@@ -10,7 +10,9 @@
     "dev": "wrangler dev"
   },
   "dependencies": {
+    "@gmacko/hall-monitor-clairic": "workspace:*",
     "@gmacko/hall-monitor-clef": "workspace:*",
+    "@gmacko/hall-monitor-config-release": "workspace:*",
     "@gmacko/hall-monitor-contracts": "workspace:*",
     "@gmacko/hall-monitor-core": "workspace:*",
     "@gmacko/hall-monitor-costing": "workspace:*",
@@ -18,9 +20,9 @@
     "@gmacko/hall-monitor-governance": "workspace:*",
     "@gmacko/hall-monitor-noul-registry": "workspace:*",
     "@gmacko/hall-monitor-policy": "workspace:*",
-    "zod": "catalog:",
     "@gmacko/hall-monitor-telemetry-contracts": "workspace:*",
-    "@gmacko/hall-monitor-telemetry-sink": "workspace:*"
+    "@gmacko/hall-monitor-telemetry-sink": "workspace:*",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "catalog:",

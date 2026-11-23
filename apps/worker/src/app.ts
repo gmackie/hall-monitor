@@ -1,3 +1,4 @@
+import { createClairicEvaluator } from "@gmacko/hall-monitor-clairic";
 import { CLEF_CLASSIFIER_VERSION, createClefClassifier, workersAiBindingTransport } from "@gmacko/hall-monitor-clef";
 import { authorizeModelTransfer } from "@gmacko/hall-monitor-governance";
 import { loadDecisionQuestions } from "./decision-packs.ts";
@@ -22,7 +23,7 @@ import {
   SUPPORTED_SCHEMA_VERSIONS,
 } from "@gmacko/hall-monitor-contracts";
 import { evaluate, HallMonitorError, parseEvaluationRequest } from "@gmacko/hall-monitor-core";
-import { CLEF_FLASH_MODEL, CLEF_MODEL, PRICE_BOOK_CLOUDFLARE_2026_10_20 } from "@gmacko/hall-monitor-costing";
+import { CLEF_FLASH_MODEL, CURRENT_PRICE_BOOK, MODEL_REGISTRY } from "@gmacko/hall-monitor-costing";
 import { defaultBundle } from "@gmacko/hall-monitor-evaluators";
 import { RESOLVER_VERSION } from "@gmacko/hall-monitor-policy";
 import {
@@ -35,14 +36,17 @@ import {
   type ServiceIdentity,
   verifyServiceToken,
 } from "./auth.ts";
+import { refreshConfigRelease } from "./config-release.ts";
 import { type Config, enforcementFor, loadConfig, lookupPolicy, tenantProfiles } from "./config.ts";
 import { requestDigest } from "./digest.ts";
 import type { Env } from "./env.ts";
 import { errorResponse, HttpError, json, readJson } from "./http.ts";
 import { log } from "./log.ts";
+import { gatedProfile } from "./model-gate.ts";
 import { prepareTelemetryDelivery, scheduleEvaluationMetrics } from "./metrics.ts";
 import { openApiJson } from "./openapi.ts";
 import { replayGuardName } from "./replay.ts";
+import { storeFor } from "./tenant-store.ts";
 
 /**
  * Largest single-evaluation body: up to 8 MiB of images (about 10.7 MiB as base64) plus 32k UTF-16
@@ -67,6 +71,8 @@ export async function handle(request: Request, env: Env, ctx?: ExecutionContext)
 }
 
 async function handleRoute(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
+  // Never throws; at most one KV read a minute per isolate, and R2 only when the pointer moves.
+  await refreshConfigRelease(env);
   const url = new URL(request.url);
   const route = routeOf(request.method, url.pathname);
   try {
@@ -208,7 +214,7 @@ async function capabilities(request: Request, env: Env): Promise<Response> {
     evaluatorBundles: [{ id: defaultBundle.id, revision: bundleRevision(classifierEnabled) }],
     policyProfiles: config.overlays === undefined ? [] : tenantProfiles(config, identity.tenant),
     resolverVersion: RESOLVER_VERSION,
-    classifier: { enabled: classifierEnabled, models: classifierEnabled ? [CLEF_FLASH_MODEL, CLEF_MODEL] : [] },
+    classifier: { enabled: classifierEnabled, models: classifierEnabled ? MODEL_REGISTRY.filter((model) => model.family === "clef").map((model) => model.modelId) : [] },
     contentTypes: [...ContentType.options],
     models: classifierEnabled ? [...DEPLOYED_MODELS] : [],
     reasonCodesRevision: REASON_CODES_REVISION,
@@ -269,10 +275,10 @@ async function evaluateBatch(request: Request, env: Env, ctx?: ExecutionContext)
 }
 
 /** The models this deployment may call, for `GET /v1/capabilities`. */
-const DEPLOYED_MODELS: readonly ModelInfo[] = Object.freeze([
-  { family: "clef", modelId: CLEF_FLASH_MODEL, role: "primary", status: "ga" },
-  { family: "clef", modelId: CLEF_MODEL, role: "escalation", status: "ga" },
-]);
+const DEPLOYED_MODELS: readonly ModelInfo[] = Object.freeze(
+  MODEL_REGISTRY.map(({ family, modelId, role, status }) => Object.freeze({ family, modelId, role, status })),
+);
+
 
 function evaluationIdOf(rawId: string): string {
   let evaluationId: string;
@@ -384,10 +390,13 @@ async function runEvaluation(request: EvaluationRequest, identity: ServiceIdenti
   try {
     await admit(env, tenant);
     result = await evaluate(request, {
-      policies: (profileId, revision) => lookupPolicy(config, tenant, profileId, revision),
+      policies: (profileId, revision) => {
+        const profile = lookupPolicy(config, tenant, profileId, revision);
+        return profile === undefined ? undefined : gatedProfile(profile, env);
+      },
       bundle: defaultBundle,
       ...(await classifierFor(env, request, identity, config)),
-      priceBook: PRICE_BOOK_CLOUDFLARE_2026_10_20,
+      priceBook: CURRENT_PRICE_BOOK,
       clock: () => new Date(),
       ids: { evaluationId: () => newId("eval"), receiptId: () => newId("rcpt") },
       // Enrollment cannot turn denied classification into an allow through an old shadow override.
@@ -487,15 +496,21 @@ async function classifierFor(env: Env, request: EvaluationRequest, identity: Ser
       ? undefined
       : { id: gatewayId, metadata: { tenant: request.source.tenantId, product: request.source.product, kind: request.evaluationKind },
         ...(config.governance !== undefined && Object.hasOwn(config.governance.tenants, identity.tenant) ? { skipCache: true, collectLog: false } : {}) };
+  const transport = workersAiBindingTransport(env.AI, gateway);
   return {
     classifier: createClefClassifier({
-      transport: workersAiBindingTransport(env.AI, gateway),
-      priceBook: PRICE_BOOK_CLOUDFLARE_2026_10_20,
+      transport,
+      priceBook: CURRENT_PRICE_BOOK,
       newAttemptId: () => newId("att"),
       questions: questions.text,
       imageQuestions: questions.image,
       authorizeModel,
     }),
+    // Runs only where a profile's routing enables it (shadow by default), and each call is
+    // authorized like Clef's: an enrollment that lists only Clef models denies it.
+    classifiers: [
+      createClairicEvaluator({ transport, priceBook: CURRENT_PRICE_BOOK, newAttemptId: () => newId("att"), authorizeModel }),
+    ],
   };
 }
 
@@ -529,10 +544,6 @@ function parseOrThrow(input: unknown): EvaluationRequest {
 /** The request's tenant must be the token's: a service can never act for another tenant. */
 function assertTenant(identity: ServiceIdentity, request: EvaluationRequest): void {
   if (request.source.tenantId !== identity.tenant) throw new HttpError("forbidden", "source.tenantId does not match the service token");
-}
-
-function storeFor(env: Env, tenant: string) {
-  return env.IDEMPOTENCY_STORE.get(env.IDEMPOTENCY_STORE.idFromName(`tenant:${tenant}`));
 }
 
 /** The evaluator bundle revision results carry, matching the core's composition. */

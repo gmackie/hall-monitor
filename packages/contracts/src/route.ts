@@ -46,6 +46,7 @@ export type ModelCall = z.infer<typeof ModelCall>;
  * - `kind_not_routed`: the family does not handle this evaluation kind.
  * - `profile_disabled`: the profile's routing turns the family off.
  * - `not_authorized`: governance refused every model on the route.
+ * - `content_not_supported`: the family cannot read this content type (Clairic reads text only).
  */
 export const ClassifierSkipReason = z.enum([
   "moderation_off",
@@ -56,6 +57,7 @@ export const ClassifierSkipReason = z.enum([
   "kind_not_routed",
   "profile_disabled",
   "not_authorized",
+  "content_not_supported",
 ]);
 /** Why a family did not run for this evaluation. */
 export type ClassifierSkipReason = z.infer<typeof ClassifierSkipReason>;

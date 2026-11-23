@@ -2,6 +2,7 @@ import {
   type ClassifierRoute,
   type ClassifierSkipReason,
   type EnforcementMode,
+  type FamilyMode,
   type EvaluationKind,
   EvaluationRequest,
   EvaluationResult,
@@ -13,12 +14,15 @@ import {
 import { buildReceipt, type PriceBook, priceAttempt } from "@gmacko/hall-monitor-costing";
 import { type ClassifierTrace, type EvaluatorBundle, type EvaluatorPlugin, type EvaluatorSignals, runPlugins } from "@gmacko/hall-monitor-evaluators";
 import {
+  MODEL_FAMILIES,
+  type ModelFamily,
   type ModerationMode,
   type PolicyProfile,
   type Resolution,
   type ResolutionContext,
   type ResolutionFlags,
   resolveDecision,
+  routeFor,
   type ShadowPermissions,
 } from "@gmacko/hall-monitor-policy";
 import { HallMonitorError } from "./errors.ts";
@@ -57,6 +61,11 @@ export interface EvaluateDeps {
   readonly bundle: EvaluatorBundle;
   /** The model classifier; without one, a required classification is treated as unavailable. */
   readonly classifier?: EvaluatorPlugin;
+  /**
+   * Further model families (e.g. Clairic), run in parallel with `classifier` when the profile's
+   * routing enables them for the kind (see `PolicyProfile.routing`).
+   */
+  readonly classifiers?: readonly EvaluatorPlugin[];
   /** Prices any attempt an evaluator left unpriced; receipts are stated in this book. */
   readonly priceBook: PriceBook;
   readonly clock: () => Date;
@@ -117,8 +126,17 @@ export async function evaluate(input: unknown, deps: EvaluateDeps): Promise<Eval
   const decisive = findings.some((finding) => finding.severity === "block" || finding.severity === "support");
   const unmoderatedImages = request.content.type === "image" && profile.imageModeration !== true;
   const routes: ClassifierRoute[] = [];
+  // Families routed for this kind under the profile, each with its mode. A family the profile turns
+  // off is recorded as skipped; an unknown plugin family runs like the legacy single classifier.
+  const routed: { plugin: EvaluatorPlugin; mode: FamilyMode }[] = [];
+  for (const plugin of classifiersOf(deps)) {
+    const family = familyOf(plugin);
+    const routing = isModelFamily(family) ? routeFor(profile, family, request.evaluationKind) : { mode: "enforce" as const };
+    if (routing === null) routes.push(classifierRoute(plugin, "enforce", undefined, "profile_disabled"));
+    else routed.push({ plugin, mode: routing.mode });
+  }
   const skipped = (reason: ClassifierSkipReason) => {
-    if (deps.classifier !== undefined) routes.push(classifierRoute(deps.classifier, undefined, reason));
+    for (const { plugin, mode: familyMode } of routed) routes.push(classifierRoute(plugin, familyMode, undefined, reason));
   };
   if (mode === "off") skipped("moderation_off");
   else if (unmoderatedImages) skipped("image_moderation_disabled");
@@ -134,11 +152,11 @@ export async function evaluate(input: unknown, deps: EvaluateDeps): Promise<Eval
     });
     if (mode === "required") flags = { ...flags, classifierUnavailable: true };
   } else if (mode !== "off" && request.content.type !== "digest" && !decisive) {
-    const classified = await classify(request, deps, context, mode);
+    const classified = await classify(request, deps, routed, context, mode);
     findings.push(...classified.findings);
     attempts.push(...classified.attempts);
     flags = { ...flags, ...classified.flags };
-    if (classified.route !== undefined) routes.push(classified.route);
+    routes.push(...classified.routes);
   }
 
   const resolution = (deps.resolve ?? resolveDecision)(profile, findings, request.context, flags);
@@ -170,11 +188,11 @@ export async function evaluate(input: unknown, deps: EvaluateDeps): Promise<Eval
     findings,
     uncertain: resolution.uncertain,
     policyRevision: profile.revision,
-    evaluatorBundleRevision: bundleRevision(deps),
+    evaluatorBundleRevision: bundleRevision(deps.bundle, routed.map((entry) => entry.plugin)),
     resolverVersion: resolution.resolverVersion,
     receipt,
     ...(resolution.degraded === undefined ? {} : { degraded: { reason: resolution.degraded } }),
-    route: { classifiers: routes },
+    route: { classifiers: inPluginOrder(routes, classifiersOf(deps)) },
   });
   return applyEnforcement(result, profile, deps.enforcement);
 }
@@ -202,54 +220,117 @@ function moderationMode(profile: PolicyProfile, kind: EvaluationKind): Moderatio
   return kind === "interaction.output" ? profile.outputModeration : profile.inputModeration;
 }
 
+/** Route entries in the order the host supplied the plugins, so the route reads the same every time. */
+function inPluginOrder(routes: readonly ClassifierRoute[], plugins: readonly EvaluatorPlugin[]): ClassifierRoute[] {
+  const order = new Map(plugins.map((plugin, index) => [plugin.id, index]));
+  return [...routes].sort((a, b) => (order.get(a.evaluatorId) ?? 0) - (order.get(b.evaluatorId) ?? 0));
+}
+
+/** Every model-backed evaluator the host supplied: the legacy single slot first, then the rest. */
+function classifiersOf(deps: EvaluateDeps): readonly EvaluatorPlugin[] {
+  return [...(deps.classifier === undefined ? [] : [deps.classifier]), ...(deps.classifiers ?? [])];
+}
+
+function familyOf(plugin: EvaluatorPlugin): string {
+  return plugin.family ?? plugin.id;
+}
+
+function isModelFamily(family: string): family is ModelFamily {
+  return (MODEL_FAMILIES as readonly string[]).includes(family);
+}
+
+/**
+ * Runs every routed family in parallel. Only `enforce` families produce findings and signals for
+ * the decision; a `shadow` family's findings are recorded on its route entry and its failures are
+ * ignored, though its provider attempts are still receipted, since they were billed. A required
+ * stage with no enforcing family is resolved as an unavailable classifier, as before routing.
+ */
 async function classify(
   request: EvaluationRequest,
   deps: EvaluateDeps,
+  routed: readonly { plugin: EvaluatorPlugin; mode: FamilyMode }[],
   context: { profile: PolicyProfile; signal: AbortSignal },
   mode: Exclude<ModerationMode, "off">,
-): Promise<{ findings: readonly Finding[]; attempts: readonly UsageAttempt[]; flags: ResolutionFlags; route?: ClassifierRoute }> {
+): Promise<{ findings: readonly Finding[]; attempts: readonly UsageAttempt[]; flags: ResolutionFlags; routes: readonly ClassifierRoute[] }> {
   const required = mode === "required";
-  const none = { findings: [], attempts: [] };
-  const classifier = deps.classifier;
-  if (classifier === undefined) return { ...none, flags: required ? { classifierUnavailable: true } : {} };
+  const unavailable: ResolutionFlags = required ? { classifierUnavailable: true } : {};
+  if (routed.length === 0) return { findings: [], attempts: [], flags: unavailable, routes: [] };
   if (deps.admitClassification !== undefined && !(await deps.admitClassification(request))) {
-    return { ...none, flags: required ? { budgetExhausted: true } : {}, route: classifierRoute(classifier, undefined, "budget_exhausted") };
+    return {
+      findings: [],
+      attempts: [],
+      flags: required && routed.some((entry) => entry.mode === "enforce") ? { budgetExhausted: true } : {},
+      routes: routed.map(({ plugin, mode: familyMode }) => classifierRoute(plugin, familyMode, undefined, "budget_exhausted")),
+    };
   }
-  if (!classifier.supportedKinds.includes(request.evaluationKind)) {
-    return { ...none, flags: {}, route: classifierRoute(classifier, undefined, "kind_not_routed") };
+  const outcomes = await Promise.all(routed.map(async ({ plugin, mode: familyMode }) => {
+    if (!plugin.supportedKinds.includes(request.evaluationKind)) {
+      return { familyMode, ran: false, output: undefined, route: classifierRoute(plugin, familyMode, undefined, "kind_not_routed") };
+    }
+    if (plugin.supportsContent !== undefined && !plugin.supportsContent(request)) {
+      return { familyMode, ran: false, output: undefined, route: classifierRoute(plugin, familyMode, undefined, "content_not_supported") };
+    }
+    let output: { findings: readonly Finding[]; attempts: readonly UsageAttempt[]; signals: EvaluatorSignals; trace?: ClassifierTrace };
+    try {
+      const raw = await plugin.evaluate(request, context);
+      output = { findings: raw.findings, attempts: raw.attempts, signals: raw.signals ?? {}, ...(raw.trace === undefined ? {} : { trace: raw.trace }) };
+    } catch {
+      output = { findings: [], attempts: [], signals: { classifierUnavailable: true } };
+    }
+    const route = classifierRoute(plugin, familyMode, output.trace, undefined, familyMode === "shadow" ? output.findings : undefined);
+    return { familyMode, ran: true, output, route };
+  }));
+
+  const findings: Finding[] = [];
+  const attempts: UsageAttempt[] = [];
+  let signals: EvaluatorSignals = {};
+  let enforcing = 0;
+  for (const outcome of outcomes) {
+    if (outcome.output !== undefined) attempts.push(...outcome.output.attempts);
+    if (outcome.familyMode !== "enforce" || !outcome.ran || outcome.output === undefined) continue;
+    enforcing++;
+    findings.push(...outcome.output.findings);
+    signals = { ...signals, ...Object.fromEntries(Object.entries(outcome.output.signals).filter(([, value]) => value === true)) };
   }
-  let output: { findings: readonly Finding[]; attempts: readonly UsageAttempt[]; signals: EvaluatorSignals; trace?: ClassifierTrace };
-  try {
-    const raw = await classifier.evaluate(request, context);
-    output = { findings: raw.findings, attempts: raw.attempts, signals: raw.signals ?? {}, ...(raw.trace === undefined ? {} : { trace: raw.trace }) };
-  } catch {
-    output = { ...none, signals: { classifierUnavailable: true } };
-  }
+  // A required stage needs an answer from a family that decides; shadow-only routing gives none.
+  if (enforcing === 0 && routed.every((entry) => entry.mode === "shadow")) signals = { ...signals, ...unavailable };
   // Optional moderation does not fail closed when the classifier is down.
-  const { classifierUnavailable: _unavailable, classifierTimedOut: _timedOut, ...rest } = output.signals;
-  const flags: ResolutionFlags = required ? output.signals : rest;
-  return { findings: output.findings, attempts: output.attempts, flags, route: classifierRoute(classifier, output.trace) };
+  const { classifierUnavailable: _unavailable, classifierTimedOut: _timedOut, ...rest } = signals;
+  const flags: ResolutionFlags = required ? signals : rest;
+  return { findings, attempts, flags, routes: outcomes.map((outcome) => outcome.route) };
 }
 
 /** A family's route entry: what it called, or why it was skipped. */
-function classifierRoute(plugin: EvaluatorPlugin, trace: ClassifierTrace | undefined, skipReason?: ClassifierSkipReason): ClassifierRoute {
+function classifierRoute(
+  plugin: EvaluatorPlugin,
+  mode: FamilyMode,
+  trace: ClassifierTrace | undefined,
+  skipReason?: ClassifierSkipReason,
+  shadowFindings?: readonly Finding[],
+): ClassifierRoute {
   const deniedEverything = trace !== undefined && trace.calls.length > 0 && trace.calls.every((call) => call.outcome === "denied");
   const reason = skipReason ?? (deniedEverything ? "not_authorized" : undefined);
   return {
-    family: trace?.family ?? plugin.id,
+    family: trace?.family ?? familyOf(plugin),
     evaluatorId: plugin.id,
     evaluatorVersion: plugin.version,
     status: reason === undefined ? "ran" : "skipped",
     ...(reason === undefined ? {} : { skipReason: reason }),
-    mode: "enforce",
+    mode,
     calibrationRevision: trace?.calibrationRevision ?? null,
     calls: [...(trace?.calls ?? [])],
     escalated: trace?.escalated ?? false,
     ...(trace?.escalationReason === undefined ? {} : { escalationReason: trace.escalationReason }),
     ...(trace?.fellBack === true ? { fellBack: true } : {}),
+    ...(shadowFindings === undefined || shadowFindings.length === 0 ? {} : { shadowFindings: shadowFindings.slice(0, 64) }),
   };
 }
 
-function bundleRevision(deps: EvaluateDeps): string {
-  return deps.classifier === undefined ? deps.bundle.revision : `${deps.bundle.revision}:${deps.classifier.id}-${deps.classifier.version}`;
+/**
+ * The bundle revision results carry: the deterministic bundle, then each routed model evaluator.
+ * With Clef alone this is `base:clef-<version>`, exactly as before routing; each further routed
+ * family appends `:<id>-<version>`.
+ */
+export function bundleRevision(bundle: Pick<EvaluatorBundle, "revision">, plugins: readonly Pick<EvaluatorPlugin, "id" | "version">[]): string {
+  return plugins.length === 0 ? bundle.revision : `${bundle.revision}:${plugins.map((plugin) => `${plugin.id}-${plugin.version}`).join(":")}`;
 }

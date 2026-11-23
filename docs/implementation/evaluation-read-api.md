@@ -62,7 +62,7 @@ ClassifierRoute = {
   status: "ran" | "skipped"
   skipReason?: "moderation_off" | "deterministic_decisive" | "digest_content"
              | "image_moderation_disabled" | "budget_exhausted" | "kind_not_routed"
-             | "profile_disabled" | "not_authorized"
+             | "profile_disabled" | "not_authorized" | "content_not_supported"
   mode: "enforce" | "shadow"      // the family's mode: shadow findings never reach the decision
   calibrationRevision: string | null
   calls: { modelId, role: "primary" | "escalation",
