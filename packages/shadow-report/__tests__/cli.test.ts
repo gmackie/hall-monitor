@@ -75,7 +75,7 @@ describe("shadow-report CLI", () => {
 
   it("runs under Node as `pnpm shadow-report` does", () => {
     const bin = fileURLToPath(new URL("../src/bin.ts", import.meta.url));
-    const run = spawnSync(process.execPath, ["--experimental-transform-types", "--disable-warning=ExperimentalWarning", bin, "--profile", "educator"], {
+    const run = spawnSync(process.execPath, ["--disable-warning=ExperimentalWarning", bin, "--profile", "educator"], {
       encoding: "utf8",
       timeout: 60_000,
     });

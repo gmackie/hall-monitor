@@ -3,7 +3,7 @@
 {
   "name": "hall-monitor-admin-test",
   "main": "./entry.ts",
-  "compatibility_date": "2026-10-01",
+  "compatibility_date": "2026-11-17",
   "compatibility_flags": ["nodejs_compat"],
   "d1_databases": [{ "binding": "DB", "database_name": "hm-control", "database_id": "test-db" }],
   "kv_namespaces": [{ "binding": "CONFIG_POINTER", "id": "test-kv" }],

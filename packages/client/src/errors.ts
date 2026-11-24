@@ -33,9 +33,12 @@ export class HallMonitorError extends Error {
 export class HallMonitorTimeoutError extends HallMonitorError {
   override readonly name: string = "HallMonitorTimeoutError";
 
+  readonly timeoutMs: number;
+
   /** Creates a timeout error for a deadline of `timeoutMs`. */
-  constructor(readonly timeoutMs: number) {
+  constructor(timeoutMs: number) {
     super({ code: "unavailable", message: `Hall Monitor call exceeded ${timeoutMs}ms`, retryable: true });
+    this.timeoutMs = timeoutMs;
   }
 }
 

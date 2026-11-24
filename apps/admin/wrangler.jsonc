@@ -17,7 +17,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "hall-monitor-admin",
   "main": "src/index.ts",
-  "compatibility_date": "2026-10-01",
+  "compatibility_date": "2026-11-17",
   // shadow-report (diffs, calibration scoring) uses node:crypto.
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },

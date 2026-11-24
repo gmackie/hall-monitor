@@ -88,9 +88,12 @@ export type AuthFailure =
 /** A refused token. Always maps to HTTP 401. */
 export class AuthError extends Error {
   override readonly name = "AuthError";
+  readonly reason: AuthFailure;
+
   /** Creates an error for a fixed failure reason. */
-  constructor(readonly reason: AuthFailure) {
+  constructor(reason: AuthFailure) {
     super(`service token rejected: ${reason}`);
+    this.reason = reason;
   }
 }
 

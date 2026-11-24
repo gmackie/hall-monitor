@@ -6,7 +6,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "hall-monitor-telemetry",
   "main": "src/index.ts",
-  "compatibility_date": "2026-10-01",
+  "compatibility_date": "2026-11-17",
   "workers_dev": false,
   "observability": { "enabled": false },
   "durable_objects": {

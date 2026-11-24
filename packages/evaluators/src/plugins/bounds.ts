@@ -2,6 +2,7 @@ import { EvaluationKind } from "@gmacko/hall-monitor-contracts";
 import { deterministicEvaluator, type FindingDraft } from "../plugin.ts";
 import { textOf } from "../text.ts";
 
+// oxlint-disable-next-line no-control-regex -- This evaluator detects prohibited control characters.
 const CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 const BIDI_OVERRIDE = /[‪-‮⁦-⁩]/;
 const ZERO_WIDTH = /[​-‍⁠﻿]/g;

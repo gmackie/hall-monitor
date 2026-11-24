@@ -54,7 +54,14 @@ export function validateAcceptanceTarget(target: AcceptanceTarget): AcceptanceTa
   return { url: u.origin, expectedCommit: target.expectedCommit, deploymentId: target.deploymentId };
 }
 
-class Refused extends Error { constructor(readonly failure: Failure) { super(failure); } }
+class Refused extends Error {
+  readonly failure: Failure;
+
+  constructor(failure: Failure) {
+    super(failure);
+    this.failure = failure;
+  }
+}
 async function boundedJson(response: Response): Promise<unknown> {
   if (response.body === null) throw new Refused("response");
   const reader = response.body.getReader(), parts: Uint8Array[] = [];

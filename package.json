@@ -3,30 +3,34 @@
   "private": true,
   "description": "Product-neutral moderation and evaluation service (Hall Monitor) shared by EducateOS and PlayTrek.",
   "type": "module",
-  "packageManager": "pnpm@12.8.1",
+  "packageManager": "pnpm@12.21.0",
   "engines": {
-    "node": ">=22.12.0"
+    "node": "^26.13.1",
+    "pnpm": "^12.21.0"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p apps/worker/tsconfig.json --noEmit && tsc -p apps/telemetry-worker/tsconfig.json --noEmit && tsc -p apps/admin/tsconfig.json --noEmit",
     "test": "vitest run",
     "check:boundaries": "node scripts/check-boundaries.mjs",
-    "lint": "pnpm check:boundaries && pnpm typecheck && pnpm openapi:check",
-    "openapi": "node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/openapi.ts",
-    "openapi:check": "node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/openapi.ts --check",
-    "shadow-report": "node --experimental-transform-types --disable-warning=ExperimentalWarning packages/shadow-report/src/bin.ts",
+    "lint": "pnpm check:boundaries && pnpm exec oxlint && pnpm typecheck && pnpm openapi:check",
+    "openapi": "node --disable-warning=ExperimentalWarning scripts/openapi.ts",
+    "openapi:check": "node --disable-warning=ExperimentalWarning scripts/openapi.ts --check",
+    "shadow-report": "node --disable-warning=ExperimentalWarning packages/shadow-report/src/bin.ts",
     "rollback-drill": "node scripts/rollback-drill.mjs",
     "reconciliation-drill": "node scripts/reconciliation-drill.mjs",
-    "evaluator-smoke": "node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/evaluator-smoke.ts",
-    "privacy-preflight": "node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/privacy-preflight.ts",
-    "calibration": "node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/calibration.ts",
-    "synthetic-demo": "node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/synthetic-demo.ts",
-    "model-gate": "node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/model-gate.ts",
-    "read-api-smoke": "node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/read-api-smoke.ts"
+    "evaluator-smoke": "node --disable-warning=ExperimentalWarning scripts/evaluator-smoke.ts",
+    "privacy-preflight": "node --disable-warning=ExperimentalWarning scripts/privacy-preflight.ts",
+    "calibration": "node --disable-warning=ExperimentalWarning scripts/calibration.ts",
+    "synthetic-demo": "node --disable-warning=ExperimentalWarning scripts/synthetic-demo.ts",
+    "model-gate": "node --disable-warning=ExperimentalWarning scripts/model-gate.ts",
+    "read-api-smoke": "node --disable-warning=ExperimentalWarning scripts/read-api-smoke.ts"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
+    "@types/node": "26.6.6",
+    "oxlint": "catalog:",
+    "oxlint-tsgolint": "catalog:",
     "typescript": "catalog:",
+    "vite": "catalog:",
     "vitest": "catalog:"
   }
 }

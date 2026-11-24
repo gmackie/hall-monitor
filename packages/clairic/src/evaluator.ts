@@ -228,7 +228,7 @@ async function runWithTimeout(transport: ClefTransport, model: string, input: un
   try {
     return await Promise.race([transport.run(model, input, { signal: controller.signal }), timeout]);
   } finally {
-    clearTimeout(timer);
+    if (timer !== undefined) clearTimeout(timer);
     parent.removeEventListener("abort", abort);
   }
 }
