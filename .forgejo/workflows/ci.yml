@@ -6,6 +6,8 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.head_ref || github.ref }}
@@ -13,25 +15,37 @@ concurrency:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    # Fleet kit v1: `apps` runners carry the persistent /pnpm-store mount.
+    runs-on: apps
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - name: Superseded?
+        id: superseded
+        uses: https://git.forgegraf.com/gmackie/ci-actions/fleet/superseded@ddd693744c0254b1cb078eec0e4d5a1bc38f57eb
 
-      - uses: actions/setup-node@v4
+      - if: steps.superseded.outputs.skip != 'true'
+        uses: actions/checkout@v4
+
+      # Fleet kit v1: Node 24 + pnpm (version from `packageManager`), then
+      # `pnpm install --frozen-lockfile` (retried) on the runner's persistent
+      # pnpm store; no archive cache.
+      - name: Set up toolchain and install
+        if: steps.superseded.outputs.skip != 'true'
+        uses: https://git.forgegraf.com/gmackie/ci-actions/fleet/setup@ddd693744c0254b1cb078eec0e4d5a1bc38f57eb
         with:
           node-version: 24
+          registry-token: ${{ secrets.FG_REGISTRY_TOKEN }}
+          turbo-token: ${{ secrets.TURBO_TOKEN }}
+          turbo-team: ci
 
-      # pnpm's version comes from `packageManager` in package.json.
-      - name: Enable Corepack
-        run: corepack enable
-
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm lint
+      - if: steps.superseded.outputs.skip != 'true'
+        run: pnpm lint 2>&1 | tee -a "$RUNNER_TEMP/ci.log"
+        shell: bash # -eo pipefail keeps the command's exit code through tee
       # Podman's disk-backed /tmp on the canonical runner can stall SQLite fsyncs long enough to
       # time out Worker tests. Use ephemeral tmpfs scratch space; the real SQLite store, per-test
       # storage isolation, assertions and test deadlines are unchanged.
       - name: Run tests and rollback drill with memory-backed scratch storage
+        if: steps.superseded.outputs.skip != 'true'
         run: |
           set -eu
           test_tmpdir=$(mktemp -d /dev/shm/hall-monitor-tests.XXXXXX)
@@ -40,34 +54,20 @@ jobs:
           pnpm test
           pnpm rollback-drill --out rollback-drill.json
       - name: Check the Worker bundles
+        if: steps.superseded.outputs.skip != 'true'
         run: node scripts/deploy-worker.mjs --dry-run
 
       # The receiver is stateful and internal-only: bundle it (dry run, never deployed) and check
       # its config still has no route, workers.dev or extra bindings.
       - name: Check the telemetry receiver bundle
+        if: steps.superseded.outputs.skip != 'true'
         run: node scripts/deploy-telemetry-worker.mjs --dry-run
 
       - name: Report CI result to ForgeGraph
-        if: always()
-        env:
-          FG_CI_TOKEN: ${{ secrets.FORGEGRAPH_TOKEN }}
-        run: |
-          case "${{ job.status }}" in
-            success) STATUS=success ;;
-            cancelled) STATUS=cancelled ;;
-            *) STATUS=failure ;;
-          esac
-          REPO_FULL="${{ github.repository }}"
-          curl -sf -X POST "https://forgegraf.com/api/fg/ci/report" \
-            -H "Authorization: Bearer ${FG_CI_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"owner\": \"${REPO_FULL%%/*}\",
-              \"repo\": \"${REPO_FULL##*/}\",
-              \"sha\": \"${{ github.event.pull_request.head.sha || github.sha }}\",
-              \"branch\": \"${{ github.head_ref || github.ref_name }}\",
-              \"status\": \"${STATUS}\",
-              \"runId\": \"${{ github.run_id }}\",
-              \"runUrl\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\",
-              \"workflowName\": \"CI\"
-            }" || echo "::warning::Failed to report CI result to ForgeGraph"
+        if: always() && steps.superseded.outputs.skip != 'true'
+        uses: https://git.forgegraf.com/gmackie/ci-actions/fleet/report@ddd693744c0254b1cb078eec0e4d5a1bc38f57eb
+        with:
+          token: ${{ secrets.FORGEGRAPH_TOKEN }}
+          status: ${{ job.status }}
+          workflow-name: CI
+          log-file: ${{ runner.temp }}/ci.log
