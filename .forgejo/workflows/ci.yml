@@ -26,17 +26,14 @@ jobs:
       - if: steps.superseded.outputs.skip != 'true'
         uses: actions/checkout@v4
 
-      # Fleet kit v1: Node 24 + pnpm (version from `packageManager`), then
+      # Fleet kit v1: Node 26 + pnpm (version from `packageManager`), then
       # `pnpm install --frozen-lockfile` (retried) on the runner's persistent
       # pnpm store; no archive cache.
       - name: Set up toolchain and install
         if: steps.superseded.outputs.skip != 'true'
         uses: https://git.forgegraf.com/gmackie/ci-actions/fleet/setup@ddd693744c0254b1cb078eec0e4d5a1bc38f57eb
         with:
-          node-version: 24
-          registry-token: ${{ secrets.FG_REGISTRY_TOKEN }}
-          turbo-token: ${{ secrets.TURBO_TOKEN }}
-          turbo-team: ci
+          node-version: 26.13.1
 
       - if: steps.superseded.outputs.skip != 'true'
         run: pnpm lint 2>&1 | tee -a "$RUNNER_TEMP/ci.log"

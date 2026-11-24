@@ -9,8 +9,11 @@ const JWKS_TTL_MS = 5 * 60 * 1000;
 export type AccessFailure = "missing" | "malformed" | "algorithm" | "unknown_key" | "signature" | "issuer" | "audience" | "expired" | "not_yet_valid" | "no_email";
 
 export class AccessError extends Error {
-  constructor(readonly reason: AccessFailure) {
+  readonly reason: AccessFailure;
+
+  constructor(reason: AccessFailure) {
     super(reason);
+    this.reason = reason;
   }
 }
 

@@ -1,7 +1,12 @@
 /** A content-free API error: a fixed code and message, never request content. */
 export class ApiError extends Error {
-  constructor(readonly status: number, readonly code: string, message: string) {
+  readonly status: number;
+  readonly code: string;
+
+  constructor(status: number, code: string, message: string) {
     super(message);
+    this.status = status;
+    this.code = code;
   }
 }
 

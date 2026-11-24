@@ -2,7 +2,7 @@
 {
   "name": "hall-monitor-telemetry-test",
   "main": "./entry.ts",
-  "compatibility_date": "2026-10-01",
+  "compatibility_date": "2026-11-17",
   "compatibility_flags": ["nodejs_compat"],
   "durable_objects": {
     "bindings": [{ "name": "AGGREGATES", "class_name": "TelemetryAggregateStore" }]

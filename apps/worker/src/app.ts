@@ -258,7 +258,7 @@ async function evaluateBatch(request: Request, env: Env, ctx?: ExecutionContext)
     throw new HttpError("invalid_request", "idempotency keys must be unique within a batch");
   }
 
-  const results: BatchEvaluationItem[] = new Array(requests.length);
+  const results: BatchEvaluationItem[] = [];
   let next = 0;
   const worker = async () => {
     for (let index = next++; index < requests.length; index = next++) {

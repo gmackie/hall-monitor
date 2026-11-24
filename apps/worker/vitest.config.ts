@@ -1,5 +1,6 @@
+import { defineProject } from "vitest/config";
 import { generateKeyPairSync, type JsonWebKey, randomBytes } from "node:crypto";
-import { defineWorkersProject } from "@cloudflare/vitest-pool-workers/config";
+import { cloudflareTest } from "@cloudflare/vitest-plugin";
 
 /**
  * Fresh signing keys for every run, so no private key is ever committed. The Worker under test
@@ -39,31 +40,29 @@ const tenantModes = {
   tenant_enforced: "enforce",
 };
 
-export default defineWorkersProject({
+export default defineProject({
+  plugins: [cloudflareTest({
+    main: "./test/entry.ts",
+    wrangler: { configPath: "./test/wrangler.test.jsonc" },
+    miniflare: {
+      bindings: {
+        HM_TRUSTED_ISSUERS: JSON.stringify(issuers),
+        HM_POLICY_OVERLAYS: JSON.stringify(overlays),
+        HM_TENANT_MODES: JSON.stringify(tenantModes),
+        HM_DIGEST_KEY: randomBytes(32).toString("hex"),
+        TEST_SIGNING_KEYS: JSON.stringify({
+          educateos: { iss: issuers[0]!.iss, alg: "EdDSA", jwk: educateos.privateJwk },
+          playtrek: { iss: issuers[1]!.iss, alg: "ES256", jwk: playtrek.privateJwk },
+          rogue: { iss: issuers[0]!.iss, alg: "EdDSA", jwk: rogue.privateJwk },
+          schoolos: { iss: retiredSchoolosIssuer, alg: "EdDSA", jwk: educateos.privateJwk },
+        }),
+      },
+    },
+  })],
   test: {
     name: "worker",
     include: ["test/**/*.test.ts"],
-    poolOptions: {
-      workers: {
-        // Serialize files in this runtime; storage remains isolated between tests.
-        singleWorker: true,
-        main: "./test/entry.ts",
-        wrangler: { configPath: "./test/wrangler.test.jsonc" },
-        miniflare: {
-          bindings: {
-            HM_TRUSTED_ISSUERS: JSON.stringify(issuers),
-            HM_POLICY_OVERLAYS: JSON.stringify(overlays),
-            HM_TENANT_MODES: JSON.stringify(tenantModes),
-            HM_DIGEST_KEY: randomBytes(32).toString("hex"),
-            TEST_SIGNING_KEYS: JSON.stringify({
-              educateos: { iss: issuers[0]!.iss, alg: "EdDSA", jwk: educateos.privateJwk },
-              playtrek: { iss: issuers[1]!.iss, alg: "ES256", jwk: playtrek.privateJwk },
-              rogue: { iss: issuers[0]!.iss, alg: "EdDSA", jwk: rogue.privateJwk },
-              schoolos: { iss: retiredSchoolosIssuer, alg: "EdDSA", jwk: educateos.privateJwk },
-            }),
-          },
-        },
-      },
-    },
+    setupFiles: ["../reset-test-storage.ts"],
+    fileParallelism: false,
   },
 });

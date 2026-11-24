@@ -13,7 +13,7 @@
     "@gmacko/hall-monitor-temporal-analytics": "workspace:*"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "catalog:",
+    "@cloudflare/vitest-plugin": "catalog:",
     "@cloudflare/workers-types": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",

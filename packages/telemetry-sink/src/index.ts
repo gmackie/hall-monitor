@@ -35,11 +35,11 @@ async function hmacKey(secret: string) {
   return crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
 }
 
-function signedInputFor(domain: string, tenant: string, timestamp: number, json: string): Uint8Array {
+function signedInputFor(domain: string, tenant: string, timestamp: number, json: string) {
   return encoder.encode(domain + "\n" + tenant + "\n" + timestamp + "\n" + json);
 }
 
-function signedInput(tenant: string, timestamp: number, json: string): Uint8Array {
+function signedInput(tenant: string, timestamp: number, json: string) {
   return signedInputFor("hall-monitor-telemetry-v1", tenant, timestamp, json);
 }
 
@@ -47,7 +47,7 @@ function hex(bytes: Uint8Array): string {
   return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function bytesOfHex(input: string): Uint8Array {
+function bytesOfHex(input: string) {
   return Uint8Array.from(input.match(/.{2}/g) ?? [], (pair) => Number.parseInt(pair, 16));
 }
 
@@ -337,6 +337,6 @@ export async function sendDeliveryV2(
     const outcome = await Promise.race([attempt, timeout]);
     return outcome === "timeout" ? { kind: "retry", reason: "timeout" } : outcome;
   } finally {
-    clearTimeout(timer);
+    if (timer !== undefined) clearTimeout(timer);
   }
 }

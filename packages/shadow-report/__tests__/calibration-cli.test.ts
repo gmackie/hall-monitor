@@ -8,7 +8,7 @@ import { expect, it } from "vitest";
 it("creates a label-free synthetic draft and separate private packet/key without overwriting evidence", () => {
   const dir = mkdtempSync(join(tmpdir(), "hm-calibration-"));
   const script = fileURLToPath(new URL("../../../scripts/calibration.ts", import.meta.url));
-  const run = (...args: string[]) => spawnSync(process.execPath, ["--experimental-transform-types", "--disable-warning=ExperimentalWarning", script, ...args],
+  const run = (...args: string[]) => spawnSync(process.execPath, ["--disable-warning=ExperimentalWarning", script, ...args],
     { encoding: "utf8", timeout: 10_000 });
   try {
     const study = join(dir, "study.json"), packet = join(dir, "packet.json"), key = join(dir, "key.json");

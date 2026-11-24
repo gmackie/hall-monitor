@@ -21,12 +21,14 @@ export type ClefFailureKind = "rate_limited" | "unavailable" | "rejected";
 export class ClefTransportError extends Error {
   override readonly name = "ClefTransportError";
 
+  readonly kind: ClefFailureKind;
+  readonly status?: number | undefined;
+
   /** Creates an error of the given kind with an optional HTTP status. */
-  constructor(
-    readonly kind: ClefFailureKind,
-    readonly status?: number,
-  ) {
+  constructor(kind: ClefFailureKind, status?: number) {
     super(status === undefined ? `Clef request failed: ${kind}` : `Clef request failed: ${kind} (HTTP ${status})`);
+    this.kind = kind;
+    this.status = status;
   }
 }
 

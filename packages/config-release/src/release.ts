@@ -58,8 +58,11 @@ export function releaseObjectKey(digest: string): string {
 
 /** Raised when a release fails to parse or verify; `reason` is a fixed code, safe to log. */
 export class ConfigReleaseError extends Error {
-  constructor(readonly reason: "invalid" | "forbidden_key" | "same_person" | "digest_mismatch") {
+  readonly reason: "invalid" | "forbidden_key" | "same_person" | "digest_mismatch";
+
+  constructor(reason: ConfigReleaseError["reason"]) {
     super(`config release ${reason}`);
+    this.reason = reason;
   }
 }
 
